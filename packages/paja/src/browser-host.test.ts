@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import { PAJA_DEV_SIGNER_PUBKEY, createPajaAdapter } from './browser-adapter.js';
+import { createPajaHostConfig, normalizePajaOptions } from './options.js';
+
 describe('@kehto/paja browser host runtime source guards', () => {
   it('preserves resolved pointer identity when the runtime iframe finishes loading', () => {
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
@@ -118,6 +121,28 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(adapterSource).not.toContain('paja.social');
     expect(hostSource).toContain('async function reportTargetCorsDiagnostic(state: PajaBrowserState): Promise<void>');
     expect(hostSource).toContain('startFrameNavigation(state, context);\n    void reportTargetCorsDiagnostic(state);');
+  });
+
+  it('uses the selected development signer identity before a fixed simulation identity', () => {
+    const simulationPubkey = 'c'.repeat(64);
+    const simulation = normalizePajaOptions({
+      targetUrl: 'http://127.0.0.1:5173',
+      simulation: { identity: { mode: 'fixed', pubkey: simulationPubkey } },
+    }).simulation;
+    const config = createPajaHostConfig(normalizePajaOptions({
+      targetUrl: 'http://127.0.0.1:5173',
+      simulation: { identity: { mode: 'fixed', pubkey: simulationPubkey } },
+    }));
+    const adapter = createPajaAdapter(
+      config,
+      () => simulation,
+      () => {},
+      () => true,
+      { getSigner: () => null, getMethod: () => 'dev', getPubkey: () => null },
+    );
+
+    expect(adapter.auth.getUserPubkey()).toBe(PAJA_DEV_SIGNER_PUBKEY);
+    expect(adapter.auth.getSigner()?.getPublicKey()).toBe(PAJA_DEV_SIGNER_PUBKEY);
   });
 
   it('clears stale single-frame ownership before target reload readiness transitions', () => {
