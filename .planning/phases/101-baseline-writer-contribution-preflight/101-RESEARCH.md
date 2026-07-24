@@ -296,22 +296,18 @@ Sources: [NAP-IDENTITY](https://raw.githubusercontent.com/napplet/naps/6461e4b37
 | Writer upload omits a rail. | Planned call supplies `rail: "blossom"`. | Phase 104 after Paja dependency and explicit approval. | Requests the selected host-owned rail without giving Writer direct authority. [VERIFIED: local Writer source inspection] [CITED: https://raw.githubusercontent.com/napplet/naps/a7cc17463cbf5d9cb87884b31071bc4fc826034c/naps/NAP-UPLOAD.md] |
 | Historical upstream check at `d4ba157`. | Fresh upstream check at source-branch creation. | Required immediately before Paja source work. | Prevents implementation from omitting new upstream Paja work such as the target-CORS diagnostic. [VERIFIED: GitHub API and Phase 101 CONTEXT.md] |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **What is the canonical Writer repository URL and default branch?**
-   - What we know: Writer has no configured remote; local `master@3a43897` is explicitly provisional. [VERIFIED: local Writer git inspection]
-   - What's unclear: The upstream URL, default branch, whether the required integration branch naming has repository-specific rules, and the authoritative base SHA. [VERIFIED: Phase 101 CONTEXT.md]
-   - Recommendation: Make all four fields required `BLOCKED` entries in `101-WRITER-CONTRIBUTION-PLAN.md`; no Writer remote or worktree command runs until the user supplies/approves them. [VERIFIED: Phase 101 CONTEXT.md]
+All three values are intentionally unavailable external prerequisites for Phase 101. The phase resolves them only by failing closed: each remains `BLOCKED` until its external source is available, and no value is inferred or invented.
 
-2. **Which exact Paja implementation commit/artifact will Writer consume?**
-   - What we know: Paja must implement/verify the standard identity, outbox, resource, and upload functionality first. [VERIFIED: Phase 101 CONTEXT.md]
-   - What's unclear: The Phase 102/103 completion SHA or released/stacked artifact does not yet exist. [VERIFIED: ROADMAP.md]
-   - Recommendation: Treat it as a second approval-packet blocking field, then run Paja from that exact implementation worktree against Writer's target URL without adding cross-repository links. [VERIFIED: Phase 101 CONTEXT.md]
+1. **Canonical Writer repository URL, default branch, naming rules, and authoritative base SHA**
+   - Resolution for Phase 101: `BLOCKED` — intentionally unavailable external prerequisite. Writer has no configured remote, and local `master@3a43897` remains comparison-only. No Writer remote or worktree command runs until the Phase 104 gate refreshes and verifies the canonical values. [VERIFIED: Phase 101 CONTEXT.md]
 
-3. **Which exact Writer test seams should own integration behavior?**
-   - What we know: Writer has Vitest tests beside small integration/UI modules, while the current mention/upload orchestration is in `src/main.ts`. [VERIFIED: local Writer source structure]
-   - What's unclear: The canonical remote may have moved its test architecture before approval. [VERIFIED: local Writer git inspection]
-   - Recommendation: Tentatively extract a pure `src/integrations/followed-profiles.ts` reducer plus `src/integrations/followed-profiles.test.ts`; revalidate the file list against the approved canonical base before edits. [VERIFIED: local Writer source structure]
+2. **Exact Paja implementation commit or consumable artifact**
+   - Resolution for Phase 101: `BLOCKED` — intentionally unavailable external prerequisite. The exact Phase 102/103 completion SHA or released/stacked artifact does not yet exist; Phase 101 records the dependency slot without assigning a value. [VERIFIED: ROADMAP.md]
+
+3. **Exact canonical-Writer source and test seams**
+   - Resolution for Phase 101: `BLOCKED` — intentionally unavailable external prerequisite. The canonical remote may have moved the observed local architecture, so the Phase 101 plan records only tentative scope and requires Phase 104 revalidation against the refreshed canonical base before edits. [VERIFIED: Phase 101 CONTEXT.md]
 
 ## Environment Availability
 

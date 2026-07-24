@@ -19,17 +19,17 @@ created: 2026-07-24
 |----------|-------|
 | **Framework** | Read-only Git/GitHub evidence commands plus markdown static checks |
 | **Config file** | none — Phase 101 creates planning/audit artifacts only |
-| **Quick run command** | `git diff --check -- .planning/phases/101-baseline-writer-contribution-preflight` |
-| **Full suite command** | `git diff --check -- .planning/phases/101-baseline-writer-contribution-preflight && test -f .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md && test -f .planning/phases/101-baseline-writer-contribution-preflight/101-WRITER-CONTRIBUTION-PLAN.md` |
+| **Quick run command** | `test -f .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md && test -f .planning/phases/101-baseline-writer-contribution-preflight/101-WRITER-CONTRIBUTION-PLAN.md && ! rg -n '[[:blank:]]+$' .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md && ! rg -n '[[:blank:]]+$' .planning/phases/101-baseline-writer-contribution-preflight/101-WRITER-CONTRIBUTION-PLAN.md && git diff --check -- .planning/phases/101-baseline-writer-contribution-preflight` |
+| **Full suite command** | `test -f .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md && test -f .planning/phases/101-baseline-writer-contribution-preflight/101-WRITER-CONTRIBUTION-PLAN.md && rg -n 'd4ba157dfb14876f878cb9055da3d17150d0b01d|upstream/main|Paja|Writer snapshot|UTC|comparison-only|Blocking Preconditions' .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md && rg -n 'BLOCKED|approve Writer implementation|empty pubkey for signed-out state|no polling|no private-key/signing exposure|Writer must never assign remote metadata or upload-server URLs directly to media elements|conformant planned behavior|draft-spec gap' .planning/phases/101-baseline-writer-contribution-preflight/101-WRITER-CONTRIBUTION-PLAN.md && ! rg -n '[[:blank:]]+$' .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md && ! rg -n '[[:blank:]]+$' .planning/phases/101-baseline-writer-contribution-preflight/101-WRITER-CONTRIBUTION-PLAN.md && git diff --check -- .planning/phases/101-baseline-writer-contribution-preflight` |
 | **Estimated runtime** | ~5 seconds, excluding read-only remote evidence refresh |
 
 ---
 
 ## Sampling Rate
 
-- **After every task commit:** Run `git diff --check -- .planning/phases/101-baseline-writer-contribution-preflight`
-- **After every plan wave:** Refresh Kehto upstream and Writer read-only evidence, then compare it with `101-BASELINE-AUDIT.md`
-- **Before `/gsd-verify-work`:** Both required artifacts must exist, static markers must pass, and Writer mutation evidence must remain absent
+- **After every task commit:** Run the quick command, including direct trailing-whitespace checks on both created artifacts.
+- **After every plan wave:** Refresh Kehto upstream and Writer read-only evidence, then compare it with `101-BASELINE-AUDIT.md`.
+- **Before `/gsd-verify-work`:** Both required artifacts must exist, static markers must pass, Writer mutation evidence must remain absent, and Phase 101 Writer authorization must be `BLOCKED/PENDING`.
 - **Max feedback latency:** 30 seconds for local checks; remote SHA refresh may take longer
 
 ---
@@ -38,8 +38,8 @@ created: 2026-07-24
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 101-01-01 | 01 | 1 | PRE-01 | T-101-01 / T-101-02 | Dirty Writer WIP remains outside milestone work; canonical refs are verified before use | audit | `test -f .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md && git diff --check -- .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md` | ❌ W0 | ⬜ pending |
-| 101-01-02 | 01 | 1 | PRE-02 | T-101-03 / T-101-04 | Writer plan keeps network/signing authority in Paja and visibly stops before source mutation | static | `rg -n 'BLOCKED|approve Writer implementation|feat/paja-social-blossom-integration|identity.getFollows|outbox.query|rail: "blossom"' .planning/phases/101-baseline-writer-contribution-preflight/101-WRITER-CONTRIBUTION-PLAN.md` | ❌ W0 | ⬜ pending |
+| 101-01-01 | 01 | 1 | PRE-01 | T-101-01 / T-101-02 | Dirty Writer WIP remains outside milestone work; canonical refs are verified before use | audit | `test -f .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md && rg -n 'd4ba157dfb14876f878cb9055da3d17150d0b01d|upstream/main|Paja|Writer snapshot|UTC|comparison-only|Blocking Preconditions' .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md && ! rg -n '[[:blank:]]+$' .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md && git diff --check -- .planning/phases/101-baseline-writer-contribution-preflight/101-BASELINE-AUDIT.md` | ❌ W0 | ⬜ pending |
+| 101-01-02 | 01 | 1 | PRE-02 | T-101-03 / T-101-04 | Writer plan keeps network/signing authority in Paja, states D-15/D-17 constraints, and visibly stops before source mutation | static | `test -f .planning/phases/101-baseline-writer-contribution-preflight/101-WRITER-CONTRIBUTION-PLAN.md && rg -n 'BLOCKED|approve Writer implementation|feat/paja-social-blossom-integration|identity.getFollows|outbox.query|rail: "blossom"|empty pubkey for signed-out state|no polling|no private-key/signing exposure|Writer must never assign remote metadata or upload-server URLs directly to media elements|conformant planned behavior|draft-spec gap' .planning/phases/101-baseline-writer-contribution-preflight/101-WRITER-CONTRIBUTION-PLAN.md && ! rg -n '[[:blank:]]+$' .planning/phases/101-baseline-writer-contribution-preflight/101-WRITER-CONTRIBUTION-PLAN.md && git diff --check -- .planning/phases/101-baseline-writer-contribution-preflight/101-WRITER-CONTRIBUTION-PLAN.md` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -57,8 +57,8 @@ created: 2026-07-24
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | Writer working tree was not mutated by Phase 101 | PRE-01, PRE-02 | Concurrent external work makes byte-for-byte equality unstable; verification must distinguish outside changes from commands executed by this phase | Review execution transcript and audit timestamps; confirm Phase 101 used only read-only Writer commands and created no Writer remote/ref/worktree/index/source changes |
-| Canonical Writer upstream is resolved before integration setup | PRE-02 | No canonical remote URL/default branch exists in current evidence | At approval checkpoint, supply/verify URL, default branch, and SHA; compare against local provisional `master` before creating clean worktree |
-| User explicitly approves Writer implementation | PRE-02 | Human authorization is intentionally non-automatable | Review required evidence package and provide `approve Writer implementation` or equivalent explicit approval; no automated chain may substitute |
+| Canonical Writer upstream is resolved before integration setup | PRE-02 | No canonical remote URL/default branch exists in current evidence | At the Phase 104 gate, refresh and verify the canonical URL, default branch, and SHA; compare against local provisional `master` before creating the clean worktree. |
+| Actual user approval of Writer implementation | PRE-02 | Human authorization is intentionally non-automatable and D-11 requires the exact Phase 102/103 Paja artifact first | Phase 101 records `BLOCKED/PENDING` only. At the Phase 104 gate, review the refreshed packet containing canonical Writer values and the exact Paja commit/artifact, then provide `approve Writer implementation` or an equivalent explicit approval; no automated chain may substitute. |
 
 ---
 
@@ -71,4 +71,4 @@ created: 2026-07-24
 - [ ] Feedback latency < 30s for local checks
 - [ ] `nyquist_compliant: true` set in frontmatter after validation
 
-**Approval:** pending
+**Approval status:** BLOCKED/PENDING — Phase 101 review is non-authorizing. Actual Writer authorization is deferred to the Phase 104 gate after the canonical base and exact Phase 102/103 Paja artifact are refreshed in the packet.
