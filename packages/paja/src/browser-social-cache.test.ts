@@ -218,4 +218,85 @@ describe('createPajaSocialCache', () => {
     await expect(cache.getFollows(ACCOUNT_A)).resolves.toEqual([FOLLOWED_B]);
     expect(baseQuery).toHaveBeenCalledTimes(1);
   });
+
+  it('adds only cached kind-0 values matching the query filters and their result limit', async () => {
+    const profileA = event('1', FOLLOWED_A, 0, [['t', 'alpha']], 10);
+    const profileB = event('2', FOLLOWED_B, 0, [['t', 'beta']], 9);
+    let queryCount = 0;
+    const baseRouter = createRouter(vi.fn(async () => {
+      queryCount += 1;
+      return { events: queryCount === 1 ? [result(profileA), result(profileB)] : [] };
+    }));
+    const cache = createPajaSocialCache({
+      baseRouter,
+      loadContactList: vi.fn(async () => [event('3', ACCOUNT_A, 3, [['p', FOLLOWED_A], ['p', FOLLOWED_B]])]),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => ACCOUNT_A,
+    });
+    await cache.refreshActiveIdentity();
+    const decorated = cache.decorate(baseRouter);
+
+    await expect(decorated.query([{ ids: [profileA.id] }])).resolves.toEqual({ events: [result(profileA)] });
+    await expect(decorated.query([{ authors: ['f'.repeat(64)] }])).resolves.toEqual({ events: [] });
+    await expect(decorated.query([{ kinds: [1] }])).resolves.toEqual({ events: [] });
+    await expect(decorated.query([{ since: 11 }])).resolves.toEqual({ events: [] });
+    await expect(decorated.query([{ until: 8 }])).resolves.toEqual({ events: [] });
+    await expect(decorated.query([{ '#t': ['missing'] }])).resolves.toEqual({ events: [] });
+    await expect(decorated.query([{ kinds: [0], limit: 1 }])).resolves.toEqual({ events: [result(profileA)] });
+  });
+
+  it('deduplicates cache/base event IDs in favor of base while preserving its degraded result exactly', async () => {
+    const cached = event('1', FOLLOWED_A, 0, [], 10);
+    const cachedOnly = event('2', FOLLOWED_A, 0, [], 9);
+    let queryCount = 0;
+    const baseEntry = { event: cached, sidecar: { relayHints: ['wss://base.example'] } };
+    const baseRouter = createRouter(vi.fn(async () => {
+      queryCount += 1;
+      return queryCount === 1
+        ? { events: [result(cached), result(cachedOnly)] }
+        : { events: [baseEntry], incomplete: true, error: 'relay timeout' };
+    }));
+    const cache = createPajaSocialCache({
+      baseRouter,
+      loadContactList: vi.fn(async () => [event('3', ACCOUNT_A, 3, [['p', FOLLOWED_A]])]),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => ACCOUNT_A,
+    });
+    await cache.refreshActiveIdentity();
+
+    await expect(cache.decorate(baseRouter).query([{ kinds: [0], authors: [FOLLOWED_A] }])).resolves.toEqual({
+      events: [baseEntry, result(cachedOnly)],
+      incomplete: true,
+      error: 'relay timeout',
+    });
+  });
+
+  it('delegates every non-query router operation to the base router unchanged', async () => {
+    const getEvent = vi.fn(async () => ({}));
+    const publish = vi.fn(async () => ({ ok: true }));
+    const resolveRelays = vi.fn(async () => ({ relays: [], source: 'fallback' as const }));
+    const subscribe = vi.fn(() => ({ close: vi.fn() }));
+    const baseRouter = createRouter(vi.fn(async () => ({ events: [] })));
+    baseRouter.getEvent = getEvent;
+    baseRouter.publish = publish;
+    baseRouter.resolveRelays = resolveRelays;
+    baseRouter.subscribe = subscribe;
+    const decorated = createPajaSocialCache({
+      baseRouter,
+      loadContactList: vi.fn(async () => []),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => ACCOUNT_A,
+    }).decorate(baseRouter);
+    const sink: OutboxSubscriptionSink = { event() {}, closed() {} };
+
+    await decorated.getEvent?.('1'.repeat(64));
+    decorated.subscribe([{ kinds: [0] }], { timeoutMs: 1 }, sink).close();
+    await decorated.publish({ kind: 1, content: '', tags: [], created_at: 1 });
+    await decorated.resolveRelays({ pubkey: ACCOUNT_A });
+
+    expect(getEvent).toHaveBeenCalledWith('1'.repeat(64));
+    expect(subscribe).toHaveBeenCalledWith([{ kinds: [0] }], { timeoutMs: 1 }, sink);
+    expect(publish).toHaveBeenCalledWith({ kind: 1, content: '', tags: [], created_at: 1 });
+    expect(resolveRelays).toHaveBeenCalledWith({ pubkey: ACCOUNT_A });
+  });
 });
