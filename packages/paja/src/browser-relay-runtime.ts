@@ -98,6 +98,43 @@ function subscribeLive(
   };
 }
 
+function queryLiveBounded(
+  pool: SimplePool,
+  relayUrls: string[],
+  filter: NostrFilter,
+  maxWaitMs: number,
+  limit: number,
+): Promise<NostrEvent[]> {
+  if (limit === 0) return Promise.resolve([]);
+  return new Promise((resolve) => {
+    const events: NostrEvent[] = [];
+    let settled = false;
+    let closeRequested = false;
+    let subscription: ReturnType<SimplePool['subscribeEose']> | undefined;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve(events);
+    };
+    const close = () => {
+      closeRequested = true;
+      if (!subscription) return;
+      void subscription.close('paja query limit reached').then(finish, finish);
+    };
+    subscription = pool.subscribeEose(relayUrls, filter as Filter, {
+      label: 'kehto-paja-runtime',
+      maxWait: maxWaitMs,
+      onevent(event) {
+        if (events.length >= limit) return;
+        events.push(event as NostrEvent);
+        if (events.length === limit) close();
+      },
+      onclose: finish,
+    });
+    if (closeRequested) close();
+  });
+}
+
 async function queryLive(
   pool: SimplePool,
   relayUrls: string[],
@@ -105,12 +142,14 @@ async function queryLive(
   maxWaitMs = PAJA_LIVE_QUERY_WAIT_MS,
 ): Promise<NostrEvent[]> {
   const activeFilters = filters.length > 0 ? filters : [{} as NostrFilter];
-  const batches = await Promise.all(activeFilters.map((filter) =>
-    pool.querySync(relayUrls, filter as Filter, {
+  const batches = await Promise.all(activeFilters.map((filter) => {
+    const limit = typeof filter.limit === 'number' && filter.limit >= 0 ? filter.limit : undefined;
+    if (limit !== undefined) return queryLiveBounded(pool, relayUrls, filter, maxWaitMs, limit);
+    return pool.querySync(relayUrls, filter as Filter, {
       label: 'kehto-paja-runtime',
       maxWait: maxWaitMs,
-    }) as Promise<NostrEvent[]>,
-  ));
+    }) as Promise<NostrEvent[]>;
+  }));
   const out = new Map<string, NostrEvent>();
   for (const event of batches.flat()) out.set(event.id, event);
   return [...out.values()].sort((a, b) => b.created_at - a.created_at);
@@ -286,6 +325,7 @@ export function createPajaContactListLoader(
     const candidates = await backend.query(await getBootstrapRelayUrls(getSimulation, signerProvider), [{
       kinds: [PAJA_CONTACT_LIST_KIND],
       authors: [pubkey],
+      limit: PAJA_CONTACT_LIST_CANDIDATE_LIMIT,
     }], PAJA_LIVE_QUERY_WAIT_MS);
     return candidates
       .filter((event) => event.kind === PAJA_CONTACT_LIST_KIND && event.pubkey.toLowerCase() === pubkey.toLowerCase())
