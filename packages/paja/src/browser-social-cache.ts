@@ -120,7 +120,7 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
         const base = await router.query(filters, queryOptions);
         const activePubkey = normalizePubkey(options.getActivePubkey() ?? '');
         const snapshot = activePubkey ? snapshots.get(activePubkey) : undefined;
-        const cached = snapshot?.profiles.filter((entry) => matchesAnyFilter(entry.event, filters)) ?? [];
+        const cached = matchingCachedProfiles(snapshot?.profiles ?? [], filters);
         return mergeResult(base, cached);
       },
       subscribe: router.subscribe.bind(router),
@@ -174,6 +174,22 @@ function contactPubkeys(event: NostrEvent | undefined): string[] {
 function profileResults(result: OutboxResult, follows: readonly string[]): RelayEventResult[] {
   const followed = new Set(follows);
   return result.events.filter(({ event }) => event.kind === 0 && followed.has(normalizePubkey(event.pubkey) ?? ''));
+}
+
+function matchingCachedProfiles(profiles: readonly RelayEventResult[], filters: Parameters<OutboxRouter['query']>[0]): RelayEventResult[] {
+  if (filters.length === 0) return [...profiles];
+  const matched = new Map<string, RelayEventResult>();
+  for (const filter of filters) {
+    const limit = typeof filter.limit === 'number' && filter.limit >= 0 ? filter.limit : undefined;
+    let count = 0;
+    for (const entry of profiles) {
+      if (!matchesAnyFilter(entry.event, [filter])) continue;
+      if (limit !== undefined && count >= limit) continue;
+      count += 1;
+      if (!matched.has(entry.event.id)) matched.set(entry.event.id, entry);
+    }
+  }
+  return [...matched.values()];
 }
 
 function mergeResult(base: OutboxResult, cached: RelayEventResult[]): OutboxResult {
