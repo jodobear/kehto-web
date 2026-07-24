@@ -71,7 +71,7 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
     const candidates = await options.loadContactList(capturedPubkey);
     const verified: NostrEvent[] = [];
     for (const candidate of candidates) {
-      if (candidate.kind !== 3 || normalizePubkey(candidate.pubkey) !== capturedPubkey) continue;
+      if (!isContactCandidate(candidate, capturedPubkey)) continue;
       try {
         if (await options.verifyEvent(candidate)) verified.push(candidate);
       } catch {
@@ -141,22 +141,30 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
   };
 }
 
-function normalizePubkey(value: string): string | null {
-  const trimmed = value.trim();
-  return HEX_PUBKEY.test(trimmed) ? trimmed.toLowerCase() : null;
+function normalizePubkey(value: unknown): string | null {
+  return typeof value === 'string' && HEX_PUBKEY.test(value) ? value.toLowerCase() : null;
+}
+
+function isContactCandidate(candidate: unknown, capturedPubkey: string): candidate is NostrEvent {
+  if (typeof candidate !== 'object' || candidate === null) return false;
+  const event = candidate as Partial<NostrEvent>;
+  return event.kind === 3 && normalizePubkey(event.pubkey) === capturedPubkey;
 }
 
 function selectReplacement(events: NostrEvent[]): NostrEvent | undefined {
-  return [...events].sort((left, right) =>
-    right.created_at - left.created_at || left.id.localeCompare(right.id),
-  )[0];
+  return [...events].sort((left, right) => {
+    const timestampOrder = right.created_at - left.created_at;
+    if (timestampOrder !== 0) return timestampOrder;
+    if (left.id === right.id) return 0;
+    return left.id < right.id ? -1 : 1;
+  })[0];
 }
 
 function contactPubkeys(event: NostrEvent | undefined): string[] {
-  if (!event) return [];
+  if (!event || !Array.isArray(event.tags)) return [];
   const follows = new Set<string>();
   for (const tag of event.tags) {
-    if (tag[0] !== 'p' || typeof tag[1] !== 'string') continue;
+    if (!Array.isArray(tag) || tag[0] !== 'p') continue;
     const pubkey = normalizePubkey(tag[1]);
     if (pubkey) follows.add(pubkey);
   }
