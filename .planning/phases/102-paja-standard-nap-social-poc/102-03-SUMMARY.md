@@ -138,8 +138,16 @@ The recorded Phase 102 authority remains applicable: NAP-IDENTITY at `6461e4b37c
 - **Verification:** Paja TypeScript check completed successfully.
 - **Committed in:** Not applicable; verification-environment adjustment only.
 
-**Total deviations:** 2 (1 correctness hardening, 1 blocking environment adjustment).
-**Impact on plan:** Both corrections preserve the planned private standard-NAP composition and add no public API, ACL, relay-client, Writer, or Blossom scope.
+**3. [Rule 1 - Metadata] Corrected the plan-decision phase labels in state tracking**
+- **Found during:** Post-summary state update
+- **Issue:** The state helper recorded the two Plan 03 decisions as `[Phase ?]` because its `--summary` invocation supplies no phase identifier.
+- **Fix:** Corrected both labels to `[Phase 102]` before committing the state/roadmap metadata.
+- **Files modified:** `.planning/STATE.md`
+- **Verification:** Both new decision entries identify Phase 102.
+- **Committed in:** `e819f7d4`
+
+**Total deviations:** 3 (1 correctness hardening, 1 blocking environment adjustment, 1 metadata correction).
+**Impact on plan:** All corrections preserve the planned private standard-NAP composition and add no public API, ACL, relay-client, Writer, or Blossom scope.
 
 ## Issues Encountered
 
