@@ -33,8 +33,10 @@
 
 ## Project Constraints (from CLAUDE.md)
 
-- Start Phase 102 source work from a clean implementation branch based on a freshly verified `kehto/web` `upstream/main`, never from this planning branch; retain planning and Graphify artifacts outside upstream implementation PRs. [VERIFIED: CLAUDE.md]
+- Planning integrates `upstream/main` before `/gsd-execute-phase`; isolated executors start from the orchestrator-provided HEAD. A later focused upstream contribution selects only Phase 102 implementation, test, documentation, and changeset commits onto a clean `upstream/main` base; planning and Graphify artifacts stay out of it. [VERIFIED: user revision instruction]
 - Preserve the existing unrelated `.planning/config.json` auto-chain change; stage only the Phase 102 files explicitly and never discard work not created by this phase. [VERIFIED: git status and CLAUDE.md]
+- The integrated `upstream/main` baseline is `738c3ce5aa398a413e50155ea505bd96bb6792e3`; it includes the target CORS probe introduced by `0af445bf73d893eca9ff657ddcd646794dbfa3fe` and subsequent Paja CORS documentation. Social-cache work must retain `reportTargetCorsDiagnostic` boot wiring, make the E2E fixture accept `Origin: null`, and preserve rather than duplicate the upstream CORS documentation. [VERIFIED: upstream/main]
+- `@kehto/paja` is `0.8.2` on the integrated upstream baseline, while `docs/packages/paja.md` still states `0.8.1`; `scripts/audit-docs.mjs` requires exact equality, so Plan 04 repairs that documentation row as baseline documentation rather than a social-cache release change. [VERIFIED: upstream/main packages/paja/package.json, docs/packages/paja.md, scripts/audit-docs.mjs]
 - Before any NAP/NIP-5D code or test change, check the owning `napplet/naps` document, record the exact ref, and report conformant behavior, upstream drift, or an intentional spec gap. The published `@napplet/nap/*/types` contract outranks Kehto-local code. [VERIFIED: CLAUDE.md]
 - Keep NAP-SHELL mandatory and distinct from optional domain availability: the shell receiver is ready before one bare `shell.ready`, caches the first `shell.init`, and does not expose a service before the authorized session exists. [VERIFIED: CLAUDE.md] [CITED: https://raw.githubusercontent.com/napplet/naps/master/naps/NAP-SHELL.md]
 - Preserve existing ACL gates: `identity.getFollows` requires `identity:read`; `outbox.query` and its result delivery require `outbox:read`. Do not bypass or weaken those gates for the cache. [VERIFIED: packages/acl/src/resolve.ts]
@@ -60,7 +62,7 @@ The implementation should therefore add one Paja-private social-cache layer, not
 
 **Primary recommendation:** Implement a Paja-internal `browser-social-cache.ts` that is composed into the existing identity provider and `OutboxRouter`, warm it on adapter creation after login, and prove the standard envelopes through the existing services rather than inventing a social protocol. [ASSUMED]
 
-**Protocol status gate:** NAP-IDENTITY is byte-identical at pinned commit `6461e4b37c29dc09a20dff35d9515889c4433874` and current `napplet/naps` master `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`; the pinned commit is an ancestor of master. In contrast, the pinned NAP-OUTBOX commit `4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e` diverges from master and current master contains no `NAP-OUTBOX` path. Treat this as upstream drift: verify the published `@napplet/nap@0.28.0` types still match the pinned OUTBOX wire contract, record the drift in the implementation PR, and do not claim current-master NAP-OUTBOX conformance without an upstream replacement or explicit maintainer decision. [CITED: https://api.github.com/repos/napplet/naps/commits/master] [CITED: https://api.github.com/repos/napplet/naps/compare/6461e4b37c29dc09a20dff35d9515889c4433874...master] [CITED: https://api.github.com/repos/napplet/naps/compare/4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e...master] [CITED: https://api.github.com/repos/napplet/naps/git/trees/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24?recursive=1]
+**Protocol status gate:** The Phase 102 preflight resolves a fresh `napplet/naps` master SHA, compares its NAP-IDENTITY bytes with pinned commit `6461e4b37c29dc09a20dff35d9515889c4433874`, and inspects that same master tree for `naps/NAP-OUTBOX.md`. The adopted disposition is fail-closed: pinned NAP-OUTBOX `4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e` plus installed `@napplet/nap@0.28.0` declarations govern this PoC only when identity bytes match, the current master path is absent, and the named installed identity/outbox declarations exist. Record the dynamic evidence and make no current-master OUTBOX conformance claim. [CITED: https://api.github.com/repos/napplet/naps/commits/master] [CITED: https://api.github.com/repos/napplet/naps/compare/6461e4b37c29dc09a20dff35d9515889c4433874...master] [CITED: https://api.github.com/repos/napplet/naps/compare/4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e...master]
 
 ## Architectural Responsibility Map
 
@@ -79,7 +81,7 @@ The implementation should therefore add one Paja-private social-cache layer, not
 
 | Library / component | Version | Purpose | Why Standard |
 |---------------------|---------|---------|--------------|
-| `@kehto/paja` workspace | `0.8.1` | Owns the browser host, signer controller, relay backend, and service composition. | The Phase requirement is Paja behavior; changing this existing package avoids a parallel host or app API. [VERIFIED: packages/paja/package.json] |
+| `@kehto/paja` workspace | `0.8.2` on integrated `upstream/main` | Owns the browser host, signer controller, relay backend, and service composition. | The Phase requirement is Paja behavior; changing this existing package avoids a parallel host or app API. Plan 04 repairs the stale `0.8.1` package-doc row before the docs audit. [VERIFIED: upstream/main packages/paja/package.json, docs/packages/paja.md] |
 | `@kehto/services` workspace | workspace source | Provides `createIdentityService`, `createOutboxService`, and the relay-pool outbox router. | These are the existing NAP envelope, validation, deduplication, and lifecycle implementations; reuse them rather than fork them. [VERIFIED: packages/services/src/index.ts] |
 | `@napplet/nap` | `0.28.0` installed/locked | Published identity and OUTBOX TypeScript message contract. | Project guardrails require the packaged types as the implementation contract. [VERIFIED: pnpm-lock.yaml] [VERIFIED: node_modules/.pnpm/@napplet+nap@0.28.0/node_modules/@napplet/nap/dist/{identity,outbox}/types.d.ts] |
 | `nostr-tools` | `2.23.3` project dependency | Existing Paja relay pool and Nostr signature verifier. | Paja already uses `SimplePool` and `verifyEvent`; do not add another relay or crypto client. [VERIFIED: package.json] [VERIFIED: packages/paja/src/{browser-adapter,browser-relay-runtime}.ts] |
@@ -335,7 +337,7 @@ The implementation must preserve the existing service names and wire types; this
 | Paja lazily loads and caches follows only, on the first `identity.getFollows` request. | Phase 102 should proactively refresh active-account follows and followed kind-0 events after adapter construction/login. | Phase 102 planned. | Meets PAJA-02 without exposing a new app API. [ASSUMED] [VERIFIED: packages/paja/src/browser-relay-runtime.ts] |
 | Raw Paja contact-list selection sorts only `created_at`. | Apply NIP-01's lowest-event-ID tie rule and signature validation before caching. | Phase 102 planned. | Prevents relay-arrival-dependent follows. [ASSUMED] [CITED: https://raw.githubusercontent.com/nostr-protocol/nips/master/01.md] |
 | Base router alone answers all OUTBOX queries. | A private cache decorator may supplement matching kind-0 results but returns the same standard `OutboxResult` semantics. | Phase 102 planned. | Retains router ownership of partial-result truth and policy. [ASSUMED] |
-| Pinned NAP-OUTBOX draft exists at `4589a8f`. | Current `napplet/naps` master has no OUTBOX spec file; the installed typed contract remains the only packaged implementation reference. | Observed 2026-07-24. | Requires an upstream-drift note and authority decision, not a silent master-conformance claim. [CITED: https://api.github.com/repos/napplet/naps/git/trees/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24?recursive=1] [VERIFIED: node_modules/.pnpm/@napplet+nap@0.28.0/node_modules/@napplet/nap/dist/outbox/types.d.ts] |
+| Pinned NAP-OUTBOX draft exists at `4589a8f`. | The fresh master tree must have no OUTBOX spec file; the installed typed contract remains the packaged implementation reference. | Rechecked by Plan 01 immediately before edits. | Requires an upstream-drift note and authority decision, not a silent master-conformance claim. [VERIFIED: node_modules/.pnpm/@napplet+nap@0.28.0/node_modules/@napplet/nap/dist/outbox/types.d.ts] |
 
 **Deprecated/outdated:** Do not extend `createPajaIdentityProviders()` as the long-lived social feature. Its raw, lazy kind-3-only cache is insufficient for profile prefetch and lacks the required validation/tie behavior. [ASSUMED] [VERIFIED: packages/paja/src/browser-relay-runtime.ts]
 
@@ -349,22 +351,17 @@ The implementation must preserve the existing service names and wire types; this
 | A4 | Cache merge should retain the base result's `incomplete`/`error` exactly, even when cached events add data. | Architecture Patterns | Medium: protocol intent supports it, but the removed current-master OUTBOX document means authority must be confirmed. |
 | A5 | Existing Paja signer-triggered adapter reload is sufficient for Phase 102 cache refresh; no non-reloading `identity.changed` implementation belongs here. | Anti-Patterns | Medium: Phase 105 explicitly owns no-iframe-replacement lifecycle hardening. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Which authority governs NAP-OUTBOX while current `napplet/naps` master has no OUTBOX document?**
-   - What we know: pinned draft `4589a8f` specifies the existing envelope and published `@napplet/nap@0.28.0` types match its query/result fields; the commit is not merged into current master. [VERIFIED: node_modules/.pnpm/@napplet+nap@0.28.0/node_modules/@napplet/nap/dist/outbox/types.d.ts] [CITED: https://api.github.com/repos/napplet/naps/compare/4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e...master]
-   - What's unclear: whether an upstream replacement document or a current maintainer-approved ref supersedes the pinned draft. [CITED: https://api.github.com/repos/napplet/naps/git/trees/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24?recursive=1]
-   - Recommendation: make a first-plan checkpoint record the master SHA/path absence and explicitly adopt the pinned draft plus installed types for this PoC, or stop for the replacement authority. Do not infer a current-master OUTBOX spec. [ASSUMED]
+1. **NAP-OUTBOX authority under current-master drift**
+   - **Adopted disposition:** Pinned NAP-OUTBOX `4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e` plus installed `@napplet/nap@0.28.0` declarations govern the Phase 102 PoC under upstream drift. This disposition permits no current-master conformance claim.
+   - Wave 0 must resolve the current `napplet/naps` master SHA, fetch the exact identity documents and tree for that SHA, confirm the pinned/master NAP-IDENTITY bytes match, and prove `naps/NAP-OUTBOX.md` is absent from that same tree. It must stop if those authority checks or installed declaration checks are unavailable or disagree with this disposition. [VERIFIED: node_modules/.pnpm/@napplet+nap@0.28.0/node_modules/@napplet/nap/dist/{identity,outbox}/types.d.ts]
 
-2. **Should Paja's generic `simulation.cache.mode: "disabled"` disable the required social cache?**
-   - What we know: the simulation configuration defines the mode, but the current Paja relay/identity implementation does not consume it for follows/profile caching. [VERIFIED: packages/paja/src/simulation.ts] [VERIFIED: packages/paja/src/browser-relay-runtime.ts]
-   - What's unclear: whether the simulation control is intended to govern this new required cache. [ASSUMED]
-   - Recommendation: keep the required Phase 102 cache internal and in memory regardless of the generic simulator mode; revisit cache controls with the deferred social-cache-management work. [ASSUMED]
+2. **Generic simulation cache mode**
+   - **Adopted disposition:** The required Phase 102 in-memory social cache ignores generic `simulation.cache.mode`. It remains private, active-account-scoped memory state; cache-control policy remains deferred social-cache-management work. [VERIFIED: packages/paja/src/simulation.ts] [VERIFIED: packages/paja/src/browser-relay-runtime.ts]
 
-3. **How will the required Paja browser test run in this environment?**
-   - What we know: Playwright is installed, but `playwright.config.ts` hardcodes `/usr/bin/chromium` and that executable is absent. [VERIFIED: `./node_modules/.bin/playwright --version`] [VERIFIED: playwright.config.ts]
-   - What's unclear: whether the execution environment can provision system Chromium at that exact path or whether test-infrastructure policy allows a separately reviewed configuration change. [ASSUMED]
-   - Recommendation: treat this as a Wave 0 environment blocker for the final `pnpm test:e2e` gate; do not silently skip browser proof. [ASSUMED]
+3. **Configured Chromium availability**
+   - **Adopted disposition:** `/usr/bin/chromium` is a hard Wave 0 gate. If it is unavailable and noninteractive provisioning cannot establish that exact executable, execution stops with the blocker recorded; no source edits and no substitute browser/configuration are permitted. The final browser proof is not waived. [VERIFIED: playwright.config.ts]
 
 ## Environment Availability
 
@@ -375,11 +372,11 @@ The implementation must preserve the existing service names and wire types; this
 | Vitest binary | Focused Paja unit tests | Yes | `4.1.2` | — [VERIFIED: `./node_modules/.bin/vitest --version`] |
 | Paja relay baseline test | Baseline test command | Yes | 2 tests passed | `./node_modules/.bin/vitest run packages/paja/src/browser-relay-runtime.test.ts` passed. [VERIFIED: local test run] |
 | Playwright package | Browser proof | Yes | `1.59.1` | — [VERIFIED: `./node_modules/.bin/playwright --version`] |
-| `/usr/bin/chromium` | `playwright.config.ts` Chromium launch | No | — | None without system provisioning or an explicitly approved test-infrastructure change. [VERIFIED: playwright.config.ts] |
+| `/usr/bin/chromium` | `playwright.config.ts` Chromium launch | Recheck in Plan 01 | — | No substitute: noninteractive provisioning may establish this exact path; otherwise execution stops before source edits. [VERIFIED: playwright.config.ts] |
 | Live Nostr relay | Unit cache fixtures | Not required | — | Use existing deterministic Paja memory fixtures and mocked base-router results. [VERIFIED: packages/paja/src/browser-relay-runtime.ts] |
 
-**Missing dependencies with no fallback:**
-- System Chromium at `/usr/bin/chromium` for the configured end-to-end browser gate. [VERIFIED: playwright.config.ts]
+**Hard prerequisite with no fallback:**
+- System Chromium at `/usr/bin/chromium` for the configured end-to-end browser gate; Plan 01 rechecks/provisions only that path and stops execution if it remains unavailable. [VERIFIED: playwright.config.ts]
 
 **Missing dependencies with fallback:**
 - None for focused unit tests; existing relay fixtures and mocks avoid live-network dependence. [VERIFIED: packages/paja/src/browser-relay-runtime.ts]
@@ -453,7 +450,7 @@ The implementation must preserve the existing service names and wire types; this
 
 - [NAP-IDENTITY pinned `6461e4b`](https://raw.githubusercontent.com/napplet/naps/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-IDENTITY.md) — standard identity wire direction, result fields, signed-out behavior, push lifecycle, and authority. [CITED: https://raw.githubusercontent.com/napplet/naps/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-IDENTITY.md]
 - [NAP-OUTBOX pinned `4589a8f`](https://raw.githubusercontent.com/napplet/naps/4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e/naps/NAP-OUTBOX.md) — query fields, result semantics, routing, validation, deduplication, and security. [CITED: https://raw.githubusercontent.com/napplet/naps/4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e/naps/NAP-OUTBOX.md]
-- [napplet/naps master commit](https://api.github.com/repos/napplet/naps/commits/master) and [master tree](https://api.github.com/repos/napplet/naps/git/trees/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24?recursive=1) — current master SHA and absence of an OUTBOX document. [CITED: https://api.github.com/repos/napplet/naps/commits/master] [CITED: https://api.github.com/repos/napplet/naps/git/trees/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24?recursive=1]
+- [napplet/naps master commit](https://api.github.com/repos/napplet/naps/commits/master) and its SHA-addressed recursive tree — Plan 01 captures the current master SHA and proves the absence of an OUTBOX document at that exact tree before edits. [CITED: https://api.github.com/repos/napplet/naps/commits/master]
 - [NIP-01](https://raw.githubusercontent.com/nostr-protocol/nips/master/01.md) and [NIP-02](https://raw.githubusercontent.com/nostr-protocol/nips/master/02.md) — replaceable kind ordering and contact-list tag semantics. [CITED: https://raw.githubusercontent.com/nostr-protocol/nips/master/01.md] [CITED: https://raw.githubusercontent.com/nostr-protocol/nips/master/02.md]
 - Local Paja, services, ACL, package-lock, type-contract, config, and test evidence cited inline. [VERIFIED: packages/paja/src] [VERIFIED: packages/services/src] [VERIFIED: packages/acl/src] [VERIFIED: pnpm-lock.yaml]
 
@@ -465,4 +462,4 @@ The implementation must preserve the existing service names and wire types; this
 - Pitfalls: LOW — they derive from direct source inspection and official documents, whose available provider classification was LOW. [VERIFIED: `gsd-tools query classify-confidence --provider webfetch`]
 
 **Research date:** 2026-07-24
-**Valid until:** Re-check `napplet/naps` master, the authoritative OUTBOX replacement decision, `@napplet/nap` package types, `kehto/web` upstream baseline, and Chromium availability immediately before Phase 102 execution. [ASSUMED]
+**Valid until:** Re-check `napplet/naps` master, the authoritative OUTBOX replacement decision, `@napplet/nap` package types, integrated `kehto/web` upstream baseline (including target-CORS diagnostics and the Paja docs row), and Chromium availability immediately before Phase 102 execution. [ASSUMED]

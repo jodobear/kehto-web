@@ -2,7 +2,7 @@
 phase: 102
 slug: paja-standard-nap-social-poc
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-24
 ---
@@ -27,9 +27,9 @@ created: 2026-07-24
 
 ## Sampling Rate
 
-- **After every task commit:** Run focused Phase 102 Vitest files.
-- **After every plan wave:** Run `pnpm type-check && pnpm test:unit`.
-- **Before `/gsd-verify-work`:** `pnpm build`, `pnpm type-check`, `pnpm test:unit`, relevant `pnpm test:e2e`, docs gate when docs change, AI-slop gate.
+- **After every task commit:** Run only the focused Phase 102 Vitest files and package-level build/type check named by that task.
+- **After every plan wave:** Run the affected Paja type check and focused Phase 102 test set; do not run Playwright or repository-wide gates before Plan 04.
+- **Plan 04 final gate:** Run `pnpm build`, `pnpm type-check`, `pnpm test:unit`, `pnpm test:e2e`, `pnpm docs:check`, and the AI-slop gate after all implementation and documentation tasks are complete.
 - **Max feedback latency:** 60 seconds for focused unit checks.
 
 ---
@@ -38,12 +38,14 @@ created: 2026-07-24
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 102-01-01 | 01 | 0 | PAJA-01, PAJA-02, PAJA-03 | T-102-01 | Governing NAP refs and upstream OUTBOX drift recorded before code changes | source/spec gate | `grep -R "4589a8f\|6461e4b" .planning/phases/102-paja-standard-nap-social-poc packages/paja -n` | ✅ research / ❌ implementation note W0 | ⬜ pending |
-| 102-01-02 | 01 | 0 | PAJA-01, PAJA-02, PAJA-03 | — | Browser proof can run or blocker remains explicit | environment | `test -x /usr/bin/chromium && pnpm test:e2e` | ❌ W0 | ⬜ pending |
-| 102-02-01 | 02 | 1 | PAJA-01 | T-102-02 | Follow request remains bound to captured account | unit | `./node_modules/.bin/vitest run packages/services/src/identity-service.test.ts packages/paja/src/browser-social-cache.test.ts` | ❌ social-cache test W0 | ⬜ pending |
-| 102-02-02 | 02 | 1 | PAJA-02 | T-102-03 | Verified kind-3 selection and account-scoped kind-0 warm reject stale writes | unit | `./node_modules/.bin/vitest run packages/paja/src/browser-social-cache.test.ts` | ❌ W0 | ⬜ pending |
-| 102-03-01 | 03 | 2 | PAJA-03 | T-102-04 | Cache merge preserves filters, ID dedupe, `incomplete`, and `error` | unit/integration | `./node_modules/.bin/vitest run packages/paja/src/browser-social-cache.test.ts packages/services/src/outbox-service.test.ts` | ❌ social-cache test W0 | ⬜ pending |
-| 102-03-02 | 03 | 2 | PAJA-01, PAJA-02, PAJA-03 | T-102-05 | Paja exposes only standard identity/outbox services; Writer untouched | static/browser | `git diff --name-only upstream/main...HEAD | grep -E 'writer' && exit 1 || true; pnpm test:e2e` | ✅ static guard / ❌ browser env W0 | ⬜ pending |
+| 102-01-01 | 01 | 0 | PAJA-01, PAJA-02, PAJA-03 | T-102-01, T-102-02 | Current-master/pinned authority and installed type evidence are recorded before source changes | source/spec gate | `test -s .planning/phases/102-paja-standard-nap-social-poc/102-IMPLEMENTATION-NOTE.md && rg -n 'Executable checks|MASTER_SHA|IdentityGetFollows|OutboxQuery|OutboxResult' .planning/phases/102-paja-standard-nap-social-poc/102-IMPLEMENTATION-NOTE.md` | ❌ implementation note W0 | ⬜ pending |
+| 102-01-02 | 01 | 0 | PAJA-01, PAJA-02, PAJA-03 | T-102-03 | Browser proof has the configured executable or execution stops explicitly | environment | `test -x /usr/bin/chromium && /usr/bin/chromium --version` | ❌ W0 | ⬜ pending |
+| 102-02-01 | 02 | 1 | PAJA-01, PAJA-02, PAJA-03 | T-102-05 through T-102-09 | Standard tracer warms a private social cache and builds Paja; its browser fixture also permits the target CORS probe | unit/build | `./node_modules/.bin/vitest run packages/paja/src/browser-social-cache.test.ts && pnpm --filter @kehto/paja build` | ❌ social-cache test | ⬜ pending |
+| 102-02-02 | 02 | 1 | PAJA-01 | T-102-05 | The standard follows provider receives the request-start identity key | unit | `./node_modules/.bin/vitest run packages/services/src/identity-service.test.ts packages/paja/src/browser-social-cache.test.ts` | ✅ identity test / ❌ social-cache test | ⬜ pending |
+| 102-03-01 | 03 | 2 | PAJA-01, PAJA-02 | T-102-10, T-102-11, T-102-14 | Contact selection, account isolation, and refresh generations are deterministic | unit | `./node_modules/.bin/vitest run packages/paja/src/browser-social-cache.test.ts packages/services/src/identity-service.test.ts` | ❌ social-cache test | ⬜ pending |
+| 102-03-02 | 03 | 2 | PAJA-03 | T-102-12, T-102-13 | Cache merge preserves base degradation and the host guard retains standard plus target-CORS boot wiring | unit/static | `./node_modules/.bin/vitest run packages/paja/src/browser-social-cache.test.ts packages/paja/src/browser-host.test.ts packages/services/src/outbox-service.test.ts && pnpm --filter @kehto/paja type-check` | ✅ host/outbox tests / ❌ social-cache test | ⬜ pending |
+| 102-04-01 | 04 | 3 | PAJA-01, PAJA-02, PAJA-03 | T-102-15, T-102-16 | Docs retain target-CORS guidance, repair the Paja package row to 0.8.2, and add one feature changeset | docs | `pnpm docs:check` | ✅ docs surfaces / ❌ changeset | ⬜ pending |
+| 102-04-02 | 04 | 3 | PAJA-01, PAJA-02, PAJA-03 | T-102-17, T-102-18 | Complete Paja implementation passes the required browser-inclusive repository gate | final | `pnpm build && pnpm type-check && pnpm test:unit && pnpm test:e2e && pnpm docs:check && npx --no-install aislop scan -d && git diff --check` | ❌ execution | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -51,11 +53,11 @@ created: 2026-07-24
 
 ## Wave 0 Requirements
 
-- [ ] `packages/paja/src/browser-social-cache.test.ts` — account capture, verified contact selection, kind-0 warm, account isolation, cache/base merge, duplicate IDs, degraded base result semantics.
-- [ ] Paja adapter composition coverage — prove only standard `identity` and `outbox` services consume cache.
-- [ ] `packages/services/src/identity-service.test.ts` deferred-provider regression — captured request pubkey reaches `getFollows` despite later signer changes.
-- [ ] Record explicit authority: NAP-IDENTITY pinned `6461e4b37c29dc09a20dff35d9515889c4433874` is master-conformant; NAP-OUTBOX pinned `4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e` plus `@napplet/nap@0.28.0` types govern PoC under documented upstream drift.
-- [ ] Provision executable `/usr/bin/chromium`, or preserve browser gate as explicit unresolved environment blocker. No silent e2e skip.
+- [ ] Record `.planning/phases/102-paja-standard-nap-social-poc/102-IMPLEMENTATION-NOTE.md` with executable current-master SHA, identity-byte comparison, OUTBOX-path absence, and installed type-contract evidence.
+- [ ] Provision executable `/usr/bin/chromium`, or preserve the browser gate as an explicit unresolved environment blocker. No source edit and no silent e2e skip occur after a failed assertion.
+- [ ] After Plan 01 passes, Plan 02 creates `packages/paja/src/browser-social-cache.test.ts` for account capture, verified contact selection, kind-0 warm, cache/base merge, duplicate IDs, and degraded base result semantics.
+- [ ] Plan 02 adds the deferred-provider regression in `packages/services/src/identity-service.test.ts`; Plan 03 adds the Paja host composition guard for standard services and target-CORS boot wiring.
+- [ ] Plan 04 alone runs the completed browser fixture and the full repository gates.
 
 ---
 

@@ -75,7 +75,7 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 102-01-PLAN.md — Establish the isolated Paja implementation worktree, pinned NAP authority, and required Chromium browser gate.
+- [ ] 102-01-PLAN.md — Record fail-closed current-master NAP authority evidence and establish the required Chromium browser gate before source edits.
 - [ ] 102-02-PLAN.md — Prove one standard identity-to-followed-kind-0 tracer through Paja’s private cache and existing services.
 - [ ] 102-03-PLAN.md — Add deterministic contact validation, account-race, cache/filter, and OUTBOX degradation coverage.
 - [ ] 102-04-PLAN.md — Synchronize Paja docs and release metadata, then run the browser-inclusive full verification chain.
