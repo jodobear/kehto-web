@@ -247,6 +247,34 @@ describe('createPajaSocialCache', () => {
     expect(baseQuery).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps a newer same-account warm snapshot when a delayed getFollows completes', async () => {
+    const delayedFollows = deferred<NostrEvent[]>();
+    const profile = event('p', FOLLOWED_A, 0);
+    let loads = 0;
+    const baseRouter = createRouter(vi.fn(async (filters) => {
+      return filters[0]?.authors?.[0] === FOLLOWED_A
+        ? { events: [result(profile)] }
+        : { events: [] };
+    }));
+    const cache = createPajaSocialCache({
+      baseRouter,
+      loadContactList: vi.fn(() => ++loads === 1
+        ? delayedFollows.promise
+        : Promise.resolve([event('2', ACCOUNT_A, 3, [['p', FOLLOWED_A]])])),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => ACCOUNT_A,
+    });
+
+    const follows = cache.getFollows(ACCOUNT_A);
+    await cache.refreshActiveIdentity();
+    delayedFollows.resolve([event('1', ACCOUNT_A, 3, [['p', FOLLOWED_A]])]);
+
+    await expect(follows).resolves.toEqual([FOLLOWED_A]);
+    await expect(cache.decorate(baseRouter).query([{ kinds: [0], authors: [FOLLOWED_A] }])).resolves.toEqual({
+      events: [result(profile)],
+    });
+  });
+
   it('adds only cached kind-0 values matching the query filters and their result limit', async () => {
     const profileA = event('1', FOLLOWED_A, 0, [['t', 'alpha']], 10);
     const profileB = event('2', FOLLOWED_B, 0, [['t', 'beta']], 9);

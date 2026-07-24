@@ -62,8 +62,13 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
     const existing = snapshots.get(normalizedPubkey);
     if (existing) return [...existing.follows];
 
+    const capturedGeneration = generation;
     const follows = await verifiedFollows(normalizedPubkey);
-    snapshots.set(normalizedPubkey, { follows, profiles: [] });
+    const warmed = snapshots.get(normalizedPubkey);
+    if (warmed) return [...warmed.follows];
+    if (generation === capturedGeneration) {
+      snapshots.set(normalizedPubkey, { follows, profiles: [] });
+    }
     return [...follows];
   }
 
