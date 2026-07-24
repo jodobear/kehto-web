@@ -286,18 +286,30 @@ test('routes standard identity follows and OUTBOX profile queries without a targ
     now: new Date('2026-06-21T00:00:00.000Z'),
   });
 
-  await page.addInitScript((pubkey) => {
-    const host = window as Window & { nostr?: unknown };
-    host.nostr = {
-      getPublicKey: async () => pubkey,
-      getRelays: async () => ({ 'wss://relay.test': { read: true, write: true } }),
-    };
-  }, accountPubkey);
-
   try {
     await page.goto(socialRuntime.url);
     await expect.poll(() => targetServer.requestOrigins.includes('null')).toBe(true);
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().status)).toBe('ready');
+    await page.evaluate((pubkey) => {
+      const host = window as Window & { nostr?: unknown };
+      host.nostr = {
+        getPublicKey: async () => pubkey,
+        getRelays: async () => ({ 'wss://relay.test': { read: true, write: true } }),
+        signEvent: async (event: Record<string, unknown>) => ({
+          ...event,
+          id: '8'.repeat(64),
+          pubkey,
+          sig: '9'.repeat(128),
+          kind: typeof event.kind === 'number' ? event.kind : 1,
+          tags: Array.isArray(event.tags) ? event.tags : [],
+          content: typeof event.content === 'string' ? event.content : '',
+          created_at: typeof event.created_at === 'number' ? event.created_at : Math.floor(Date.now() / 1000),
+        }),
+      };
+    }, accountPubkey);
+    await page.locator('#signer-nip07').click();
+    await expect(page.locator('#signer-status')).toContainText('NIP-07 connected');
+    await expect(page.locator('#signer-status')).toContainText(accountPubkey);
 
     const corsErrorLogged = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
       .some((entry) => entry.type === 'paja.target.cors.error') ?? false);
