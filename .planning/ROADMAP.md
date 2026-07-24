@@ -59,7 +59,10 @@
   1. A maintainer can identify the latest upstream implementation baseline for Kehto, review incoming Paja changes against it, and see Writer's dirty `chore/writer-source-baseline` shortcut WIP, local history, missing remote, and intended upstream baseline classified without any discarded or absorbed work.
   2. A maintainer can review a Writer implementation plan that names the preserved WIP, required remote/upstream setup, dedicated integration branch, Paja dependency, exact standard-NAP changes, tests, and the explicit user-approval checkpoint.
   3. Before user approval, the Writer working tree remains free of source edits for this milestone and the documented contribution strategy keeps planning-only files out of upstream implementation PRs.
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 101-01-PLAN.md — Refresh and record Kehto/Writer baseline evidence, author the blocked Writer contribution plan, and obtain explicit approval.
 
 ### Phase 102: Paja Standard-NAP Social PoC
 **Goal**: A logged-in napplet can discover the active Paja identity, follows, and followed kind-0 profile events through standard NAP interfaces.
@@ -123,7 +126,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 101. Baseline & Writer Contribution Preflight | 0/TBD | Not started | - |
+| 101. Baseline & Writer Contribution Preflight | 0/1 | Not started | - |
 | 102. Paja Standard-NAP Social PoC | 0/TBD | Not started | - |
 | 103. Paja Blossom Rail PoC | 0/TBD | Not started | - |
 | 104. Approved Writer Integration | 0/TBD | Blocked pending explicit user approval | - |
