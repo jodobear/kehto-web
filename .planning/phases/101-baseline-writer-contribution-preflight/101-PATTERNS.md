@@ -1,7 +1,7 @@
 # Phase 101: Baseline & Writer Contribution Preflight - Pattern Map
 
-**Mapped:** 2026-07-24  
-**Files analyzed:** 2 planned artifacts  
+**Mapped:** 2026-07-24
+**Files analyzed:** 2 planned artifacts
 **Analogs found:** 2 / 2
 
 ## File Classification
@@ -190,25 +190,25 @@ For the future Writer change, preserve the separation between focused and full g
 ## Shared Patterns
 
 ### Immutable evidence snapshots
-**Sources:** `101-RESEARCH.md` lines 153-171; `.planning/milestones/v1.6-MILESTONE-AUDIT.md` lines 61-85  
+**Sources:** `101-RESEARCH.md` lines 153-171; `.planning/milestones/v1.6-MILESTONE-AUDIT.md` lines 61-85
 **Apply to:** `101-BASELINE-AUDIT.md`, contribution-plan approval packet
 
 Use a timestamped fact table with commands and raw output summaries, retain a separate historical record rather than overwriting it, and mark mutable Writer facts as observed-at rather than permanent. Repeat the exact read-only commands at close; report a difference without changing the Writer checkout.
 
 ### Standard-NAP authority matrix
-**Sources:** `101-RESEARCH.md` lines 192-202; `.planning/quick/260711-r4p-implement-usable-nap-upload-in-kehto-paj/260711-r4p-VERIFICATION.md` lines 15-21  
+**Sources:** `101-RESEARCH.md` lines 192-202; `.planning/quick/260711-r4p-implement-usable-nap-upload-in-kehto-paj/260711-r4p-VERIFICATION.md` lines 15-21
 **Apply to:** `101-WRITER-CONTRIBUTION-PLAN.md`, later Writer PR body/tests
 
 The matrix must cite immutable NAP refs and distinguish: conformant planned behavior, unresolved upstream drift, and an intentional draft-spec/product-security gap. It must not treat local code, the plan, or draft assumptions as authority.
 
 ### Explicit approval and dirty-state preservation
-**Sources:** `101-CONTEXT.md` lines 27-38; `CLAUDE.md` lines 12-29  
+**Sources:** `101-CONTEXT.md` lines 27-38; `CLAUDE.md` lines 12-29
 **Apply to:** both artifacts
 
 The baseline audit states exactly what was preserved. The contribution plan names the only approval phrase that unlocks Phase 104, makes canonical remote/default branch/Paja artifact blocking fields, and keeps all Writer-mutating commands below a visibly labelled post-approval boundary. No automation may infer that approval.
 
 ### Focused contribution scope
-**Sources:** `.planning/ROADMAP.md` lines 37-49 and 109-117; `.planning/quick/260711-r4p-implement-usable-nap-upload-in-kehto-paj/260711-r4p-PLAN.md` lines 303-316  
+**Sources:** `.planning/ROADMAP.md` lines 37-49 and 109-117; `.planning/quick/260711-r4p-implement-usable-nap-upload-in-kehto-paj/260711-r4p-PLAN.md` lines 303-316
 **Apply to:** future Kehto and Writer implementation PRs
 
 Separate the two repositories' changes and list exclusions explicitly: `.planning/**`, `graphify-out/**`, screenshots, generated noise, unrelated cleanup, and Writer shortcut WIP. Stage by explicit path. Record the Paja dependency SHA/artifact and dependency order without adding ad hoc cross-repository links or source copies.
@@ -221,7 +221,7 @@ Separate the two repositories' changes and list exclusions explicitly: `.plannin
 
 ## Metadata
 
-**Analog search scope:** `.planning/milestones/**`, `.planning/quick/**`, root planning governance, `CLAUDE.md`, current phase inputs, and read-only Writer guidance/state  
-**Files scanned:** 14 primary planning/workflow artifacts plus Git metadata queries  
-**Graph query:** existing `graphify-out/graph.json` queried for preflight terms; it surfaced dirty-state and Paja/runtime context but no closer planning-artifact analog  
+**Analog search scope:** `.planning/milestones/**`, `.planning/quick/**`, root planning governance, `CLAUDE.md`, current phase inputs, and read-only Writer guidance/state
+**Files scanned:** 14 primary planning/workflow artifacts plus Git metadata queries
+**Graph query:** existing `graphify-out/graph.json` queried for preflight terms; it surfaced dirty-state and Paja/runtime context but no closer planning-artifact analog
 **Pattern extraction date:** 2026-07-24
