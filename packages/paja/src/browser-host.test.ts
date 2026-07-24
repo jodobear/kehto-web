@@ -168,6 +168,21 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(hostSource).toContain('if (hasNip07Signer()) void state.connectNip07();');
   });
 
+  it('keeps the private social cache inside the established identity and outbox host boundary', () => {
+    const adapterSource = readFileSync(new URL('./browser-adapter.ts', import.meta.url), 'utf8');
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+
+    expect(adapterSource).toContain("import { createPajaSocialCache } from './browser-social-cache.js';");
+    expect(adapterSource).toContain('const baseOutboxRouter = createOutboxRouter(backend, getSimulation, confirmRequest, signerProvider);');
+    expect(adapterSource).toContain('baseRouter: baseOutboxRouter,');
+    expect(adapterSource).toContain('services.outbox = createOutboxService({ router: socialCache.decorate(baseOutboxRouter) });');
+    expect(adapterSource).toContain('getFollows: socialCache.getFollows,');
+    expect(adapterSource).not.toContain('services.social');
+    expect(adapterSource).not.toContain('paja.social');
+    expect(hostSource).toContain('async function reportTargetCorsDiagnostic(state: PajaBrowserState): Promise<void>');
+    expect(hostSource).toContain('startFrameNavigation(state, context);\n    void reportTargetCorsDiagnostic(state);');
+  });
+
   it('clears stale single-frame ownership before target reload readiness transitions', () => {
     const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
