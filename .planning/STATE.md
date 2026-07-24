@@ -5,15 +5,15 @@ milestone_name: Paja Social Cache + Writer Blossom PoC
 current_phase: 102
 current_phase_name: paja-standard-nap-social-poc
 status: executing
-stopped_at: Completed 102-01-PLAN.md
-last_updated: "2026-07-24T13:52:20.946Z"
+stopped_at: Completed 102-02-PLAN.md
+last_updated: "2026-07-24T14:10:54.442Z"
 last_activity: 2026-07-24
 last_activity_desc: Phase 102 execution started
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-07-24)
 ## Current Position
 
 Phase: 102 (paja-standard-nap-social-poc) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-07-24 — Phase 102 execution started
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [██░░░░░░░░] 20%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 102 P01 | 31 min | 2 tasks | 2 files |
+| Phase 102 P02 | 3 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,9 @@ Progress: [██░░░░░░░░] 20%
 - Recheck NAP-IDENTITY `6461e4b`, NAP-OUTBOX `4589a8f`, NAP-RESOURCE `fa6bcc6`, NAP-UPLOAD `a7cc174`, and NAP-BLOSSOM `ca1d7ba` before every NAP-touching phase; record conformity, upstream drift, or an intentional draft-spec gap.
 - [Phase 102]: Phase 102 uses pinned NAP-OUTBOX 4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e plus installed @napplet/nap@0.28.0 types under upstream drift; no current-master conformance claim.
 - [Phase 102]: Keep /usr/bin/chromium as the required Playwright executable; Wave 0 lists the chromium project and Plan 102-04 runs the browser-inclusive suite.
+- [Phase 102]: Keep follows and kind-0 profiles in private Paja memory behind existing identity and OUTBOX services; expose no social namespace.
+- [Phase 102]: Protect the existing captured-key identity contract with a deferred-signer regression and leave identity-service.ts unchanged.
+- [Phase 102]: Use corepack pnpm when pnpm is absent from the executor PATH; do not alter the locked dependency tree.
 
 ### Pending Todos
 
@@ -91,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-24T13:52:20.940Z
-Stopped at: Completed 102-01-PLAN.md
+Last session: 2026-07-24T14:10:54.435Z
+Stopped at: Completed 102-02-PLAN.md
 Resume file: None
