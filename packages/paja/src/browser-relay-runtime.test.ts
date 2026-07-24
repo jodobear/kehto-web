@@ -5,8 +5,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 const livePool = vi.hoisted(() => ({
   close: undefined as ReturnType<typeof vi.fn> | undefined,
+  closeRejects: false,
   delivered: 0,
   events: [] as unknown[],
+  querySyncEvents: [] as unknown[],
+  querySyncRequests: [] as Array<{ relayUrls: string[]; filter: Record<string, unknown> }>,
   requests: [] as Array<{ relayUrls: string[]; filter: Record<string, unknown> }>,
 }));
 
@@ -20,6 +23,7 @@ vi.mock('nostr-tools/pool', () => ({
       let closed = false;
       const close = vi.fn(async () => {
         closed = true;
+        if (livePool.closeRejects) throw new Error('close rejected');
         params.onclose();
       });
       livePool.close = close;
@@ -32,6 +36,11 @@ vi.mock('nostr-tools/pool', () => ({
         }
       });
       return { close };
+    }
+
+    querySync(relayUrls: string[], filter: Record<string, unknown>) {
+      livePool.querySyncRequests.push({ relayUrls, filter });
+      return Promise.resolve(livePool.querySyncEvents);
     }
 
     destroy() {}
@@ -133,6 +142,7 @@ describe('@kehto/paja effective relay URLs', () => {
   it('closes a live contact-list query once its requested candidate limit is collected', async () => {
     const pubkey = 'a'.repeat(64);
     livePool.close = undefined;
+    livePool.closeRejects = false;
     livePool.delivered = 0;
     livePool.requests = [];
     livePool.events = Array.from({ length: PAJA_CONTACT_LIST_CANDIDATE_LIMIT + 3 }, (_, index): NostrEvent => ({
@@ -165,6 +175,49 @@ describe('@kehto/paja effective relay URLs', () => {
     expect(livePool.delivered).toBe(PAJA_CONTACT_LIST_CANDIDATE_LIMIT);
     expect(livePool.close).toHaveBeenCalledWith('paja query limit reached');
     expect(loaded).toHaveLength(PAJA_CONTACT_LIST_CANDIDATE_LIMIT);
+  });
+
+  it('settles a bounded contact-list query when close rejects without an unhandled rejection', async () => {
+    const pubkey = 'a'.repeat(64);
+    livePool.closeRejects = true;
+    livePool.delivered = 0;
+    livePool.events = Array.from({ length: PAJA_CONTACT_LIST_CANDIDATE_LIMIT }, (_, index) => ({
+      id: index.toString(16).padStart(64, '0'),
+      pubkey,
+      kind: 3,
+      created_at: index,
+      tags: [],
+      content: '',
+      sig: 'e'.repeat(128),
+    }));
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      const simulation = normalizePajaSimulation({ relay: { mode: 'live', urls: ['wss://relay.example'] } });
+      const loader = createPajaContactListLoader(createPajaRelayBackend(() => simulation, () => true), () => simulation);
+
+      await expect(loader(pubkey)).resolves.toHaveLength(PAJA_CONTACT_LIST_CANDIDATE_LIMIT);
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+      livePool.closeRejects = false;
+    }
+  });
+
+  it('keeps generic limited live queries on querySync and preserves sorted results', async () => {
+    const older = { id: '1'.repeat(64), pubkey: 'a'.repeat(64), kind: 1, created_at: 1, tags: [], content: '', sig: 'e'.repeat(128) };
+    const newer = { ...older, id: '2'.repeat(64), created_at: 2 };
+    livePool.querySyncRequests = [];
+    livePool.querySyncEvents = [older, newer];
+    const simulation = normalizePajaSimulation({ relay: { mode: 'live', urls: ['wss://relay.example'] } });
+    const backend = createPajaRelayBackend(() => simulation, () => true);
+
+    await expect(backend.query(['wss://relay.example'], [{ kinds: [1], limit: 1 }])).resolves.toEqual([newer, older]);
+    expect(livePool.querySyncRequests).toEqual([{
+      relayUrls: ['wss://relay.example'],
+      filter: { kinds: [1], limit: 1 },
+    }]);
   });
 });
 

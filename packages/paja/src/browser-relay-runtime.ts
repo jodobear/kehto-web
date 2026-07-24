@@ -29,6 +29,14 @@ export interface PajaRelayBackend extends RelayPoolLike {
   close(): void;
 }
 
+type ContactListCandidateQuery = (
+  relayUrls: string[],
+  filters: NostrFilter[],
+  maxWaitMs?: number,
+) => Promise<NostrEvent[]>;
+
+const contactListCandidateQueries = new WeakMap<PajaRelayBackend, ContactListCandidateQuery>();
+
 function matchesFilter(event: NostrEvent, filter: NostrFilter): boolean {
   const ids = filter.ids;
   if (ids && !ids.some((id) => event.id === id || event.id.startsWith(id))) return false;
@@ -119,7 +127,8 @@ function queryLiveBounded(
     const close = () => {
       closeRequested = true;
       if (!subscription) return;
-      subscription.close('paja query limit reached');
+      // nostr-tools currently types close() as void, although implementations can reject.
+      void Promise.resolve(subscription.close('paja query limit reached')).catch(() => {});
       finish();
     };
     subscription = pool.subscribeEose(relayUrls, filter as Filter, {
@@ -141,11 +150,12 @@ async function queryLive(
   relayUrls: string[],
   filters: NostrFilter[],
   maxWaitMs = PAJA_LIVE_QUERY_WAIT_MS,
+  collectUntilLimit = false,
 ): Promise<NostrEvent[]> {
   const activeFilters = filters.length > 0 ? filters : [{} as NostrFilter];
   const batches = await Promise.all(activeFilters.map((filter) => {
     const limit = typeof filter.limit === 'number' && filter.limit >= 0 ? filter.limit : undefined;
-    if (limit !== undefined) return queryLiveBounded(pool, relayUrls, filter, maxWaitMs, limit);
+    if (collectUntilLimit && limit !== undefined) return queryLiveBounded(pool, relayUrls, filter, maxWaitMs, limit);
     return pool.querySync(relayUrls, filter as Filter, {
       label: 'kehto-paja-runtime',
       maxWait: maxWaitMs,
@@ -177,6 +187,14 @@ export function createPajaRelayBackend(
     const memoryEvents = collectMemoryEvents(events, filters);
     if (getSimulation().relay.mode !== 'live' || relayUrls.length === 0) return memoryEvents;
     const liveEvents = await queryLive(livePool, relayUrls, filters, maxWaitMs);
+    const out = new Map<string, NostrEvent>();
+    for (const event of [...memoryEvents, ...liveEvents]) out.set(event.id, event);
+    return [...out.values()].sort((a, b) => b.created_at - a.created_at);
+  };
+  const queryContactListCandidates: ContactListCandidateQuery = async (relayUrls, filters, maxWaitMs) => {
+    const memoryEvents = collectMemoryEvents(events, filters);
+    if (getSimulation().relay.mode !== 'live' || relayUrls.length === 0) return memoryEvents;
+    const liveEvents = await queryLive(livePool, relayUrls, filters, maxWaitMs, true);
     const out = new Map<string, NostrEvent>();
     for (const event of [...memoryEvents, ...liveEvents]) out.set(event.id, event);
     return [...out.values()].sort((a, b) => b.created_at - a.created_at);
@@ -268,6 +286,7 @@ export function createPajaRelayBackend(
       livePool.destroy();
     },
   };
+  contactListCandidateQueries.set(backend, queryContactListCandidates);
   return backend;
 }
 
@@ -339,11 +358,13 @@ export function createPajaContactListLoader(
 ): (pubkey: string) => Promise<NostrEvent[]> {
   return async (pubkey: string): Promise<NostrEvent[]> => {
     if (!/^[0-9a-fA-F]{64}$/.test(pubkey)) return [];
-    const candidates = await backend.query(await getBootstrapRelayUrls(getSimulation, signerProvider), [{
-      kinds: [PAJA_CONTACT_LIST_KIND],
-      authors: [pubkey],
-      limit: PAJA_CONTACT_LIST_CANDIDATE_LIMIT,
-    }], PAJA_LIVE_QUERY_WAIT_MS);
+    const candidates = await (contactListCandidateQueries.get(backend) ?? backend.query.bind(backend))(
+      await getBootstrapRelayUrls(getSimulation, signerProvider), [{
+        kinds: [PAJA_CONTACT_LIST_KIND],
+        authors: [pubkey],
+        limit: PAJA_CONTACT_LIST_CANDIDATE_LIMIT,
+      }], PAJA_LIVE_QUERY_WAIT_MS,
+    );
     return candidates
       .filter((event) => event.kind === PAJA_CONTACT_LIST_KIND && event.pubkey.toLowerCase() === pubkey.toLowerCase())
       .sort((left, right) => right.created_at - left.created_at || left.id.localeCompare(right.id))
