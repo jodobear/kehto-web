@@ -1,4 +1,4 @@
-import type { NostrEvent, NostrFilter } from '@napplet/core';
+import type { NostrEvent } from '@napplet/core';
 import type { RelayEventResult } from '@kehto/runtime';
 import type {
   OutboxResult,
