@@ -5,7 +5,7 @@
 
 ## v1 Requirements
 
-Requirements for milestone v1.29. Planning lives on this fork's planning branch and merges only into the fork's `master`; planning artifacts never enter upstream implementation PRs. Implementation spans Kehto/Paja and, only after explicit user approval, `/workspace/projects/writer`. Each requirement maps to exactly one roadmap phase. Phase order must reconcile upstream/WIP first, produce a working PoC next, then refine and harden.
+Requirements for milestone v1.29. Planning lives on this fork's planning branch and merges only to the fork's `master`; planning artifacts never enter upstream implementation PRs. Implementation spans Kehto/Paja and, only after explicit user approval, `/workspace/projects/writer`. Each requirement maps to exactly one roadmap phase. Phase order must reconcile upstream/WIP first, produce a working PoC next, then refine and harden.
 
 ### Preflight and Contribution Hygiene
 
@@ -86,37 +86,37 @@ Deferred beyond v1.29 and excluded from this roadmap.
 
 ## Traceability
 
-Roadmap creation fills phase ownership. Every v1 requirement must map to exactly one phase.
+Every v1 requirement maps to exactly one roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PRE-01 | TBD | Pending |
-| PRE-02 | TBD | Pending |
-| PAJA-01 | TBD | Pending |
-| PAJA-02 | TBD | Pending |
-| PAJA-03 | TBD | Pending |
-| WRITER-01 | TBD | Pending |
-| WRITER-02 | TBD | Pending |
-| WRITER-03 | TBD | Pending |
-| WRITER-04 | TBD | Pending |
-| UPLOAD-01 | TBD | Pending |
-| UPLOAD-02 | TBD | Pending |
-| UPLOAD-03 | TBD | Pending |
-| POC-01 | TBD | Pending |
-| POC-02 | TBD | Pending |
-| HARD-01 | TBD | Pending |
-| HARD-02 | TBD | Pending |
-| HARD-03 | TBD | Pending |
-| HARD-04 | TBD | Pending |
-| E2E-01 | TBD | Pending |
-| VERIFY-01 | TBD | Pending |
-| VERIFY-02 | TBD | Pending |
+| PRE-01 | Phase 101 | Pending |
+| PRE-02 | Phase 101 | Pending |
+| PAJA-01 | Phase 102 | Pending |
+| PAJA-02 | Phase 102 | Pending |
+| PAJA-03 | Phase 102 | Pending |
+| UPLOAD-02 | Phase 103 | Pending |
+| POC-02 | Phase 103 | Pending |
+| WRITER-01 | Phase 104 | Pending |
+| WRITER-02 | Phase 104 | Pending |
+| WRITER-03 | Phase 104 | Pending |
+| WRITER-04 | Phase 104 | Pending |
+| UPLOAD-01 | Phase 104 | Pending |
+| UPLOAD-03 | Phase 104 | Pending |
+| POC-01 | Phase 104 | Pending |
+| HARD-01 | Phase 105 | Pending |
+| HARD-02 | Phase 105 | Pending |
+| HARD-03 | Phase 105 | Pending |
+| HARD-04 | Phase 105 | Pending |
+| E2E-01 | Phase 106 | Pending |
+| VERIFY-01 | Phase 106 | Pending |
+| VERIFY-02 | Phase 106 | Pending |
 
 **Coverage:**
 - v1 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21 ⚠️
+- Mapped to phases: 21
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-24*
-*Last updated: 2026-07-24 after clarification that Paja owns the internal cache and real Writer consumes only standard NAPs*
+*Last updated: 2026-07-24 — v1.29 roadmap traceability assigned to Phases 101-106.*
