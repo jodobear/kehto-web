@@ -119,7 +119,8 @@ function queryLiveBounded(
     const close = () => {
       closeRequested = true;
       if (!subscription) return;
-      void subscription.close('paja query limit reached').then(finish, finish);
+      subscription.close('paja query limit reached');
+      finish();
     };
     subscription = pool.subscribeEose(relayUrls, filter as Filter, {
       label: 'kehto-paja-runtime',
