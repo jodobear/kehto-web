@@ -314,8 +314,8 @@ function getRuntimePubkey(
   getSimulation: () => PajaSimulation,
   signerProvider?: PajaSignerProvider,
 ): string {
-  return getSimulation().identity.pubkey
-    || signerProvider?.getPubkey()
+  return signerProvider?.getPubkey()
+    || getSimulation().identity.pubkey
     || (signerProvider?.getMethod() === 'dev' ? PAJA_DEV_SIGNER_PUBKEY : '');
 }
 
