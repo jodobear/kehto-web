@@ -198,6 +198,44 @@ describe('createIdentityService', () => {
       expect((sent[0] as any).pubkeys).toEqual(followedPubkeys);
     });
 
+    it('uses the public key captured at request start when the signer changes', async () => {
+      const accountA = 'a'.repeat(64);
+      const accountB = 'b'.repeat(64);
+      const accountAFollows = ['f'.repeat(64)];
+      let resolveAccountA: (pubkey: string) => void = () => {
+        throw new Error('account A public key was not requested');
+      };
+      const accountAPublicKey = new Promise<string>((resolve) => {
+        resolveAccountA = resolve;
+      });
+      let signer: Signer = { getPublicKey: () => accountAPublicKey };
+      const seen: string[] = [];
+      const service = createIdentityService({
+        getSigner: () => signer,
+        getFollows: async (pubkey) => {
+          seen.push(pubkey);
+          return accountAFollows;
+        },
+      });
+      const sent: NappletMessage[] = [];
+      const send = (msg: NappletMessage): void => { sent.push(msg); };
+
+      service.handleMessage(
+        WINDOW_ID,
+        makeIdentityMessage('identity.getFollows', { id: 'corr-follows-account-a' }),
+        send,
+      );
+      signer = { getPublicKey: () => accountB };
+      resolveAccountA(accountA);
+      await nextTick();
+
+      expect(seen).toEqual([accountA]);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].type).toBe('identity.getFollows.result');
+      expect((sent[0] as any).id).toBe('corr-follows-account-a');
+      expect((sent[0] as any).pubkeys).toEqual(accountAFollows);
+    });
+
     it('returns a result envelope with error when a host follows provider fails', async () => {
       const service = createIdentityService({
         getSigner: () => createMockSigner(),
