@@ -211,6 +211,31 @@ Dev signer selection, `identity.getPublicKey` reports no connected account
 instead of inventing one. Every sign or publish operation prompts in the browser
 before it runs.
 
+## Read Social Data Through Standard NAP Messages
+
+For a signed-in napplet, call `identity.getPublicKey`, `identity.getFollows`, and
+ordinary kind-0 `outbox.query`. Paja does not expose a custom social API, direct
+networking, or signer/key access for follows and profiles. It privately validates
+the active account's replacement kind-3 contact list and warms followed kind-0
+profile records through its established outbox router.
+
+The snapshot is active-account-scoped and memory-only, not napplet-owned storage
+or a durable-cache control, and is separate from generic simulation cache mode.
+Captured-key request correlation keeps follows tied to the account that started
+the request; generation-safe background writes keep stale account data from
+becoming active. Normal queries can include matching cached `RelayEventResult`
+values while retaining base-router query-wide `incomplete` and `error`. Cached
+values do not make a degraded query complete. Profile winner selection,
+pagination, follow mutation, durable cache management, and per-author
+completeness are outside this behavior.
+
+[NAP-IDENTITY `6461e4b37c29dc09a20dff35d9515889c4433874`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-IDENTITY.md)
+is byte-identical to the recorded `napplet/naps` master document. Pinned
+[NAP-OUTBOX `4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e`](https://github.com/napplet/naps/blob/4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e/naps/NAP-OUTBOX.md)
+with installed `@napplet/nap@0.29.0` types is the PoC contract because current
+master has no NAP-OUTBOX path; this is not a current-master OUTBOX conformance
+claim. Blossom behavior remains Phase 103 scope.
+
 The package API reference is generated at
 [docs/api/modules/_kehto_paja.html](../api/modules/_kehto_paja.html).
 
