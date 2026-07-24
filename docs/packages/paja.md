@@ -20,7 +20,7 @@ app package's development scripts.
 | Field | Value |
 |-------|-------|
 | Source | `packages/paja/package.json`, `packages/paja/src/index.ts` |
-| Version | `0.8.1` |
+| Version | `0.8.2` |
 | Runtime entry | `./dist/index.js` |
 | CLI runner entry | `./dist/cli.js` |
 | Types entry | `./dist/index.d.ts` |
@@ -217,6 +217,33 @@ Relay/outbox uses NIP-65 relay lists (`kind:10002`) with fallback relays, and th
 identity service reads contact lists (`kind:3`) so social-graph napplets can be
 tested against real account state. `--relay-mode memory` switches relay/outbox
 to deterministic fixture/event-store behavior when a test needs isolation.
+
+### Standard identity and private social cache
+
+A signed-in napplet uses the existing `identity.getPublicKey`,
+`identity.getFollows`, and ordinary kind-0 `outbox.query` messages. Paja adds no
+custom social service, direct networking path, or signer/key capability. It
+privately validates the active account's replacement kind-3 contact list and
+warms followed kind-0 profile records through the established outbox router.
+
+That snapshot is active-account-scoped and memory-only, separate from generic
+simulation cache mode. It is not napplet-owned storage and has no durable-cache
+controls. Captured-key request correlation keeps a follows response associated
+with the account that started it, and generation-safe background writes prevent
+stale account data from becoming active.
+
+A normal query can include matching cached `RelayEventResult` values. The base
+router remains authoritative for query-wide `incomplete` and `error`, so cached
+values never make a degraded query complete. Profile winner selection,
+pagination, follow mutation, durable cache management, and per-author
+completeness remain outside this behavior.
+
+[NAP-IDENTITY `6461e4b37c29dc09a20dff35d9515889c4433874`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-IDENTITY.md)
+is byte-identical to the phase's recorded `napplet/naps` master document. Pinned
+[NAP-OUTBOX `4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e`](https://github.com/napplet/naps/blob/4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e/naps/NAP-OUTBOX.md)
+and installed `@napplet/nap@0.28.0` types govern this PoC because current master
+has no NAP-OUTBOX path. This is not a current-master OUTBOX conformance claim.
+Blossom behavior remains Phase 103 scope.
 
 ### NAP-UPLOAD
 
