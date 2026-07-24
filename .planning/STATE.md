@@ -2,18 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.29
 milestone_name: Paja Social Cache + Writer Blossom PoC
-current_phase: 94
-current_phase_name: Coverage, Docs, Release Readiness, and PR
 status: planning
 stopped_at: context exhaustion at 78% (2026-07-24)
 last_updated: "2026-07-24T09:56:31.582Z"
 last_activity: 2026-07-24
-last_activity_desc: "Completed quick task 260724-czo: Inject a full Class-1 CSP into verified srcdoc loaders."
+last_activity_desc: "Milestone v1.29 planning resumed on the verified-srcdoc CSP baseline."
 progress:
-  total_phases: 10
-  completed_phases: 4
-  total_plans: 19
-  completed_plans: 9
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State

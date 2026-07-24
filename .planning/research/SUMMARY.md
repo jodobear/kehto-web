@@ -7,9 +7,9 @@
 
 ## Executive Summary
 
-Kehto v1.29 is a focused conformance slice, not a new social client or uploader. It proves that a built SDK napplet can compose live identity, relay-backed followed-profile discovery, resource-mediated media, and Blossom upload inside an opaque-origin Paja iframe. The napplet owns UI, deterministic profile selection, identity-scoped state, and Blob URLs. The shell retains signer access, relay routing, network policy, consent, authorization, transport, and validation.
+Kehto v1.29 is a focused conformance slice, not a new social client or uploader. Scope clarification after research makes it a two-repository, PoC-first integration: Paja owns the logged-in identity, follow lookup, and an internal cache of followed authors' kind-0 profiles; the real `/workspace/projects/writer` napplet consumes that data only through standard NAP-IDENTITY and NAP-OUTBOX calls for its existing mention/tagging UI. Writer also makes its existing upload request explicitly select the Blossom rail. No Paja-specific application API is introduced.
 
-No new runtime dependencies or protocol extensions are justified. Harden host seams before the fixture: requester-scoped resource cancellation, playground follows/outbox registration, explicit Paja session and media-origin policy, and in-place `identity.changed`. Build one Vite SDK/shim fixture that batches kind-0 queries, keeps usable partial results, and renders only `resource.bytes` Blob URLs. The capstone is a real Paja Playwright journey, not a raw-envelope test.
+No new runtime dependencies or protocol extensions are justified. First make the two real Writer journeys work under `pnpm runtime`: login → follows → batched kind-0 profile candidates → mention insertion, and pasted media → `upload.upload({ rail: "blossom" })` → RESOURCE-mediated preview. Then refine identity-change behavior, deterministic reduction, partial-result state, requester-scoped resource cancellation, origin policy, upload validation, and adversarial browser coverage. The capstone uses the real Writer app rather than a synthetic social fixture or raw-envelope-only test.
 
 The primary risks are stale cross-account async updates, arrival-order profile selection, direct media networking or Blob leaks, and under-validated Blossom authorization/results. Use a generation plus pubkey fence, NIP-01 ordering, host-controlled fetch policy, explicit object-URL ownership, pinned-draft upload checks, and adversarial browser coverage.
 
@@ -70,45 +70,44 @@ Reuse `ShellBridge → runtime ACL/firewall/dispatch → identity | outbox | res
 
 ## Implications for Roadmap
 
-Based on research, use five dependency-ordered phases.
+Scope clarification favors five PoC-first, dependency-ordered phases across Kehto/Paja and Writer.
 
-### Phase 1: Host Boundaries and Live Identity Lifecycle
-**Rationale:** Fixture behavior depends on safe host capabilities and in-place identity semantics.
-**Delivers:** Requester-scoped `resource.cancel`; playground follows/outbox; Paja session identity and explicit media policy; connect/switch/logout `identity.changed` without iframe recreation.
-**Addresses:** Active-account lifecycle and shell-owned policy.
-**Avoids:** Cross-window cancellation, stale-account disclosure, reload-masked races, permissive resource defaults.
+### Phase 1: Paja Social Cache + Writer Tagging PoC
+**Rationale:** User needs working follow-profile tagging first, before broad hardening.
+**Delivers:** Paja login-bound pubkey/follows providers, internal followed-kind-0 prefetch/cache behind standard OUTBOX, and Writer migration from per-author `common.getProfile` calls to batched `outbox.query` mention candidates.
+**Addresses:** Real Writer tagging through standard NAP boundaries.
+**Avoids:** Custom Paja APIs, direct relays, synthetic fixtures, and per-author request fan-out.
 
-### Phase 2: Social Fixture Session and Profile Discovery
-**Rationale:** Follow/profile behavior must be correct and fixture-local before binary media complicates it.
-**Delivers:** Built `nap-social` fixture, generation controller, bounded kind-0 batches, pure NIP-01 reducer, metadata fallback, and complete/empty/partial/error UI.
-**Uses:** Existing SDK/shim, `identity`, and `outbox` domains.
-**Implements:** Identity session controller and profile batch loader.
-**Avoids:** Per-author fan-out, low global limits, arrival-order selection, discarded partial data.
+### Phase 2: Writer Blossom Upload PoC
+**Rationale:** Writer's upload pipeline already exists; explicit Blossom intent should become usable immediately.
+**Delivers:** Writer sends `upload.upload({ rail: "blossom" })`; Paja's existing Blossom runtime completes consent, authorization, transfer, validation, and RESOURCE-mediated preview in the real Writer runtime.
+**Addresses:** Immediate Writer media-upload need.
+**Avoids:** Napplet-selected servers, signer exposure, direct upload networking, and a new uploader stack.
 
-### Phase 3: Resource-Mediated Profile Media
-**Rationale:** Media enriches profiles but cannot weaken host networking or block text rendering.
-**Delivers:** HTTPS validation, `resource.bytes`, generation-scoped media ownership, Blob rendering, placeholders, cancellation, and URL cleanup.
-**Addresses:** Shell-mediated picture and banner rendering.
-**Avoids:** Direct iframe networking, metadata-driven grants, stale images, Blob leakage or premature revocation.
+### Phase 3: Identity and Profile Correctness
+**Rationale:** Working PoC must then survive account changes, relay disagreement, and partial data.
+**Delivers:** In-place `identity.changed`, generation fencing, logout reset, bounded query policy, NIP-01 newest-event reduction, partial/degraded states, and Paja cache invalidation/refresh.
+**Addresses:** Correct multi-account and incomplete-relay behavior.
+**Avoids:** Reload-masked races, stale-account disclosure, arrival-order winners, and false completeness.
 
-### Phase 4: Blossom Rail Hardening and Fixture Upload UX
-**Rationale:** Upload shares identity/security semantics and needs proof/result validation before full integration proof.
-**Delivers:** Blossom upload UI and host wiring; pinned kind-24242 authorization validation; HTTPS URL/hash/size policy; consent, denial, teardown, and malformed-result tests.
-**Addresses:** Shell-mediated upload and truthful status outcomes.
-**Avoids:** Iframe-selected server/auth, pre-consent transfer, unchecked descriptors, false success.
+### Phase 4: Resource and Upload Hardening
+**Rationale:** Binary-media and network seams need isolation after core journeys work.
+**Delivers:** Requester-scoped resource cancellation, explicit origin/session policy, object-URL ownership, redirect/SSRF/MIME limits, and Blossom authorization/result adversarial tests.
+**Addresses:** Safe profile and uploaded-media rendering plus truthful upload outcomes.
+**Avoids:** Cross-window cancellation, metadata-driven grants, Blob leaks, and unchecked upload descriptors.
 
-### Phase 5: Real Paja Vertical-Slice E2E
-**Rationale:** The capstone should integrate correct boundaries rather than diagnose them first.
-**Delivers:** Playwright journey using the built fixture and controlled signer/relay/media/Blossom servers: login, follows, profiles, partial results, Blob media, in-place switch/logout, and upload.
-**Addresses:** Real browser conformance across P1 features.
-**Avoids:** Raw-HTML false positives, URL-based frame selection, unbuilt-fixture fallback, direct network/key regressions.
+### Phase 5: Cross-Repo Browser Proof and Release Readiness
+**Rationale:** Final proof should drive the real Writer app through the completed Paja runtime.
+**Delivers:** Controlled signer/relay/media/Blossom browser journey covering tagging, upload, partial results, identity switch/logout, no iframe replacement, no direct networking/key access, and full gates/changesets/PRs in both repositories.
+**Addresses:** End-to-end confidence and shippable closeout.
+**Avoids:** Raw-HTML false positives and synthetic-app-only success.
 
 ### Phase Ordering Rationale
 
-- Host capabilities and isolation corrections come first because they are security boundaries for every feature.
-- Establish profile lifecycle and query semantics before independent binary-media lifecycle work.
-- Stabilize upload under the same identity/security contract before browser integration proof.
-- Use E2E as a final composition test, not the first detector of lower-level defects.
+- Make Writer tagging and Blossom upload work in the real Paja runtime first.
+- Refine identity, profile, media, and upload correctness without delaying the PoC.
+- Preserve standard NAP boundaries throughout; Paja's cache is internal and observable only through normal NAP results.
+- Use final E2E for cross-repo composition after focused tests stabilize each seam.
 
 ### Research Flags
 
