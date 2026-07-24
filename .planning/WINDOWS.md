@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 1
+open_count: 2
 waived_count: 0
 fixed_count: 3
-total_count: 4
-last_updated: 2026-07-24T14:22:01.390Z
+total_count: 5
+last_updated: 2026-07-24T16:20:25.749Z
 ---
 
 # Broken Windows Ledger
@@ -19,6 +19,7 @@ last_updated: 2026-07-24T14:22:01.390Z
 | 2 | 102 | deviation | packages/paja/src/browser-social-cache.ts |  | Added per-filter limits to cached OUTBOX profile additions. | fixed |  | 2026-07-24T14:21:35.716Z | 2026-07-24T14:22:01.268Z |
 | 3 | 102 | deviation | packages/paja/src/browser-social-cache.ts |  | Used Corepack because pnpm is absent from the executor PATH. | fixed |  | 2026-07-24T14:21:35.777Z | 2026-07-24T14:22:01.327Z |
 | 4 | 102 | deviation | .planning/STATE.md |  | Corrected plan-decision phase labels emitted by the state helper. | fixed |  | 2026-07-24T14:21:35.836Z | 2026-07-24T14:22:01.390Z |
+| 5 | 102 | deviation | docs/packages/firewall.md | 22 | Repository docs audit is blocked by the pre-existing @kehto/firewall 0.3.9 row while its manifest is 0.3.10. | open |  | 2026-07-24T16:20:25.749Z |  |
 
 ````json
 [
@@ -69,6 +70,18 @@ last_updated: 2026-07-24T14:22:01.390Z
     "reason": "",
     "recorded_at": "2026-07-24T14:21:35.836Z",
     "resolved_at": "2026-07-24T14:22:01.390Z"
+  },
+  {
+    "id": 5,
+    "kind": "deviation",
+    "phase": "102",
+    "file": "docs/packages/firewall.md",
+    "line": 22,
+    "description": "Repository docs audit is blocked by the pre-existing @kehto/firewall 0.3.9 row while its manifest is 0.3.10.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-07-24T16:20:25.749Z",
+    "resolved_at": null
   }
 ]
 ````
