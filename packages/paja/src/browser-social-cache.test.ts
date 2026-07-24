@@ -273,6 +273,32 @@ describe('createPajaSocialCache', () => {
     await expect(decorated.query([{ kinds: [0], limit: 1 }])).resolves.toEqual({ events: [result(profileA)] });
   });
 
+  it('applies aggregate and matching filter limits after combining distinct base and cached profiles', async () => {
+    const cached = event('1', FOLLOWED_A, 0, [], 10);
+    const base = event('2', FOLLOWED_A, 0, [], 9);
+    const baseRouter = createRouter(vi.fn(async (filters) => {
+      return filters[0]?.authors?.[0] === FOLLOWED_A
+        ? { events: [result(cached)] }
+        : { events: [result(base)] };
+    }));
+    const cache = createPajaSocialCache({
+      baseRouter,
+      loadContactList: vi.fn(async () => [event('3', ACCOUNT_A, 3, [['p', FOLLOWED_A]])]),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => ACCOUNT_A,
+    });
+    await cache.refreshActiveIdentity();
+    const decorated = cache.decorate(baseRouter);
+
+    await expect(decorated.query([{ kinds: [0] }], { limit: 1 })).resolves.toEqual({
+      events: [result(base)],
+    });
+    await expect(decorated.query([{ kinds: [0], limit: 1 }])).resolves.toEqual({
+      events: [result(base)],
+    });
+    await expect(decorated.query([{ kinds: [0], limit: 0 }])).resolves.toEqual({ events: [] });
+  });
+
   it('deduplicates cache/base event IDs in favor of base while preserving its degraded result exactly', async () => {
     const cached = event('1', FOLLOWED_A, 0, [], 10);
     const cachedOnly = event('2', FOLLOWED_A, 0, [], 9);
