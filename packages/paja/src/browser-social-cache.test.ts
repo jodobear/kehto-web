@@ -194,6 +194,34 @@ describe('createPajaSocialCache', () => {
     expect(baseQuery).toHaveBeenCalledWith([{ kinds: [0], authors: [FOLLOWED_B] }], { authors: [FOLLOWED_B] });
   });
 
+  it('merges the request-start account snapshot when the active account switches while the base query is pending', async () => {
+    let activePubkey = ACCOUNT_A;
+    const baseQuery = deferred<OutboxResult>();
+    const profileA = event('a', FOLLOWED_A, 0);
+    const profileB = event('b', FOLLOWED_B, 0);
+    const router = createRouter(async (filters) => {
+      if (filters[0]?.authors?.[0] === FOLLOWED_A) return { events: [result(profileA)] };
+      if (filters[0]?.authors?.[0] === FOLLOWED_B) return { events: [result(profileB)] };
+      return baseQuery.promise;
+    });
+    const cache = createPajaSocialCache({
+      baseRouter: router,
+      loadContactList: vi.fn(async (pubkey) => [event(pubkey === ACCOUNT_A ? '1' : '2', pubkey, 3, [
+        ['p', pubkey === ACCOUNT_A ? FOLLOWED_A : FOLLOWED_B],
+      ])]),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => activePubkey,
+    });
+    await cache.refreshActiveIdentity();
+
+    const queryForA = cache.decorate(router).query([{ kinds: [0] }]);
+    activePubkey = ACCOUNT_B;
+    await cache.refreshActiveIdentity();
+    baseQuery.resolve({ events: [] });
+
+    await expect(queryForA).resolves.toEqual({ events: [result(profileA)] });
+  });
+
   it('keeps only the newest same-account refresh generation', async () => {
     const first = deferred<NostrEvent[]>();
     const second = deferred<NostrEvent[]>();
