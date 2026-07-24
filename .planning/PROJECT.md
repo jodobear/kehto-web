@@ -6,19 +6,22 @@
 
 Provide a modular, framework-agnostic runtime for hosting napplet applications — so any Nostr client can embed sandboxed mini-apps by integrating @kehto/shell.
 
-## Current Milestone: v1.28 NAP-WEBRTC Runtime Parity
+## Current Milestone: v1.29 Paja Social Cache + Writer Blossom PoC
 
-**Goal:** Add the remaining missing recent `@napplet/nap` domain, `NAP-WEBRTC`, end to end in Kehto: shell capability advertisement, runtime dispatch, reference service, Paja wiring, playground demo napplet, unit coverage, and Playwright proof.
+**Goal:** Deliver a working proof of concept in the Paja web runtime: after login, Paja loads and keeps the active user's follows plus followed authors' newest kind-0 profiles behind standard NAP interfaces, and the real Writer napplet uses those profiles for tagging and uploads media through Paja's Blossom rail. Refine, harden, and complete the same flow after the PoC works.
 
 **Target features:**
-- **One NAP only:** v1.28 is scoped to `webrtc` / `NAP-WEBRTC`; `NAP-BLE` is complete in PR #75.
-- **Runtime-owned WebRTC sessions:** napplets can request `webrtc.open`, `webrtc.send`, and `webrtc.close`; the shell/runtime owns signaling, signing/encryption, SDP, ICE, peer connection lifecycle, session handles, and policy.
-- **Reference service:** add a framework-agnostic `createWebrtcService` in `@kehto/services` with host-provided hooks that return structured upstream-compatible results, route host-pushed events, and deny unavailable actions safely.
-- **Capability and dispatch parity:** advertise `webrtc` only when the host wires a WebRTC backend, register `webrtc` in runtime NAP dispatch, and remove it from Paja's deferred-domain metadata.
-- **Playground and Paja proof:** Paja wires deterministic in-memory WebRTC behavior; playground gains a small `webrtc-demo` napplet and Playwright coverage that proves representative WebRTC requests/events work through the real shell path.
-- **Release-ready coverage:** new unit/static/e2e tests pass; docs/package exports/changesets updated; branch pushed and PR opened when gates pass.
+- **Paja-owned identity and social cache:** wire the active pubkey and relay-backed follows, prefetch/cache followed authors' kind-0 profiles after login, refresh on account change, and clear on logout.
+- **Standard NAP boundary:** Writer accesses the data only through `identity.getPublicKey`, `identity.getFollows`, and `outbox.query` with `kinds: [0]`; the Paja cache remains an internal optimization, never a custom injected API.
+- **Writer tagging:** migrate Writer's followed-profile hydration from per-author `common.getProfile` calls to batched OUTBOX kind-0 queries, choose the deterministic newest profile per pubkey, and use the results in the existing mention/tagging flow.
+- **Live identity lifecycle:** Paja emits `identity.changed` without replacing the iframe; Writer clears prior-account candidates, rejects stale work, and reloads from standard NAPs for the new account.
+- **Resource-mediated media:** Writer continues to render profile and uploaded media only from `resource.bytes` Blob URLs, with cancellation and object-URL cleanup.
+- **Writer Blossom upload:** Writer explicitly calls `upload.upload` with `request.rail: "blossom"`; Paja owns server selection, consent, authorization signing, network access, policy, and result validation.
+- **PoC-first proof:** test with the real `/workspace/projects/writer` runtime as soon as the two core journeys work, then add partial-result, identity-race, resource-lifecycle, upload-failure, full-gate, and release hardening.
+- **Contribution hygiene:** planning stays on the fork and merges to the fork's `master`; upstream PRs contain only focused implementation, tests, required docs, and changesets. Writer source work waits for explicit user approval and starts from a dedicated branch after its existing WIP and upstream baseline are reconciled.
+- **Follow-up boundary:** defer `blossom:sha256` content-addressed reads and low-level NAP-BLOSSOM operations; HTTPS Blossom result URLs are read through NAP-RESOURCE.
 
-**Key context:** Authoritative delta was inspected on 2026-06-23 from `@napplet/nap@0.20.0` / `@napplet/core@0.20.0` and the local `napplet` checkout (`packages/nap/src/webrtc`, `packages/core/src/types/webrtc.ts`). Prior parity milestones are stacked in PRs #71-#75; this should close the recent `@napplet/nap` domain parity set. No new dependencies.
+**Key context:** Scope was clarified on 2026-07-24: this is a two-repository PoC centered on Paja plus the real Writer napplet, not a synthetic social fixture. Protocol authority remains NAP-IDENTITY on `napplet/naps` `master` at `6461e4b37c29dc09a20dff35d9515889c4433874`; NAP-OUTBOX draft PR #32 at `4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e`; NAP-RESOURCE draft PR #80 at `fa6bcc6935aa19e7b70ab2a2c721dafca77c78e1`; NAP-UPLOAD draft PR #33 at `a7cc17463cbf5d9cb87884b31071bc4fc826034c`; and NAP-BLOSSOM draft PR #71 at `ca1d7ba594e6790785dc770227085d8648d39631`. OUTBOX exposes query-wide `incomplete`/`error` but no per-author completeness or newest-per-author guarantee. Writer currently uses `identity.getFollows`, per-author `common.getProfile`, `resource.bytes`, and implicit-rail `upload.upload`; v1.29 closes the Paja and Writer gaps without direct networking or key access.
 
 ## Latest Milestone: v1.18 Napplet Firewall (shipped 2026-06-15)
 
@@ -306,4 +309,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-17 — v1.21 NIP-5D (#2303) + NAP-SHELL/INTENT Conformance milestone started (v1.20 Content-Addressed Runtime Resolution phases complete, PRs #38/#39 open)*
+*Last updated: 2026-07-24 — v1.29 scope clarified as a PoC-first Paja social cache plus real Writer Blossom/tagging integration using standard NAP boundaries.*

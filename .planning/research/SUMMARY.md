@@ -1,64 +1,160 @@
 # Project Research Summary
 
-**Project:** Kehto Runtime - v1.17 Beautify the SPA Landing Page
-**Domain:** Static landing-page branding, GSAP motion, and GitHub Pages delivery
-**Researched:** 2026-06-06
-**Confidence:** High
-
----
+**Project:** Kehto v1.29 Social + Blossom Vertical Slice
+**Domain:** Shell-mediated social-profile and Blossom-upload integration proof
+**Researched:** 2026-07-24
+**Confidence:** MEDIUM
 
 ## Executive Summary
 
-v1.17 should keep the public `/web/` portal static, preserve the existing playground/docs destinations, and add brand/motion as progressive enhancement. The best implementation shape is a semantic `web/index.html`, separate `web/assets/landing.css` and `web/assets/landing.js`, a locally vendored GSAP core script copied from npm during `build:pages`, and an extended Pages audit that verifies the new asset contract.
+Kehto v1.29 is a focused conformance slice, not a new social client or uploader. Scope clarification after research makes it a two-repository, PoC-first integration: Paja owns the logged-in identity, follow lookup, and an internal cache of followed authors' kind-0 profiles; the real `/workspace/projects/writer` napplet consumes that data only through standard NAP-IDENTITY and NAP-OUTBOX calls for its existing mention/tagging UI. Writer also makes its existing upload request explicitly select the Blossom rail. No Paja-specific application API is introduced.
 
-GSAP 3.15.0 is current on npm as of 2026-06-06. Official docs position GSAP as framework-agnostic JavaScript loadable through npm or script tags, with timelines/defaults for coherent choreography and `gsap.matchMedia()` for responsive and reduced-motion animation setup. Core GSAP is enough for this milestone; plugins, frameworks, and full fluid-simulation dependencies are unnecessary.
+No new runtime dependencies or protocol extensions are justified. First make the two real Writer journeys work under `pnpm runtime`: login → follows → batched kind-0 profile candidates → mention insertion, and pasted media → `upload.upload({ rail: "blossom" })` → RESOURCE-mediated preview. Then refine identity-change behavior, deterministic reduction, partial-result state, requester-scoped resource cancellation, origin policy, upload validation, and adversarial browser coverage. The capstone uses the real Writer app rather than a synthetic social fixture or raw-envelope-only test.
 
-The biggest product risk is taste, not technical feasibility. The page must feel dark, smooth, modern, and Kehto-specific without sliding into neon, generic liquid blobs, Nordic cliches, or overstated ecosystem claims. The design should use Kehto's actual value as the UX anchor: a shell-side cradle for sandboxed napplets, with the playground and docs as the two proof paths.
+The primary risks are stale cross-account async updates, arrival-order profile selection, direct media networking or Blob leaks, and under-validated Blossom authorization/results. Use a generation plus pubkey fence, NIP-01 ordering, host-controlled fetch policy, explicit object-URL ownership, pinned-draft upload checks, and adversarial browser coverage.
 
-## Stack Additions
+## Key Findings
 
-- Add `gsap` explicitly for the requested motion work.
-- Vendor `gsap.min.js` into the Pages artifact instead of relying on a CDN.
-- Add static portal CSS/JS under `web/assets`.
-- Extend `build:pages` and `audit:pages` for these assets.
+### Recommended Stack
 
-## Feature Table Stakes
+Extend the existing pinned Kehto and `@napplet` integration graph. Do not add a social SDK, relay client, HTTP uploader, UI framework, or cryptography library. Browser-native Blob/object URL APIs are sufficient for profile media.
 
-- Preserve `/web/playground/` and `/web/docs/` as the primary routes.
-- Keep alpha/reference-implementation caveats visible.
-- Establish an almost-black plus muted-yellow visual identity.
-- Add a readable custom Kehto wordmark/text treatment.
-- Add a low-contrast liquid background accent behind content.
-- Use GSAP entrance, exit, hover/focus, and background transitions.
-- Respect reduced motion and no-JS fallback.
+**Core technologies:**
+- **Kehto services and Paja** (`@kehto/services@0.16.5`, `@kehto/paja@0.8.1`): preserves shell-owned identity, outbox, resource, upload, signer, policy, and transport boundaries.
+- **Pinned fixture graph** (`@napplet/core@0.28.0`, `@napplet/nap@0.28.0`, `@napplet/sdk@0.24.4`, `@napplet/shim@0.26.8`): existing lockfile-verified SDK/shim contract for the real fixture.
+- **Native `Blob`, `URL.createObjectURL`, `URL.revokeObjectURL`**: renders shell-returned bytes locally without direct napplet fetches.
+- **Existing Paja Blossom runtime/uploader**: shell selects server, obtains consent, signs, transfers bytes, and validates `upload.upload({ rail: "blossom" })`.
+- **Vite 6.4.2, `@napplet/vite-plugin@0.11.2`, Playwright 1.54.0**: build the workspace fixture and verify the real browser path.
 
-## Differentiators
+Keep protocol pins stable during this slice. Do not use napplet-side `nostr-tools`, `fetch`, WebSocket, `window.nostr`, signer exposure, or direct profile URLs.
 
-- Express "Kehto" as a cradle-like runtime surface through shape and motion, not literal illustration.
-- Let route choices map to real user jobs: inspect the playground or integrate via docs.
-- Use subtle interactive pressure/motion in the liquid accent, if it remains performant and tasteful.
-- Add static audit coverage so public portal branding cannot silently lose assets.
+### Expected Features
 
-## Watch Outs
+**Must have (table stakes):**
+- Startup identity snapshot and live `identity.changed` reset, including signed-out empty-pubkey behavior and stale-work rejection.
+- Bounded/batched `outbox.query({ kinds: [0], authors })` follow-profile discovery with deterministic local reduction.
+- Partial-result rendering that preserves valid profiles under query-wide `incomplete`/`error` and distinguishes no follows from no usable results.
+- HTTPS media only through `resource.bytes`, with fallbacks and object URL cleanup on replacement, reset, and `pagehide`.
+- Explicit Blossom-rail upload with distinct denied, unavailable, failed, and validated success states.
+- Built SDK/shim fixture and real Paja Playwright proof.
 
-- Do not change public routes.
-- Do not over-animate or delay navigation heavily.
-- Do not add WebGL/fluid libraries unless scope changes.
-- Do not use generic Nordic tropes, baby/cradle imagery, neon, or decorative blobs.
-- Do not hide the alpha notice behind visual polish.
-- Do not leave GSAP as a third-party runtime CDN dependency.
+**Should have (competitive):**
+- In-place account switching without iframe reload.
+- Deterministic profile display despite relay disagreement or arrival order.
+- Transparent degraded-query and media-failure states.
 
-## Recommended Phase Shape
+**Defer (v2+):**
+- `blossom:sha256` and low-level content-addressed reads.
+- Publishing, profile editing, follow mutations, pagination, moderation, and infinite scroll.
+- Per-author completeness claims, retry/backoff, upload progress, and broader media UX.
 
-1. Brand foundation and static asset pipeline.
-2. GSAP transition system and reduced-motion behavior.
-3. Liquid accent, visual polish, and full Pages verification.
+### Architecture Approach
+
+Reuse `ShellBridge → runtime ACL/firewall/dispatch → identity | outbox | resource | upload services`. Put social application behavior in the built fixture; keep policy and external integration in Paja/playground adapters and existing services.
+
+**Major components:**
+1. **Identity session controller** — subscribe before snapshot, increment a generation on each identity change, reset synchronously, and commit only current `{generation, pubkey}` work.
+2. **Profile batch loader/reducer** — normalize follows, batch authors, aggregate query health, and select one valid kind-0 event per author with NIP-01 ordering.
+3. **Media controller** — request granted bytes, track request/generation/object URL per slot, cancel safely, and revoke exactly once.
+4. **Paja/playground adapters** — provide follows/outbox, publish in-place identity changes, resolve active sessions, and constrain resource origins.
+5. **Existing upload runtime/service** — keeps server selection, consent, kind-24242 authorization, transfer, and descriptor validation host-side.
+
+### Critical Pitfalls
+
+1. **Old identity work repopulates a switched or signed-out UI** — gate every async completion by generation and pubkey; cancellation alone is not correctness.
+2. **Kind-0 selection follows arrival order** — centralize a pure NIP-01 reducer: greatest `created_at`, then lexicographically lower event ID; reduce across all batches.
+3. **Partial outbox data is discarded or falsely treated as complete** — preserve valid events and store degradation separately; do not infer missing authors.
+4. **Metadata media bypasses resource policy or leaks Blob URLs** — never attach remote URLs; use resource-returned Blob URLs and cleanup on replacement/reset/pagehide.
+5. **Blossom success lacks proof-bound validation** — host controls server/auth, obtains consent before transfer, and validates authorization plus result URL/hash/size against submitted bytes.
+6. **Raw-envelope tests are mistaken for SDK proof** — test a compiled SDK/shim fixture through actual Paja `srcdoc` iframe messaging.
+
+## Implications for Roadmap
+
+Scope clarification favors five PoC-first, dependency-ordered phases across Kehto/Paja and Writer.
+
+### Phase 1: Paja Social Cache + Writer Tagging PoC
+**Rationale:** User needs working follow-profile tagging first, before broad hardening.
+**Delivers:** Paja login-bound pubkey/follows providers, internal followed-kind-0 prefetch/cache behind standard OUTBOX, and Writer migration from per-author `common.getProfile` calls to batched `outbox.query` mention candidates.
+**Addresses:** Real Writer tagging through standard NAP boundaries.
+**Avoids:** Custom Paja APIs, direct relays, synthetic fixtures, and per-author request fan-out.
+
+### Phase 2: Writer Blossom Upload PoC
+**Rationale:** Writer's upload pipeline already exists; explicit Blossom intent should become usable immediately.
+**Delivers:** Writer sends `upload.upload({ rail: "blossom" })`; Paja's existing Blossom runtime completes consent, authorization, transfer, validation, and RESOURCE-mediated preview in the real Writer runtime.
+**Addresses:** Immediate Writer media-upload need.
+**Avoids:** Napplet-selected servers, signer exposure, direct upload networking, and a new uploader stack.
+
+### Phase 3: Identity and Profile Correctness
+**Rationale:** Working PoC must then survive account changes, relay disagreement, and partial data.
+**Delivers:** In-place `identity.changed`, generation fencing, logout reset, bounded query policy, NIP-01 newest-event reduction, partial/degraded states, and Paja cache invalidation/refresh.
+**Addresses:** Correct multi-account and incomplete-relay behavior.
+**Avoids:** Reload-masked races, stale-account disclosure, arrival-order winners, and false completeness.
+
+### Phase 4: Resource and Upload Hardening
+**Rationale:** Binary-media and network seams need isolation after core journeys work.
+**Delivers:** Requester-scoped resource cancellation, explicit origin/session policy, object-URL ownership, redirect/SSRF/MIME limits, and Blossom authorization/result adversarial tests.
+**Addresses:** Safe profile and uploaded-media rendering plus truthful upload outcomes.
+**Avoids:** Cross-window cancellation, metadata-driven grants, Blob leaks, and unchecked upload descriptors.
+
+### Phase 5: Cross-Repo Browser Proof and Release Readiness
+**Rationale:** Final proof should drive the real Writer app through the completed Paja runtime.
+**Delivers:** Controlled signer/relay/media/Blossom browser journey covering tagging, upload, partial results, identity switch/logout, no iframe replacement, no direct networking/key access, and full gates/changesets/PRs in both repositories.
+**Addresses:** End-to-end confidence and shippable closeout.
+**Avoids:** Raw-HTML false positives and synthetic-app-only success.
+
+### Phase Ordering Rationale
+
+- Make Writer tagging and Blossom upload work in the real Paja runtime first.
+- Refine identity, profile, media, and upload correctness without delaying the PoC.
+- Preserve standard NAP boundaries throughout; Paja's cache is internal and observable only through normal NAP results.
+- Use final E2E for cross-repo composition after focused tests stabilize each seam.
+
+### Research Flags
+
+Phases likely needing deeper research during planning:
+- **Phase 1:** Validate Paja signer lifecycle, session/resource-policy details, and every caller of the resource-service API change.
+- **Phase 4:** Re-check pinned NAP-UPLOAD/NAP-BLOSSOM drafts and BUD-11 authorization/result rules immediately before implementation; current uploader validation has known gaps.
+- **Phase 5:** Inspect Paja E2E helpers and fixture asset-build mechanics for deterministic controlled-server tests.
+
+Phases with standard patterns (skip research-phase):
+- **Phase 2:** Generation fencing, bounded batching, pure local reduction, and partial-result UI are documented; plan directly with vector tests first.
+- **Phase 3:** Blob URL ownership and mediated rendering are well-bounded after host policy selection; use focused unit and browser-network tests.
+
+## Confidence Assessment
+
+| Area | Confidence | Notes |
+|------|------------|-------|
+| Stack | MEDIUM | Strong repository/lockfile evidence supports existing pins and no dependencies; external corroboration is lower-rated. |
+| Features | MEDIUM | Grounded in scope and pinned NAP behavior, but several NAPs are drafts. |
+| Architecture | MEDIUM | Concrete repository paths/services were inspected; required host edits remain integration work. |
+| Pitfalls | MEDIUM | Specific hazards and protocol behavior were checked; Blossom draft ambiguity remains. |
+
+**Overall confidence:** MEDIUM
+
+### Gaps to Address
+
+- **Pinned draft drift:** Re-check NAP-OUTBOX `4589a8f`, NAP-RESOURCE `fa6bcc6`, NAP-UPLOAD `a7cc174`, and NAP-BLOSSOM `ca1d7ba` at every NAP-touching phase and record upstream changes.
+- **Blossom detail:** Confirm kind-24242 tags, server-domain validation, and descriptor acceptance against the pinned draft before changing `http-uploader`.
+- **Host fetch policy:** Test concrete redirect, SSRF/private-address, size, MIME-sniffing, and SVG policy in Paja/playground fetch adapters.
+- **Batch/concurrency limits:** Set measurable limits for test conditions; 100 authors is a starting recommendation, not a protocol maximum.
+- **Identity provider binding:** Ensure `getFollows` captures the requested active identity through async relay lookup rather than reading a newer signer on completion.
 
 ## Sources
 
-- GSAP Installation: https://gsap.com/docs/v3/Installation/
-- GSAP Core: https://gsap.com/docs/v3/GSAP/
-- GSAP Timeline: https://gsap.com/docs/v3/GSAP/Timeline/
-- GSAP matchMedia: https://gsap.com/docs/v3/GSAP/gsap.matchMedia%28%29/
-- npm registry query: `npm view gsap version license dist.unpackedSize --json`
-- Local portal/build/audit files: `web/index.html`, `scripts/build-pages.mjs`, `scripts/audit-pages-artifact.mjs`
+### Primary (HIGH confidence)
+- Repository evidence in [STACK.md](./STACK.md), [ARCHITECTURE.md](./ARCHITECTURE.md), and [PITFALLS.md](./PITFALLS.md): Paja, services, playground feed, fixture build, and E2E paths.
+- [NAP-IDENTITY pinned `6461e4b`](https://raw.githubusercontent.com/napplet/naps/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-IDENTITY.md) — identity lifecycle and read-only boundary.
+- [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) — kind-0 replaceable-event ordering.
+
+### Secondary (MEDIUM confidence)
+- [NAP-OUTBOX `4589a8f`](https://raw.githubusercontent.com/napplet/naps/4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e/naps/NAP-OUTBOX.md) — aggregate results and query-wide incomplete/error.
+- [NAP-RESOURCE `fa6bcc6`](https://raw.githubusercontent.com/napplet/naps/fa6bcc6935aa19e7b70ab2a2c721dafca77c78e1/naps/NAP-RESOURCE.md) — host mediation, Blob responses, cancellation.
+- [NAP-UPLOAD `a7cc174`](https://raw.githubusercontent.com/napplet/naps/a7cc17463cbf5d9cb87884b31071bc4fc826034c/naps/NAP-UPLOAD.md) and [NAP-BLOSSOM `ca1d7ba`](https://raw.githubusercontent.com/napplet/naps/ca1d7ba594e6790785dc770227085d8648d39631/naps/NAP-BLOSSOM.md) — shell-owned upload boundary.
+
+### Tertiary (LOW confidence)
+- npm package metadata — corroborates lockfile pins.
+- MDN object-URL and Playwright frame documentation — standard guidance corroborated by local patterns.
+
+---
+*Research completed: 2026-07-24*
+*Ready for roadmap: yes*
