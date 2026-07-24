@@ -117,9 +117,9 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
     return {
       ...(router.getEvent ? { getEvent: router.getEvent.bind(router) } : {}),
       async query(filters, queryOptions) {
-        const base = await router.query(filters, queryOptions);
         const activePubkey = normalizePubkey(options.getActivePubkey() ?? '');
         const snapshot = activePubkey ? snapshots.get(activePubkey) : undefined;
+        const base = await router.query(filters, queryOptions);
         const cached = matchingCachedProfiles(snapshot?.profiles ?? [], filters);
         return mergeResult(base, cached);
       },
