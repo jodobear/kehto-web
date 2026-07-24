@@ -63,6 +63,34 @@ development signer when the Dev signer button is selected. Every signing or
 publish operation still uses a browser confirmation prompt. There is no bypass
 list.
 
+## Standard identity and social-cache boundary
+
+A signed-in napplet reads Paja identity and social data only through existing
+`identity.getPublicKey`, `identity.getFollows`, and ordinary kind-0
+`outbox.query` messages. Paja exposes no social namespace, direct networking,
+or signer/key capability for this behavior.
+
+Paja privately validates the active account's replacement kind-3 contact list,
+then warms followed kind-0 profile records through its established outbox router.
+The resulting snapshot is active-account-scoped and memory-only. It is distinct
+from generic simulation cache mode; it is not napplet-owned storage and has no
+durable-cache controls. Captured-key request correlation keeps a follows request
+bound to the account that started it, while generation-safe background writes
+prevent stale-account data from becoming the active snapshot.
+
+A normal query can include matching cached `RelayEventResult` values, but Paja
+retains the base router's query-wide `incomplete` and `error` fields. A cache hit
+does not make a degraded query complete. Profile winner selection, pagination,
+follow mutation, durable-cache management, and per-author completeness are
+outside this behavior.
+
+[NAP-IDENTITY at `6461e4b37c29dc09a20dff35d9515889c4433874`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-IDENTITY.md)
+is byte-identical to the recorded `napplet/naps` master document for this phase.
+Pinned [NAP-OUTBOX at `4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e`](https://github.com/napplet/naps/blob/4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e/naps/NAP-OUTBOX.md)
+together with installed `@napplet/nap@0.28.0` types is the PoC contract because
+current master has no NAP-OUTBOX path. Paja therefore makes no current-master
+OUTBOX conformance claim. Blossom behavior remains Phase 103 scope.
+
 The static Paja Runtime build is served at `/web/paja/` in the GitHub Pages
 artifact. It uses the same browser host and service adapters, but loads verified
 napplet HTML from pasted `naddr` or `nevent` pointers with `hmr: none`. Each
