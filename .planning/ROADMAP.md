@@ -72,7 +72,13 @@ Plans:
   1. After login, a napplet can call `identity.getPublicKey` and `identity.getFollows` and receive the active public key and relay-backed follows associated with the public key captured when that request started.
   2. Paja keeps an internal, active-identity-scoped cache of followed authors' kind-0 profiles that refreshes after login without exposing a Paja-specific application API.
   3. A napplet can issue normal `outbox.query` requests for followed authors' kind-0 events and receive ordinary OUTBOX events with normal deduplication, `incomplete`, and `error` semantics whether Paja serves or refreshes its internal cache.
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 102-01-PLAN.md — Establish the isolated Paja implementation worktree, pinned NAP authority, and required Chromium browser gate.
+- [ ] 102-02-PLAN.md — Prove one standard identity-to-followed-kind-0 tracer through Paja’s private cache and existing services.
+- [ ] 102-03-PLAN.md — Add deterministic contact validation, account-race, cache/filter, and OUTBOX degradation coverage.
+- [ ] 102-04-PLAN.md — Synchronize Paja docs and release metadata, then run the browser-inclusive full verification chain.
 
 ### Phase 103: Paja Blossom Rail PoC
 **Goal**: A standard-NAP client can request the Paja-owned Blossom rail and receive a mediated, truthful upload result without gaining upload authority or direct network access.
