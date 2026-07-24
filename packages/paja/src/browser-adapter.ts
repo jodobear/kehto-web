@@ -56,9 +56,10 @@ import type { PajaSimulation } from './simulation.js';
 import { BrowserIntentController } from './browser-intent-controller.js';
 import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
 import { createPajaUploadRuntime, type PajaUploadRuntime } from './browser-upload.js';
+import { createPajaSocialCache } from './browser-social-cache.js';
 import {
   PAJA_LIVE_QUERY_WAIT_MS,
-  createPajaIdentityProviders,
+  createPajaContactListLoader,
   createPajaOutboxRelayPool,
   createPajaRelayBackend,
   createPajaRelayListLoader,
@@ -367,6 +368,15 @@ function createDevServices(
       },
     }),
   });
+  const baseOutboxRouter = createOutboxRouter(backend, getSimulation, confirmRequest, signerProvider);
+  const socialCache = createPajaSocialCache({
+    baseRouter: baseOutboxRouter,
+    loadContactList: createPajaContactListLoader(backend, getSimulation, signerProvider),
+    verifyEvent: (event) => verifyEvent(event as Parameters<typeof verifyEvent>[0]),
+    getActivePubkey: () => getRuntimePubkey(getSimulation, signerProvider),
+    subscribeSignerChange: signerProvider?.subscribe?.bind(signerProvider),
+  });
+  void socialCache.refreshActiveIdentity();
   const services: Record<string, ServiceHandler> = {
     keys: createKeysService(),
     resource: createResourceService({
@@ -388,7 +398,7 @@ function createDevServices(
       selectRelayTier: () => getPajaRelayUrls(getSimulation()),
       isAvailable: () => backend.isAvailable(),
     });
-    services.outbox = createOutboxService({ router: createOutboxRouter(backend, getSimulation, confirmRequest, signerProvider) });
+    services.outbox = createOutboxService({ router: socialCache.decorate(baseOutboxRouter) });
   }
   if (getSimulation().capabilities.domains.count && typeof backend.count === 'function') {
     services.count = createCountService({
@@ -413,7 +423,7 @@ function createDevServices(
   if (getSimulation().capabilities.domains.identity) {
     services.identity = createIdentityService({
       getSigner: () => createRuntimeSigner(getSimulation, confirmRequest, signerProvider),
-      ...createPajaIdentityProviders(backend, getSimulation, signerProvider),
+      getFollows: socialCache.getFollows,
     });
   }
   if (getSimulation().notifications.enabled) {
