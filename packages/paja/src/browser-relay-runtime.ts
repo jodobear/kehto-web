@@ -282,6 +282,24 @@ async function getBootstrapRelayUrls(
   ]);
 }
 
+/**
+ * Loads raw kind-3 candidates for one captured account through Paja's existing
+ * host-owned bootstrap relay selection. Consumers must verify and select events.
+ */
+export function createPajaContactListLoader(
+  backend: PajaRelayBackend,
+  getSimulation: () => PajaSimulation,
+  signerProvider?: PajaSignerProvider,
+): (pubkey: string) => Promise<NostrEvent[]> {
+  return async (pubkey: string): Promise<NostrEvent[]> => {
+    if (!/^[0-9a-fA-F]{64}$/.test(pubkey)) return [];
+    return backend.query(await getBootstrapRelayUrls(getSimulation, signerProvider), [{
+      kinds: [PAJA_CONTACT_LIST_KIND],
+      authors: [pubkey],
+    }], PAJA_LIVE_QUERY_WAIT_MS);
+  };
+}
+
 function latestEvent(events: NostrEvent[], kind: number, pubkey: string): NostrEvent | undefined {
   return events
     .filter((event) => event.kind === kind && event.pubkey === pubkey)
