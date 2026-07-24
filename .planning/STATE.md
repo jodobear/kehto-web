@@ -90,7 +90,6 @@ None yet.
 - Phase 104 is explicitly blocked pending user approval of the Writer plan and Writer remote/upstream-baseline setup.
 - Current Writer shortcut WIP is unrelated, dirty, local-only, ahead of `master`, and has no remote; never absorb, discard, or mix it into the Writer integration branch.
 - The real Writer/Paja browser journey is the acceptance target; a controlled fixture is only a focused PoC aid.
-- Repository-wide pnpm docs:check remains blocked by the pre-existing docs/packages/firewall.md 0.3.9 version row while @kehto/firewall is 0.3.10; repair it in the firewall documentation scope.
 
 ## Deferred Items
 

@@ -28,6 +28,7 @@ key-files:
     - packages/paja/README.md
     - docs/packages/paja.md
     - docs/how-tos/paja-local-authoring.md
+    - docs/packages/firewall.md
     - tests/e2e/paja-single-window.spec.ts
     - .planning/phases/102-paja-standard-nap-social-poc/deferred-items.md
 
@@ -48,9 +49,9 @@ coverage:
         status: pass
       - kind: other
         ref: "corepack pnpm docs:check"
-        status: fail
-    human_judgment: true
-    rationale: "The Paja content is present, but the repository-wide audit is blocked by a pre-existing unrelated @kehto/firewall package-doc version row."
+        status: pass
+    human_judgment: false
+    rationale: "The Paja content is present and the repository-wide audit passes after repairing the pre-existing @kehto/firewall package-doc version row."
   - id: D2
     description: "The deterministic Paja iframe tracer connects a complete NIP-07 fixture and proves standard identity follows plus OUTBOX kind-0 result routing without an opaque-origin target-CORS false positive."
     requirement: PAJA-01
@@ -99,19 +100,21 @@ metrics:
 - Verified Task 1 commit `3f18d01a`, which synchronizes the Paja README, package guide, and local-authoring guide; repairs the Paja manifest row to `0.8.2`; preserves the integrated opaque `Origin: null` target-CORS guidance and `paja.target.cors.error` diagnostic; and adds the sole `@kehto/paja` minor changeset.
 - Corrected the deterministic Paja browser tracer so it installs a complete NIP-07 signer after the host page is ready and explicitly connects it before asserting standard `identity.getPublicKey`, `identity.getFollows`, and `outbox.query` behavior.
 - Ran `corepack pnpm test:e2e` against no pre-existing listeners on ports 4173/4174. Playwright started the configured Kehto `@test/harness` preview at 4173 and `@kehto/playground` preview at 4174; the fresh Chromium run completed with 74 passed and 1 intentionally skipped test.
-- Re-ran repository build, type, unit, slop, and diff gates. Build and type-check passed; Vitest passed 107 files and 1,400 tests; the slop scanner reported no errors or lint warnings; and `git diff --check` passed.
+- Re-ran repository build, type, unit, docs, slop, and diff gates. Build and type-check passed; Vitest passed 107 files and 1,400 tests; `docs:check` passed after repairing the stale firewall package-doc version row; the slop scanner reported no errors or lint warnings; and `git diff --check` passed.
 - Kept the contribution scope limited to Phase 102 Paja implementation/tests/docs/changeset work. No Writer path, Phase 103 Blossom implementation, package/dependency change, repository-topology action, or contribution-selection operation was performed.
 
 ## Task Commits
 
 1. **Task 1: Document the standard Paja social boundary and add its release record** — `3f18d01a` (`docs`)
 2. **Task 2: Run complete Phase 102 gates and record the precise closeout** — `1d4eceee` (`test`, Rule 1 correction to the deterministic browser tracer)
+3. **Release-gate repair: Align the stale firewall package-doc manifest row** — `7931b87a` (`docs`, baseline gate repair)
 
 ## Files Created/Modified
 
 - `packages/paja/README.md` — consumer-facing standard identity/OUTBOX cache boundary and retained target-CORS guidance.
 - `docs/packages/paja.md` — package reference, exact `0.8.2` row, protocol authority/drift language, and retained CORS diagnostic material.
 - `docs/how-tos/paja-local-authoring.md` — standard social-message authoring guidance without a custom Paja API.
+- `docs/packages/firewall.md` — repaired the pre-existing manifest row from `0.3.9` to the shipped `0.3.10`, restoring the repository docs gate.
 - `.changeset/paja-standard-nap-social-cache.md` — sole minor release record for the shipped `@kehto/paja` social-cache behavior.
 - `tests/e2e/paja-single-window.spec.ts` — complete NIP-07 fixture and explicit connection for the standard social tracer.
 - `.planning/phases/102-paja-standard-nap-social-poc/deferred-items.md` — out-of-scope repository gate findings retained for follow-up.
@@ -155,12 +158,20 @@ NAP-IDENTITY `6461e4b37c29dc09a20dff35d9515889c4433874` is byte-identical to the
 - **Verification:** Both added state decisions now identify Phase 102.
 - **Committed in:** Completion metadata commit.
 
-**Total deviations:** 3 auto-fixed (2 Rule 1 corrections, 1 blocking environment adjustment).
-**Impact on plan:** The corrections strengthen the intended signed-in standard-message proof and preserve accurate state tracking. They add no public API, service namespace, dependency, Writer path, or Blossom behavior.
+**4. [Rule 3 - Blocking baseline] Repaired stale firewall package-doc version metadata**
+- **Found during:** Task 2 repository-wide docs gate
+- **Issue:** `docs/packages/firewall.md` retained version `0.3.9` after upstream released `@kehto/firewall` `0.3.10`, causing the mandatory docs audit to fail.
+- **Fix:** Aligned the manifest row with `packages/firewall/package.json` and reran the complete docs gate.
+- **Files modified:** `docs/packages/firewall.md`
+- **Verification:** `corepack pnpm docs:check` passed, including TypeDoc, VitePress, and package-doc audit.
+- **Committed in:** `7931b87a`
+
+**Total deviations:** 4 auto-fixed (2 Rule 1 corrections, 2 blocking environment/baseline adjustments).
+**Impact on plan:** The corrections strengthen the intended signed-in standard-message proof, preserve accurate state tracking, and restore the mandatory docs gate. They add no public API, service namespace, dependency, Writer path, or Blossom behavior.
 
 ## Issues Encountered
 
-- `corepack pnpm docs:check` completed TypeDoc and the docs-site build but reported one unrelated audit failure: `docs/packages/firewall.md` says `@kehto/firewall` version `0.3.9` while its package manifest is `0.3.10`. The stale row predates the integrated `738c3ce5` baseline and Task 1, is outside this Paja-only task, and is recorded in `deferred-items.md` rather than silently changed.
+- `corepack pnpm docs:check` initially reported one unrelated audit failure: `docs/packages/firewall.md` said `@kehto/firewall` version `0.3.9` while its package manifest is `0.3.10`. The stale baseline row was repaired to `0.3.10`; the complete docs gate then passed.
 - `npx --no-install aislop scan -d` completed at `85 / 100 Healthy` with 0 errors and 0 lint warnings. Its four `tautological-test` warnings remain the documented pre-existing findings in `packages/runtime/src/discovery.test.ts` and `packages/runtime/src/dispatch.test.ts`; no Phase 102 file triggered a new warning.
 - The Paja build retains its pre-existing `@kehto/nip` ignored-bare-import warning and the documentation site retains its existing chunk-size advisory; both builds completed successfully.
 
@@ -171,11 +182,11 @@ None - no external service configuration is required.
 ## Next Phase Readiness
 
 - Phase 103 can proceed with the documented Paja social boundary and passing deterministic browser proof; it must keep the real Paja/Writer smoke deferred until its Blossom work is complete.
-- The unrelated firewall documentation row must be repaired in its owning scope before a repository-wide `pnpm docs:check` can be fully green.
+- Repository-wide `pnpm docs:check` is green after the stale firewall package-doc version row was aligned with its `0.3.10` manifest.
 - A later focused upstream contribution selects only Phase 102 implementation, test, documentation, and changeset commits onto a clean upstream/main base. It excludes planning artifacts, Graphify output, generated files, unrelated cleanup, and external Writer work.
 
 ## Self-Check: PASSED
 
-- Task 1 commit `3f18d01a` and Task 2 correction commit `1d4eceee` exist in git history.
+- Task 1 commit `3f18d01a`, Task 2 correction commit `1d4eceee`, and docs-gate repair commit `7931b87a` exist in git history.
 - Required Phase 102 Paja documentation, changeset, browser tracer, and this summary exist at the recorded paths.
-- Fresh Playwright, build, type-check, unit, slop, and whitespace gates completed as recorded; the single unrelated docs-audit failure is explicitly retained above.
+- Fresh Playwright, build, type-check, unit, docs, slop, and whitespace gates completed successfully as recorded.
