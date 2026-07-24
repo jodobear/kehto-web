@@ -14,6 +14,12 @@ import type { PajaSimulation } from './simulation.js';
 
 export const PAJA_NIP65_RELAY_LIST_KIND = 10_002;
 export const PAJA_CONTACT_LIST_KIND = 3;
+/**
+ * Maximum raw kind-3 candidates returned for verification. The newest candidates
+ * (with event-ID tie-breaking) retain deterministic replacement while bounding
+ * serial signature verification of untrusted relay input.
+ */
+export const PAJA_CONTACT_LIST_CANDIDATE_LIMIT = 64;
 export const PAJA_LIVE_QUERY_WAIT_MS = 4_000;
 
 export interface PajaRelayBackend extends RelayPoolLike {
@@ -293,10 +299,14 @@ export function createPajaContactListLoader(
 ): (pubkey: string) => Promise<NostrEvent[]> {
   return async (pubkey: string): Promise<NostrEvent[]> => {
     if (!/^[0-9a-fA-F]{64}$/.test(pubkey)) return [];
-    return backend.query(await getBootstrapRelayUrls(getSimulation, signerProvider), [{
+    const candidates = await backend.query(await getBootstrapRelayUrls(getSimulation, signerProvider), [{
       kinds: [PAJA_CONTACT_LIST_KIND],
       authors: [pubkey],
     }], PAJA_LIVE_QUERY_WAIT_MS);
+    return candidates
+      .filter((event) => event.kind === PAJA_CONTACT_LIST_KIND && event.pubkey.toLowerCase() === pubkey.toLowerCase())
+      .sort((left, right) => right.created_at - left.created_at || left.id.localeCompare(right.id))
+      .slice(0, PAJA_CONTACT_LIST_CANDIDATE_LIMIT);
   };
 }
 
