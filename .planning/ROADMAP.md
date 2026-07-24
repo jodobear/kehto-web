@@ -52,77 +52,97 @@
 ## Phase Details
 
 ### Phase 101: Baseline & Writer Contribution Preflight
+
 **Goal**: Maintainers have a safe, reviewable starting point for Kehto/Paja and Writer work without losing Writer's unrelated shortcut WIP.
 **Depends on**: Nothing (first phase of v1.29)
 **Requirements**: PRE-01, PRE-02
 **Success Criteria** (what must be TRUE):
+
   1. A maintainer can identify the latest upstream implementation baseline for Kehto, review incoming Paja changes against it, and see Writer's dirty `chore/writer-source-baseline` shortcut WIP, local history, missing remote, and intended upstream baseline classified without any discarded or absorbed work.
   2. A maintainer can review a Writer implementation plan that names the preserved WIP, required remote/upstream setup, dedicated integration branch, Paja dependency, exact standard-NAP changes, tests, and the explicit user-approval checkpoint.
   3. Before user approval, the Writer working tree remains free of source edits for this milestone and the documented contribution strategy keeps planning-only files out of upstream implementation PRs.
+
 **Plans**: 1 plan
 
 Plans:
+
 - [ ] 101-01-PLAN.md — Refresh and record Kehto/Writer baseline evidence, author the blocked Writer contribution plan, and obtain explicit approval.
 
 ### Phase 102: Paja Standard-NAP Social PoC
+
 **Goal**: A logged-in napplet can discover the active Paja identity, follows, and followed kind-0 profile events through standard NAP interfaces.
 **Depends on**: Phase 101
 **Requirements**: PAJA-01, PAJA-02, PAJA-03
 **Success Criteria** (what must be TRUE):
+
   1. After login, a napplet can call `identity.getPublicKey` and `identity.getFollows` and receive the active public key and relay-backed follows associated with the public key captured when that request started.
   2. Paja keeps an internal, active-identity-scoped cache of followed authors' kind-0 profiles that refreshes after login without exposing a Paja-specific application API.
   3. A napplet can issue normal `outbox.query` requests for followed authors' kind-0 events and receive ordinary OUTBOX events with normal deduplication, `incomplete`, and `error` semantics whether Paja serves or refreshes its internal cache.
-**Plans**: 4 plans
+
+**Plans**: 1/4 plans executed
 
 Plans:
-- [ ] 102-01-PLAN.md — Record fail-closed current-master NAP authority evidence and establish the required Chromium browser gate before source edits.
+
+- [x] 102-01-PLAN.md — Record fail-closed current-master NAP authority evidence and establish the required Chromium browser gate before source edits.
 - [ ] 102-02-PLAN.md — Prove one standard identity-to-followed-kind-0 tracer through Paja’s private cache and existing services.
 - [ ] 102-03-PLAN.md — Add deterministic contact validation, account-race, cache/filter, and OUTBOX degradation coverage.
 - [ ] 102-04-PLAN.md — Synchronize Paja docs and release metadata, then run the browser-inclusive full verification chain.
 
 ### Phase 103: Paja Blossom Rail PoC
+
 **Goal**: A standard-NAP client can request the Paja-owned Blossom rail and receive a mediated, truthful upload result without gaining upload authority or direct network access.
 **Depends on**: Phase 102
 **Requirements**: UPLOAD-02, POC-02
 **Success Criteria** (what must be TRUE):
+
   1. A controlled integration fixture that requests `upload.upload` with `rail: "blossom"` receives only standard NAP-UPLOAD statuses while Paja selects the server, obtains consent, signs kind-24242 authorization, transfers bytes, applies policy, and validates the returned descriptor.
   2. The fixture can obtain preview bytes through standard `resource.bytes` after a successful upload, while no custom Paja API, direct relay/HTTP/WebSocket access, `window.nostr`, private-key access, or napplet-side Blossom authorization is available.
+
 **Plans**: TBD
 
 ### Phase 104: Approved Writer Integration
+
 **Goal**: Once explicitly approved, the real Writer app can tag followed profiles and paste-upload media through the same standard Paja NAP paths.
 **Depends on**: Phase 103
 **Execution gate**: Record explicit user approval of the Phase 101 Writer plan, establish Writer's remote/upstream baseline, and create its dedicated integration branch before any Writer source edit.
 **Requirements**: WRITER-01, WRITER-02, WRITER-03, WRITER-04, UPLOAD-01, UPLOAD-03, POC-01
 **Success Criteria** (what must be TRUE):
+
   1. Writer obtains follows with `identity.getFollows`, hydrates candidates through bounded batched `outbox.query({ kinds: [0], authors })` calls rather than its per-author `common.getProfile` path, and selects one profile per pubkey by greatest `created_at` then lexicographically lowest event ID.
   2. In Writer's existing mention interface, a user can select a followed profile, insert the existing `nostr:nprofile` Markdown mention, and publish with the corresponding NIP-23 `p` tag.
   3. Writer reacts to standard `identity.changed` by clearing prior-account candidates on logout or account switch, rejecting stale async work, and loading candidates for the new identity without a Paja-specific signal.
   4. A user can paste media into Writer, which calls `upload.upload` with `rail: "blossom"`, inserts the returned HTTPS URL into the draft, and renders preview bytes only through `resource.bytes` Blob object URLs.
   5. The real Writer app running through Paja demonstrates both minimum journeys: login to followed-profile tagging, and pasted media to explicit Blossom upload to preview.
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 105: Session, Profile, Resource & Upload Hardening
+
 **Goal**: Users receive correct, safe social and media behavior despite identity changes, partial relay results, cancelled requests, and adverse Blossom outcomes.
 **Depends on**: Phase 104
 **Requirements**: HARD-01, HARD-02, HARD-03, HARD-04
 **Success Criteria** (what must be TRUE):
+
   1. Connecting, switching accounts, disconnecting, or logging out emits `identity.changed` without replacing Writer's iframe, and old-account cache or async results cannot repopulate the active session.
   2. Writer's tagging UI preserves valid candidates from query-wide `incomplete` or `error` responses and visibly distinguishes signed-out, no-follows, no-usable-profile, complete, degraded, and failed states without claiming per-author completeness.
   3. Profile and uploaded-media requests stay scoped to their requesting window and active identity generation; cancellation, stale-response discard, origin policy, Blob URL replacement/revocation, and teardown prevent cross-window aborts, direct remote assignment, and leaks.
   4. Paja reports denied, unavailable, cancelled, malformed-result, and failed Blossom outcomes distinctly, and only accepts a completed result whose URL, hash, and size validate against confirmed stored bytes and authorization.
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 106: Cross-Repository Browser Proof & PR Readiness
+
 **Goal**: Maintainers can verify the real Writer/Paja composition end to end and review focused implementation contributions in dependency order.
 **Depends on**: Phase 105
 **Requirements**: E2E-01, VERIFY-01, VERIFY-02
 **Success Criteria** (what must be TRUE):
+
   1. Controlled browser coverage drives the real Writer app through Paja and proves tagging, explicit Blossom upload, partial data, identity switch/logout without iframe replacement, RESOURCE-mediated previews, and no direct network or key access.
   2. Every changed repository passes its focused and full required gates; changed Kehto package outputs have changesets; implementation branches carry verification evidence, checked NAP refs, conformance status, draft-spec gaps, and cross-repository dependency/order notes.
   3. Each upstream PR contains one coherent concern's implementation, tests, required docs, and changesets only, excluding `.planning/**`, Graphify output, preserved Writer WIP, generated noise, unrelated cleanup, and cross-repository work that belongs in a separate PR.
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -133,7 +153,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 101. Baseline & Writer Contribution Preflight | 0/1 | Not started | - |
-| 102. Paja Standard-NAP Social PoC | 0/TBD | Not started | - |
+| 102. Paja Standard-NAP Social PoC | 1/4 | In Progress|  |
 | 103. Paja Blossom Rail PoC | 0/TBD | Not started | - |
 | 104. Approved Writer Integration | 0/TBD | Blocked pending explicit user approval | - |
 | 105. Session, Profile, Resource & Upload Hardening | 0/TBD | Not started | - |
