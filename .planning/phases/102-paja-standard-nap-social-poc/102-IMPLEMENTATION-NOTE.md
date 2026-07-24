@@ -91,3 +91,23 @@ The declaration inspection matched the required identifiers:
 Pinned NAP-OUTBOX 4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e plus installed @napplet/nap@0.28.0 types govern the Phase 102 PoC under upstream drift; no current-master conformance claim.
 
 This preflight did not inspect, mutate, stage, schedule, or otherwise enter Writer source, test, fixture, smoke, or documentation paths.
+
+## Browser prerequisite evidence
+
+**Rechecked:** 2026-07-24T13:49:36Z
+
+The configured executable gate now passes without changing `playwright.config.ts`:
+
+```bash
+test -x /usr/bin/chromium && /usr/bin/chromium --version
+# Chromium 150.0.7871.128 Built from source for Fedora release 43 (Forty Three)
+```
+
+The configured Playwright project was then enumerated without running the browser suite, as required for Wave 0:
+
+```bash
+./node_modules/.bin/playwright test --list --project=chromium
+# Total: 74 tests in 39 files
+```
+
+The list command loaded the repository's `chromium` project, which keeps `/usr/bin/chromium` as its `executablePath`. The final browser-inclusive test run remains owned by Plan 102-04.
