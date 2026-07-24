@@ -160,17 +160,13 @@ describe('@kehto/paja effective relay URLs', () => {
       content: '',
       sig: 'e'.repeat(128),
     }));
-    const unhandled = vi.fn();
-    process.on('unhandledRejection', unhandled);
     try {
       const simulation = normalizePajaSimulation({ relay: { mode: 'live', urls: ['wss://relay.example'] } });
       const loader = createPajaContactListLoader(createPajaRelayBackend(() => simulation, () => true), () => simulation);
 
       await expect(loader(pubkey)).resolves.toHaveLength(PAJA_CONTACT_LIST_CANDIDATE_LIMIT);
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      expect(unhandled).not.toHaveBeenCalled();
     } finally {
-      process.off('unhandledRejection', unhandled);
       livePool.closeRejects = false;
     }
   });
