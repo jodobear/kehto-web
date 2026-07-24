@@ -6,19 +6,20 @@
 
 Provide a modular, framework-agnostic runtime for hosting napplet applications — so any Nostr client can embed sandboxed mini-apps by integrating @kehto/shell.
 
-## Current Milestone: v1.28 NAP-WEBRTC Runtime Parity
+## Current Milestone: v1.29 Social + Blossom Vertical Slice
 
-**Goal:** Add the remaining missing recent `@napplet/nap` domain, `NAP-WEBRTC`, end to end in Kehto: shell capability advertisement, runtime dispatch, reference service, Paja wiring, playground demo napplet, unit coverage, and Playwright proof.
+**Goal:** Prove a complete shell-mediated social profile flow through a real SDK napplet in Paja: login, read the current pubkey and follows, query followed authors' kind-0 profiles, render profile media through the resource proxy, and upload through the Blossom rail without direct napplet networking or key access.
 
 **Target features:**
-- **One NAP only:** v1.28 is scoped to `webrtc` / `NAP-WEBRTC`; `NAP-BLE` is complete in PR #75.
-- **Runtime-owned WebRTC sessions:** napplets can request `webrtc.open`, `webrtc.send`, and `webrtc.close`; the shell/runtime owns signaling, signing/encryption, SDP, ICE, peer connection lifecycle, session handles, and policy.
-- **Reference service:** add a framework-agnostic `createWebrtcService` in `@kehto/services` with host-provided hooks that return structured upstream-compatible results, route host-pushed events, and deny unavailable actions safely.
-- **Capability and dispatch parity:** advertise `webrtc` only when the host wires a WebRTC backend, register `webrtc` in runtime NAP dispatch, and remove it from Paja's deferred-domain metadata.
-- **Playground and Paja proof:** Paja wires deterministic in-memory WebRTC behavior; playground gains a small `webrtc-demo` napplet and Playwright coverage that proves representative WebRTC requests/events work through the real shell path.
-- **Release-ready coverage:** new unit/static/e2e tests pass; docs/package exports/changesets updated; branch pushed and PR opened when gates pass.
+- **Real identity data:** wire `identity.getPublicKey` and `identity.getFollows` to the active signer and relay-backed follow list in both host paths required by the slice.
+- **Live identity lifecycle:** Paja emits `identity.changed`; the napplet cancels stale work, clears identity-derived state on `pubkey: ""`, and refreshes follows and profiles for a new pubkey without reloading the iframe.
+- **OUTBOX profile loading:** query followed authors with batched `outbox.query` filters using `kinds: [0]`, reduce results to the newest replaceable profile per pubkey, and retain successful profiles when the result is incomplete.
+- **Resource-mediated media:** fetch HTTPS profile picture and banner bytes only through `resource.bytes`, render object URLs, revoke them on replacement/reset, and never assign remote profile URLs directly to media elements.
+- **Blossom upload:** issue `upload.upload` with `request.rail: "blossom"`; the shell owns server selection, authorization signing, network access, policy, and result validation.
+- **Real Paja proof:** add a built `@napplet/shim`/SDK fixture and browser E2E that drives the full login-to-profile-to-media-to-upload flow through Paja's real shell path.
+- **Follow-up boundary:** defer `blossom:sha256` content-addressed reads and low-level NAP-BLOSSOM operations; an HTTPS Blossom result URL is sufficient for the MVP and is read through NAP-RESOURCE.
 
-**Key context:** Authoritative delta was inspected on 2026-06-23 from `@napplet/nap@0.20.0` / `@napplet/core@0.20.0` and the local `napplet` checkout (`packages/nap/src/webrtc`, `packages/core/src/types/webrtc.ts`). Prior parity milestones are stacked in PRs #71-#75; this should close the recent `@napplet/nap` domain parity set. No new dependencies.
+**Key context:** Protocol authority was checked on 2026-07-24. NAP-IDENTITY is on `napplet/naps` `master` at `6461e4b37c29dc09a20dff35d9515889c4433874`. NAP-OUTBOX remains draft PR #32 at `4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e`; it exposes query-wide `incomplete`/`error` but no per-author completeness or newest-per-author guarantee, so the napplet owns deterministic reduction and degraded-state presentation. NAP-RESOURCE is draft PR #80 at `fa6bcc6935aa19e7b70ab2a2c721dafca77c78e1` after its earlier merge was reverted. NAP-UPLOAD is draft PR #33 at `a7cc17463cbf5d9cb87884b31071bc4fc826034c`. NAP-BLOSSOM draft PR #71 at `ca1d7ba594e6790785dc770227085d8648d39631` confirms HTTPS upload results can flow through generic NAP-RESOURCE; its content-addressed operations are not required for this milestone.
 
 ## Latest Milestone: v1.18 Napplet Firewall (shipped 2026-06-15)
 
@@ -306,4 +307,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-17 — v1.21 NIP-5D (#2303) + NAP-SHELL/INTENT Conformance milestone started (v1.20 Content-Addressed Runtime Resolution phases complete, PRs #38/#39 open)*
+*Last updated: 2026-07-24 — v1.29 Social + Blossom Vertical Slice milestone started; protocol authority and draft-spec gaps recorded above.*

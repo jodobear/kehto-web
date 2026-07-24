@@ -1,34 +1,36 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.22
-milestone_name: Single-Window Development Runtime
-status: complete
-last_updated: "2026-07-24T10:12:00+01:00"
+milestone: v1.29
+milestone_name: Paja Social Cache + Writer Blossom PoC
+current_phase: 94
+current_phase_name: Coverage, Docs, Release Readiness, and PR
+status: planning
+stopped_at: context exhaustion at 78% (2026-07-24)
+last_updated: "2026-07-24T09:56:31.582Z"
 last_activity: 2026-07-24
+last_activity_desc: "Completed quick task 260724-czo: Inject a full Class-1 CSP into verified srcdoc loaders."
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_phases: 10
+  completed_phases: 4
+  total_plans: 19
+  completed_plans: 9
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-21)
+See: .planning/PROJECT.md (updated 2026-07-24)
 
 **Core value:** Modular, framework-agnostic runtime for hosting napplet applications.
-**Current focus:** v1.22 planning — single-window development runtime for napplet authors with full current NAP/service parity, HMR via target URL, minimal two-bar chrome, and environment simulation controls.
+**Current focus:** v1.29 planning — PoC-first Paja follow/profile caching through standard identity/outbox NAPs plus real Writer tagging and explicit Blossom upload.
 
 ## Current Position
 
-Phase: 94 — Coverage, Docs, Release Readiness, and PR
-Plan: 94-01 — complete
-Status: v1.22 complete; branch pushed and PR #64 opened
-
-Last activity: 2026-07-24 — Completed quick task 260724-czo: Inject a full Class-1 CSP into verified srcdoc loaders.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-24 — Milestone v1.29 started after rebasing onto the full verified-srcdoc CSP baseline.
 
 ## Performance Metrics
 
@@ -148,8 +150,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-06-17T06:58:00.000Z
-Stopped at: Phase 89 complete — v1.21 NIP-5D #2303 + NAP-SHELL/INTENT conformance done (docs + changesets)
+Last session: 2026-07-24T09:56:31.570Z
+Stopped at: context exhaustion at 78% (2026-07-24)
 Resume file: None
 
 ## Operator Next Steps
