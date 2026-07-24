@@ -121,7 +121,7 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
         const snapshot = activePubkey ? snapshots.get(activePubkey) : undefined;
         const base = await router.query(filters, queryOptions);
         const cached = matchingCachedProfiles(snapshot?.profiles ?? [], filters);
-        return mergeResult(base, cached);
+        return mergeResult(base, cached, filters, queryOptions);
       },
       subscribe: router.subscribe.bind(router),
       publish: router.publish.bind(router),
@@ -192,15 +192,45 @@ function matchingCachedProfiles(profiles: readonly RelayEventResult[], filters: 
   return [...matched.values()];
 }
 
-function mergeResult(base: OutboxResult, cached: RelayEventResult[]): OutboxResult {
+function mergeResult(
+  base: OutboxResult,
+  cached: RelayEventResult[],
+  filters: Parameters<OutboxRouter['query']>[0],
+  queryOptions: Parameters<OutboxRouter['query']>[1],
+): OutboxResult {
   const events = new Map<string, RelayEventResult>();
   for (const entry of base.events) events.set(entry.event.id, entry);
   for (const entry of cached) {
     if (!events.has(entry.event.id)) events.set(entry.event.id, entry);
   }
   return {
-    events: [...events.values()],
+    events: applyFinalLimits([...events.values()], filters, queryOptions),
     ...(base.incomplete === undefined ? {} : { incomplete: base.incomplete }),
     ...(base.error === undefined ? {} : { error: base.error }),
   };
+}
+
+function applyFinalLimits(
+  entries: RelayEventResult[],
+  filters: Parameters<OutboxRouter['query']>[0],
+  queryOptions: Parameters<OutboxRouter['query']>[1],
+): RelayEventResult[] {
+  const aggregateLimit = typeof queryOptions?.limit === 'number' && queryOptions.limit >= 0
+    ? queryOptions.limit
+    : undefined;
+  const aggregateCapped = aggregateLimit === undefined ? entries : entries.slice(0, aggregateLimit);
+  if (filters.length === 0) return aggregateCapped;
+
+  const counts = filters.map(() => 0);
+  return aggregateCapped.filter((entry) => {
+    const matching = filters.flatMap((filter, index) =>
+      matchesAnyFilter(entry.event, [filter]) ? [index] : []);
+    const allowed = matching.some((index) => {
+      const limit = filters[index]?.limit;
+      return typeof limit !== 'number' || limit < 0 || counts[index]! < limit;
+    });
+    if (!allowed) return false;
+    for (const index of matching) counts[index]! += 1;
+    return true;
+  });
 }
