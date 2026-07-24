@@ -14,9 +14,9 @@ Requirements for milestone v1.29. Planning lives on this fork's planning branch 
 
 ### Paja Social Data Boundary
 
-- [ ] **PAJA-01**: After login, Paja can provide the active public key and relay-backed follow list through standard `identity.getPublicKey` and `identity.getFollows`, with lookups bound to the public key captured when each request begins.
-- [ ] **PAJA-02**: After login, Paja prefetches and keeps followed authors' kind-0 profiles in an internal cache that refreshes for the active identity and is never exposed through a Paja-specific application API.
-- [ ] **PAJA-03**: A napplet can query followed authors' kind-0 events through standard `outbox.query`; Paja may satisfy or refresh results from its internal cache while preserving normal OUTBOX events, deduplication, `incomplete`, and `error` semantics.
+- [x] **PAJA-01**: After login, Paja can provide the active public key and relay-backed follow list through standard `identity.getPublicKey` and `identity.getFollows`, with lookups bound to the public key captured when each request begins.
+- [x] **PAJA-02**: After login, Paja prefetches and keeps followed authors' kind-0 profiles in an internal cache that refreshes for the active identity and is never exposed through a Paja-specific application API.
+- [x] **PAJA-03**: A napplet can query followed authors' kind-0 events through standard `outbox.query`; Paja may satisfy or refresh results from its internal cache while preserving normal OUTBOX events, deduplication, `incomplete`, and `error` semantics.
 
 ### Writer Followed-Profile Tagging
 
@@ -92,9 +92,9 @@ Every v1 requirement maps to exactly one roadmap phase.
 |-------------|-------|--------|
 | PRE-01 | Phase 101 | Pending |
 | PRE-02 | Phase 101 | Pending |
-| PAJA-01 | Phase 102 | Pending |
-| PAJA-02 | Phase 102 | Pending |
-| PAJA-03 | Phase 102 | Pending |
+| PAJA-01 | Phase 102 | Complete |
+| PAJA-02 | Phase 102 | Complete |
+| PAJA-03 | Phase 102 | Complete |
 | UPLOAD-02 | Phase 103 | Pending |
 | POC-02 | Phase 103 | Pending |
 | WRITER-01 | Phase 104 | Pending |
@@ -113,6 +113,7 @@ Every v1 requirement maps to exactly one roadmap phase.
 | VERIFY-02 | Phase 106 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 21 total
 - Mapped to phases: 21
 - Unmapped: 0

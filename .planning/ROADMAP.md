@@ -79,14 +79,14 @@ Plans:
   2. Paja keeps an internal, active-identity-scoped cache of followed authors' kind-0 profiles that refreshes after login without exposing a Paja-specific application API.
   3. A napplet can issue normal `outbox.query` requests for followed authors' kind-0 events and receive ordinary OUTBOX events with normal deduplication, `incomplete`, and `error` semantics whether Paja serves or refreshes its internal cache.
 
-**Plans**: 3/4 plans executed
+**Plans**: 4/4 plans executed
 
 Plans:
 
 - [x] 102-01-PLAN.md — Record fail-closed current-master NAP authority evidence and establish the required Chromium browser gate before source edits.
 - [x] 102-02-PLAN.md — Prove one standard identity-to-followed-kind-0 tracer through Paja’s private cache and existing services.
 - [x] 102-03-PLAN.md — Add deterministic contact validation, account-race, cache/filter, and OUTBOX degradation coverage.
-- [ ] 102-04-PLAN.md — Synchronize Paja docs and release metadata, then run the browser-inclusive full verification chain.
+- [x] 102-04-PLAN.md — Synchronize Paja docs and release metadata, then run the browser-inclusive full verification chain.
 
 ### Phase 103: Paja Blossom Rail PoC
 
@@ -153,7 +153,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 101. Baseline & Writer Contribution Preflight | 0/1 | Not started | - |
-| 102. Paja Standard-NAP Social PoC | 3/4 | In Progress|  |
+| 102. Paja Standard-NAP Social PoC | 4/4 | In Progress|  |
 | 103. Paja Blossom Rail PoC | 0/TBD | Not started | - |
 | 104. Approved Writer Integration | 0/TBD | Blocked pending explicit user approval | - |
 | 105. Session, Profile, Resource & Upload Hardening | 0/TBD | Not started | - |

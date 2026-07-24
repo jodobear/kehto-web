@@ -147,8 +147,16 @@ NAP-IDENTITY `6461e4b37c29dc09a20dff35d9515889c4433874` is byte-identical to the
 - **Verification:** The rerun used the exact repository Playwright configuration and passed the fresh 74-test Chromium suite.
 - **Committed in:** Not applicable; verification-environment adjustment only.
 
-**Total deviations:** 2 auto-fixed (1 browser-test bug, 1 blocking environment adjustment).
-**Impact on plan:** The correction strengthens the intended signed-in standard-message proof. It adds no public API, service namespace, dependency, Writer path, or Blossom behavior.
+**3. [Rule 1 - Metadata] Corrected phase labels emitted by the state helper**
+- **Found during:** Task 2 closeout state update
+- **Issue:** The state helper recorded both new decisions with its default `[Phase ?]` label despite this plan belonging to Phase 102.
+- **Fix:** Replaced the labels with `[Phase 102]` before committing completion metadata.
+- **Files modified:** `.planning/STATE.md`
+- **Verification:** Both added state decisions now identify Phase 102.
+- **Committed in:** Completion metadata commit.
+
+**Total deviations:** 3 auto-fixed (2 Rule 1 corrections, 1 blocking environment adjustment).
+**Impact on plan:** The corrections strengthen the intended signed-in standard-message proof and preserve accurate state tracking. They add no public API, service namespace, dependency, Writer path, or Blossom behavior.
 
 ## Issues Encountered
 
