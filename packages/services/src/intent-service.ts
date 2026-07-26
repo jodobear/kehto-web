@@ -41,8 +41,8 @@ const INTENT_SERVICE_VERSION = '1.0.0';
 
 /** Context passed to {@link IntentResolver.invoke} for trust/attribution. */
 export interface IntentResolverContext {
-  /** Window id of the napplet that issued the request. */
-  windowId: string;
+  /** Runtime-attested dTag of the napplet that issued the request. */
+  sender: string;
 }
 
 /**
