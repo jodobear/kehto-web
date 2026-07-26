@@ -7,15 +7,15 @@ completed: 2026-07-26
 # Quick Task 260726-g8r Summary
 
 Updated `AGENTS.md` so additional Kehto worktrees must live under
-`~/.worktrees/kehto/` and must not be created as `/Users/sandwich/Develop/kehto-*`
-siblings. The policy also tells agents to run `git worktree list`, reuse an
-existing branch checkout when present, and move misplaced worktrees with
-`git worktree move`.
+`~/.worktrees/kehto/` and must not be created as sibling `kehto-*` directories
+next to the primary repo. The policy also tells agents to run `git worktree
+list`, reuse an existing branch checkout when present, and move misplaced
+worktrees with `git worktree move`.
 
 Moved the existing `chore/napplet-scheme-conformance` checkout to
-`/Users/sandwich/.worktrees/kehto/napplet-scheme-conformance` before the doc
-change. A follow-up `find /Users/sandwich/Develop -maxdepth 1 -type d -name
-'kehto-*' -print` returned no leftover sibling directories.
+`~/.worktrees/kehto/napplet-scheme-conformance` before the doc change. A
+follow-up sibling-directory check returned no leftover `kehto-*` directories
+next to the primary repo.
 
 During verification, `pnpm docs:check` exposed stale release metadata rows for
 `@kehto/firewall` and `@kehto/paja`. Updated those package docs from `0.3.9` to
@@ -24,10 +24,10 @@ successfully.
 
 Verification:
 
-- `git worktree list` shows only the primary checkout in `/Users/sandwich/Develop/kehto`
-  plus the extra checkout under `~/.worktrees/kehto/napplet-scheme-conformance`.
-- `find /Users/sandwich/Develop -maxdepth 1 -type d -name 'kehto-*' -print`
-  returned no paths.
+- `git worktree list` shows the primary checkout plus the extra checkout under
+  `~/.worktrees/kehto/napplet-scheme-conformance`.
+- A sibling-directory check next to the primary repo returned no `kehto-*`
+  worktree paths.
 - `git diff --check` passed.
 - `pnpm docs:check` passed.
 - `pnpm build` passed.
