@@ -847,7 +847,7 @@ describe('NIP-5D napplet namespace prelude', () => {
     expect(overflowClosed).toEqual([{ channelId: 'c-overflow', reason: 'buffer overflow' }]);
   });
 
-  it('retains every trusted inbound handle in arrival order until onOpened registers', () => {
+  it('retains every trusted-parent inbound handle in arrival order until onOpened registers', () => {
     const target = createPreludeTestWindow();
     runPrelude(renderNappletNamespacePrelude({ domains: ['inc'] }), target);
 
