@@ -104,7 +104,7 @@ final host integration wait for mutually compatible convention-capable
   3. A frame cannot invoke a capability before its session exists, reassign its creation-time identity or trusted source, or observe another frame's capabilities or services.
   4. Shell, Paja, and playground omit any domain whose live implementation is unavailable, including when simulation or disabled-domain controls remove it.
 
-**Plans:** 5/5 plans executed
+**Plans:** 5/6 plans executed
 
 - [x] 101-01-PLAN.md
 - [x] 101-02-PLAN.md
@@ -242,6 +242,11 @@ and sends runtime-attested carrier-neutral delivery only after target readiness.
 - [x] 104-05-PLAN.md — Prove source-independent ready-only delivery end to end
   and align focused consumers, guards, and package documentation.
 
+**Wave 6** *(verification gap closure)*
+
+- [ ] 104-06-PLAN.md — Reject whitespace-padded archetype authoring metadata
+  instead of normalizing it into a signed contract.
+
 ### Phase 105: Published Convention Adoption and Host Flows
 
 **Goal:** Kehto consumes the released convention-capable Napplet line and Paja
@@ -283,7 +288,7 @@ users rely on.
 | 101. NAP-SHELL Session Integrity | v1.29 | 5/5 | Complete | 2026-07-23 |
 | 102. NAP-INC Event and Channel Parity | v1.29 | 14/14 | Complete    | 2026-07-26 |
 | 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete    | 2026-07-23 |
-| 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 5/5 | In Progress |  |
+| 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 5/6 | Gap closure |  |
 | 105. Published Convention Adoption and Host Flows | v1.29 | 0/TBD | Waiting on upstream package publication | - |
 | 106. Active-Surface Conformance and Release | v1.29 | 0/TBD | Not started | - |
 

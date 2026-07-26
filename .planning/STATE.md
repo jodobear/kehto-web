@@ -5,14 +5,14 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 104
 current_phase_name: NAP-INTENT and Manifest Contract Parity
 status: executing
-stopped_at: Completed 104-05-PLAN.md
+stopped_at: Executing 104-06 verification gap closure
 last_updated: "2026-07-26T15:12:05.647Z"
 last_activity: 2026-07-26
 last_activity_desc: Phase 104 implementation complete; ready for phase verification
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 31
+  total_plans: 32
   completed_plans: 31
   percent: 67
 ---
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 104 (nap-intent-and-manifest-contract-parity) — EXECUTING
-Plan: 5 of 5
-Status: Ready for phase verification
+Plan: 6 of 6
+Status: Executing verification gap closure
 
 Last activity: 2026-07-26 — Phase 104 implementation complete; ready for phase verification
 
