@@ -33,7 +33,11 @@
  */
 
 import type { NappletMessage } from '@napplet/core';
-import type { ServiceDescriptor, ServiceHandler } from '@kehto/runtime';
+import type {
+  ServiceDescriptor,
+  ServiceHandler,
+  ServiceRuntimeContext,
+} from '@kehto/runtime';
 import type {
   IntentAcceptedResult,
   IntentAvailability,
@@ -136,6 +140,83 @@ function toErrorMessage(err: unknown): string {
   return 'intent request failed';
 }
 
+function hasOwn(value: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+type RequestValidation =
+  | { request: IntentRequest }
+  | { error: 'invalid convention' | 'invoke rejected' };
+
+function validateIntentRequest(value: unknown): RequestValidation {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { error: 'invalid convention' };
+  }
+  const request = value as Record<string, unknown>;
+  if (
+    typeof request.archetype !== 'string'
+    || request.archetype.length === 0
+    || typeof request.action !== 'string'
+    || request.action.length === 0
+    || typeof request.convention !== 'string'
+    || request.convention.length === 0
+  ) {
+    return { error: 'invalid convention' };
+  }
+
+  const match = /^napplet:([^/?#\s]+)\/([^/?#\s]+)$/.exec(request.convention);
+  if (!match || match[1] !== request.archetype || match[2] !== request.action) {
+    return { error: 'invalid convention' };
+  }
+
+  const allowedKeys = ['archetype', 'action', 'convention', 'payload', 'handler', 'behavior'];
+  if (Object.keys(request).some((key) => !allowedKeys.includes(key))) {
+    return { error: 'invoke rejected' };
+  }
+
+  if (
+    hasOwn(request, 'handler')
+    && request.handler !== undefined
+    && (typeof request.handler !== 'string' || request.handler.length === 0)
+  ) {
+    return { error: 'invoke rejected' };
+  }
+
+  let behavior: IntentRequest['behavior'];
+  if (hasOwn(request, 'behavior') && request.behavior !== undefined) {
+    if (
+      typeof request.behavior !== 'object'
+      || request.behavior === null
+      || Array.isArray(request.behavior)
+    ) {
+      return { error: 'invoke rejected' };
+    }
+    const record = request.behavior as Record<string, unknown>;
+    if (
+      Object.keys(record).some((key) => key !== 'focus' && key !== 'reuse')
+      || (hasOwn(record, 'focus') && typeof record.focus !== 'boolean')
+      || (hasOwn(record, 'reuse') && typeof record.reuse !== 'boolean')
+    ) {
+      return { error: 'invoke rejected' };
+    }
+    behavior = {
+      ...(record.focus === undefined ? {} : { focus: record.focus as boolean }),
+      ...(record.reuse === undefined ? {} : { reuse: record.reuse as boolean }),
+    };
+  }
+
+  return {
+    request: {
+      archetype: request.archetype,
+      action: request.action,
+      convention: request.convention,
+      ...(hasOwn(request, 'payload') ? { payload: request.payload } : {}),
+      ...(typeof request.handler === 'string' ? { handler: request.handler } : {}),
+      ...(behavior === undefined ? {} : { behavior }),
+    },
+  };
+}
+
 /**
  * Create the NAP-INTENT service handler.
  *
@@ -148,17 +229,8 @@ export function createIntentService(options: IntentServiceOptions): ServiceHandl
     throw new Error('createIntentService: options.resolver is required');
   }
   const { resolver } = options;
-
-  // Latest send callback per served window, used to fan `intent.changed`
-  // pushes out to every napplet that has interacted with the intent domain.
-  const windows = new Map<string, Send>();
-
-  // Subscribe once for availability changes and broadcast them as pushes.
-  resolver.onChanged?.((availability) => {
-    for (const send of windows.values()) {
-      send({ type: 'intent.changed', availability } as NappletMessage);
-    }
-  });
+  let runtimeContext: ServiceRuntimeContext | undefined;
+  let unsubscribeChanged: (() => void) | undefined;
 
   /**
    * Run a resolver call and marshal its outcome onto `resultType`. The resolver
@@ -186,18 +258,76 @@ export function createIntentService(options: IntentServiceOptions): ServiceHandl
   }
 
   function handleInvoke(windowId: string, msg: NappletMessage, send: Send): void {
-    const m = msg as NappletMessage & { id?: string; request?: IntentRequest };
+    const m = msg as NappletMessage & { id?: string; request?: unknown };
     const id = m.id ?? '';
-    const request = m.request;
-    if (!request || typeof request !== 'object' || typeof request.archetype !== 'string' || request.archetype.length === 0) {
-      send({ type: 'intent.invoke.result', id, error: 'invalid request' } as NappletMessage);
+    const validation = validateIntentRequest(m.request);
+    if ('error' in validation) {
+      send({
+        type: 'intent.invoke.result',
+        id,
+        result: { ok: false, error: validation.error },
+      } as NappletMessage);
       return;
     }
-    settle(
-      () => resolver.invoke(request, { windowId }),
-      send, 'intent.invoke.result', id,
-      (result) => ({ type: 'intent.invoke.result', id, result } as NappletMessage),
-    );
+    const sender = runtimeContext?.resolveDTag(windowId);
+    if (!sender) {
+      send({
+        type: 'intent.invoke.result',
+        id,
+        result: { ok: false, error: 'invoke rejected' },
+      } as NappletMessage);
+      return;
+    }
+
+    let pending: Promise<IntentResolverOutcome>;
+    try {
+      pending = Promise.resolve(resolver.invoke(validation.request, { sender }));
+    } catch {
+      send({
+        type: 'intent.invoke.result',
+        id,
+        result: { ok: false, error: 'invoke rejected' },
+      } as NappletMessage);
+      return;
+    }
+    void pending.then(
+      (outcome) => {
+        if (
+          outcome.result.ok
+          && (!('retained' in outcome) || typeof outcome.retained.start !== 'function')
+        ) {
+          send({
+            type: 'intent.invoke.result',
+            id,
+            result: { ok: false, error: 'invoke rejected' },
+          } as NappletMessage);
+          return;
+        }
+        send({
+          type: 'intent.invoke.result',
+          id,
+          result: outcome.result,
+        } as NappletMessage);
+        if (!outcome.result.ok || !('retained' in outcome)) return;
+        try {
+          const started = outcome.retained.start();
+          void Promise.resolve(started).catch(() => {
+            // Post-acceptance terminal policy never creates a second result.
+          });
+        } catch {
+          // A synchronous post-acceptance failure is likewise controller policy.
+        }
+      },
+      () => {
+        send({
+          type: 'intent.invoke.result',
+          id,
+          result: { ok: false, error: 'invoke rejected' },
+        } as NappletMessage);
+      },
+    ).catch(() => {
+      // Adapter send failures must not manufacture a second source result.
+    });
   }
 
   function handleAvailable(msg: NappletMessage, send: Send): void {
@@ -227,8 +357,33 @@ export function createIntentService(options: IntentServiceOptions): ServiceHandl
 
   return {
     descriptor: INTENT_DESCRIPTOR,
+    onRegistered(context): void {
+      try {
+        unsubscribeChanged?.();
+      } catch {
+        // Resolver cleanup is best-effort during replacement.
+      }
+      runtimeContext = context;
+      unsubscribeChanged = resolver.onChanged?.((availability) => {
+        const current = runtimeContext;
+        if (!current) return;
+        const message = { type: 'intent.changed', availability } as NappletMessage;
+        for (const windowId of current.listWindowIds()) {
+          current.sendToEligibleNapplet(windowId, message);
+        }
+      });
+    },
+    onUnregistered(): void {
+      const unsubscribe = unsubscribeChanged;
+      unsubscribeChanged = undefined;
+      runtimeContext = undefined;
+      try {
+        unsubscribe?.();
+      } catch {
+        // Resolver cleanup cannot block runtime teardown.
+      }
+    },
     handleMessage(windowId: string, message: NappletMessage, send: Send): void {
-      windows.set(windowId, send);
       switch (message.type) {
         case 'intent.invoke':
           handleInvoke(windowId, message, send);
@@ -243,9 +398,6 @@ export function createIntentService(options: IntentServiceOptions): ServiceHandl
           // Unknown intent.* action — silently ignored (forward-compatible).
           return;
       }
-    },
-    onWindowDestroyed(windowId: string): void {
-      windows.delete(windowId);
     },
   };
 }

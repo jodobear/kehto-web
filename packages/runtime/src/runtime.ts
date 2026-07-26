@@ -414,14 +414,18 @@ function createRuntimeInstance(context: RuntimeInstanceContext): Runtime {
       const dotIndex = message.type.indexOf('.');
       if (dotIndex <= 0) return false;
       const domain = message.type.slice(0, dotIndex);
-      if (isDomainAllowed && !isDomainAllowed(windowId, domain)) return false;
-      const { recipientCap } = resolveCapabilitiesNap(message);
-      if (!recipientCap) return false;
-      if (!aclState.check('', entry.dTag, entry.aggregateHash, recipientCap as Capability)) {
+      try {
+        if (isDomainAllowed && !isDomainAllowed(windowId, domain)) return false;
+        const { recipientCap } = resolveCapabilitiesNap(message);
+        if (!recipientCap) return false;
+        if (!aclState.check('', entry.dTag, entry.aggregateHash, recipientCap as Capability)) {
+          return false;
+        }
+        sendToNapplet(windowId, message);
+        return true;
+      } catch {
         return false;
       }
-      sendToNapplet(windowId, message);
-      return true;
     },
   });
 

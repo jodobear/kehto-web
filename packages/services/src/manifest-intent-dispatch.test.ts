@@ -20,7 +20,7 @@ const WINDOW = 'win-caller';
 const MANIFEST = {
   dTag: 'profile-viewer',
   title: 'Profile Viewer',
-  archetypes: [{ slug: 'profile', nap: 'NAP-1' }],
+  archetypes: [{ slug: 'profile', convention: 'napplet:profile/open' }],
 };
 
 function collector() {
@@ -29,7 +29,7 @@ function collector() {
 }
 
 /** Flush microtasks until at least one message is captured (the dispatch chain
- * awaits loadCatalog → pickHandler → windows.open across several microtasks). */
+ * awaits loadCatalog → selection → target retention across several microtasks). */
 async function flushUntilSent(sent: NappletMessage[]): Promise<void> {
   for (let i = 0; i < 20 && sent.length === 0; i++) {
     await Promise.resolve();
@@ -40,9 +40,15 @@ function buildService() {
   const catalogEntry = manifestToIntentCatalogEntry(MANIFEST);
   const resolver = createCatalogIntentResolver({
     loadCatalog: () => [catalogEntry],
-    windows: { open: () => ({ windowId: 'win-handler' }) },
+    targets: { retain: () => ({ start() {} }) },
   });
-  return createIntentService({ resolver });
+  const service = createIntentService({ resolver });
+  service.onRegistered?.({
+    resolveDTag: () => 'source-napplet',
+    listWindowIds: () => [],
+    sendToEligibleNapplet: () => false,
+  });
+  return service;
 }
 
 describe('ARCH-04 manifest → adapter → resolver → dispatch', () => {
@@ -67,15 +73,22 @@ describe('ARCH-04 manifest → adapter → resolver → dispatch', () => {
     const c = collector();
     svc.handleMessage(
       WINDOW,
-      { type: 'intent.invoke', id: 'i1', request: { archetype: 'profile', action: 'open' } } as NappletMessage,
+      {
+        type: 'intent.invoke',
+        id: 'i1',
+        request: {
+          archetype: 'profile',
+          action: 'open',
+          convention: 'napplet:profile/open',
+        },
+      } as NappletMessage,
       c.send,
     );
     await flushUntilSent(c.sent);
     expect(c.sent).toHaveLength(1);
-    const msg = c.sent[0] as NappletMessage & { result?: { ok: boolean; handled: boolean; handler?: string } };
+    const msg = c.sent[0] as NappletMessage & { result?: { ok: boolean; handler?: string } };
     expect(msg.type).toBe('intent.invoke.result');
     expect(msg.result?.ok).toBe(true);
-    expect(msg.result?.handled).toBe(true);
     expect(msg.result?.handler).toBe('profile-viewer');
   });
 });

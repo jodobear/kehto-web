@@ -18,7 +18,12 @@ import type { ServiceHandler, ServiceRuntimeContext } from './types.js';
 const WINDOW_ID = 'win-intent-1';
 const DTAG = 'intent-napp';
 const HASH = 'e'.repeat(64);
-const REQUEST = { archetype: 'note', action: 'open', payload: { target: 'abc' } };
+const REQUEST = {
+  archetype: 'note',
+  action: 'open',
+  convention: 'napplet:note/open',
+  payload: { target: 'abc' },
+};
 const TARGET_WINDOW_ID = 'win-intent-target';
 const TARGET_DTAG = 'intent-target';
 const TARGET_HASH = 'f'.repeat(64);
