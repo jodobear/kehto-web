@@ -159,10 +159,15 @@ export type {
 export type {
   IntentHandlerPreference,
   IntentBehavior,
+  IntentInvokeOptions,
   IntentRequest,
+  IntentContract,
   IntentCandidate,
   IntentAvailability,
+  IntentAcceptedResult,
+  IntentRejectedResult,
   IntentResult,
+  IntentDelivery,
 } from './intent-types.js';
 
 export { createCatalogIntentResolver } from './catalog-intent-resolver.js';

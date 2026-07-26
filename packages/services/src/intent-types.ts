@@ -1,11 +1,11 @@
 /**
  * intent-types.ts — NAP-INTENT (archetype intent dispatch) value types.
  *
- * Kehto-internal model for the NAP-INTENT wire contract (upstream draft:
- * napplet/naps NAP-INTENT, namespace `window.napplet.intent`). The installed
- * `@napplet/core` peer predates these types, so — as with {@link ./cvm-types} —
- * kehto defines them here, wire-compatible with the upstream shapes, rather
- * than redefining the generic NIP-5D envelope.
+ * Exact temporary mirror of the NAP-INTENT value contract published by
+ * `napplet/web@dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b` while Kehto remains on
+ * the preceding Napplet package line. These definitions intentionally contain
+ * no runtime lifecycle or carrier fields. Phase 105 replaces this mirror with
+ * imports from the released packages.
  *
  * NAP-INTENT derives routing and convention identity from the authoritative URI.
  *
@@ -22,31 +22,40 @@
  */
 export type IntentHandlerPreference = 'default' | 'choose' | (string & {});
 
-/** Window-behavior hints carried with an intent invoke. */
+/** Window behavior hints for an intent invoke. */
 export interface IntentBehavior {
-  /** Bring the handler window to the foreground. */
+  /** Request focus for the target surface. */
   focus?: boolean;
-  /** Force a new window rather than reusing an existing handler instance. */
-  /** Prefer reusing an already-open handler instance when one exists. */
+  /** Prefer reusing an already-open target surface. */
   reuse?: boolean;
 }
 
-/** A request to dispatch an action to a napplet of a given archetype. */
-export interface IntentRequest {
-  /** Role slug derived from the authoritative convention URI. */
-  archetype: string;
-  /** Intent derived from the authoritative convention URI. */
-  action?: string;
-  /** Stable queryless convention identity derived from the URI. */
-  convention?: string;
-  /** @deprecated Draft #91 replaces protocol with convention. */
-  protocol?: string;
-  /** Query-derived text map or explicit structured payload. */
+/** Optional caller inputs for a convention-URI invocation. */
+export interface IntentInvokeOptions {
+  /** Opaque structured payload for a queryless convention URI. */
   payload?: unknown;
-  /** Handler-selection preference. */
+  /** Runtime-authorized handler selection preference. */
   handler?: IntentHandlerPreference;
-  /** Window-behavior hints. */
+  /** Non-authoritative runtime lifecycle hints. */
   behavior?: IntentBehavior;
+}
+
+/** A normalized request to dispatch an action to a napplet archetype. */
+export interface IntentRequest extends IntentInvokeOptions {
+  /** Archetype derived from the authoritative convention URI. */
+  archetype: string;
+  /** Action derived from the authoritative convention URI. */
+  action: string;
+  /** Stable queryless convention identity derived from the URI. */
+  convention: string;
+}
+
+/** A queryless convention contract parsed from one manifest archetype tag. */
+export interface IntentContract {
+  /** Stable, queryless convention identity. */
+  convention: string;
+  /** Optional unsigned discovery metadata; never inferred from payloads. */
+  eventKinds?: number[];
 }
 
 /** A napplet that can fulfill an archetype, sourced from the manifest catalog. */
@@ -58,11 +67,9 @@ export interface IntentCandidate {
   /** Verbs this candidate supports for the archetype. */
   actions: string[];
   /** Stable queryless convention identities accepted by this candidate. */
-  conventions?: string[];
-  /** Parsed manifest contracts for this candidate. */
-  contracts?: IntentContract[];
-  /** @deprecated Draft #91 replaces protocol metadata with contracts. */
-  protocols: string[];
+  conventions: string[];
+  /** Manifest-derived contracts supported by this candidate. */
+  contracts: IntentContract[];
   /** Whether this candidate is the user/runtime default for the archetype. */
   isDefault?: boolean;
 }
@@ -79,34 +86,46 @@ export interface IntentAvailability {
   hasDefault: boolean;
 }
 
-/** The result of an intent invocation. */
-export interface IntentResult {
-  /** Whether the runtime accepted responsibility for delivery. */
-  ok: boolean;
-  archetype?: string;
-  action?: string;
-  convention?: string;
-  /** @deprecated Delivery acceptance is represented only by ok. */
-  handled?: boolean;
-  /** @deprecated Target window identity is runtime policy, not wire contract. */
-  windowId?: string;
-  /** @deprecated Draft #91 uses convention. */
-  protocol?: string;
-  /** dTag of the napplet that handled the intent, when one did. */
-  handler?: string;
-  /** Error reason when the intent could not be fulfilled. */
-  error?: string;
-}
-
-export interface IntentContract {
-  convention: string;
-  eventKinds?: number[];
-}
-
-export interface IntentDelivery {
-  sender: string;
+/** Runtime acceptance of responsibility for an eventual target delivery. */
+export interface IntentAcceptedResult {
+  /** The runtime accepted delivery responsibility. */
+  ok: true;
+  /** Normalized requested archetype. */
   archetype: string;
+  /** Normalized requested action. */
   action: string;
+  /** Stable queryless convention identity. */
   convention: string;
+  /** Resolved target napplet dTag. */
+  handler: string;
+}
+
+/** A pre-acceptance rejection from the runtime. */
+export interface IntentRejectedResult {
+  /** The runtime did not accept delivery responsibility. */
+  ok: false;
+  /** Stable pre-acceptance failure reason. */
+  error: string;
+}
+
+/** The immediate acceptance or rejection result of an intent invocation. */
+export type IntentResult = IntentAcceptedResult | IntentRejectedResult;
+
+/**
+ * A target-only runtime delivery after the target is ready.
+ *
+ * `sender` is runtime-attested provenance. Callers cannot supply or override it,
+ * and receivers must treat `payload` as untrusted opaque data.
+ */
+export interface IntentDelivery {
+  /** Runtime-attested source napplet dTag. */
+  sender: string;
+  /** Normalized target archetype. */
+  archetype: string;
+  /** Normalized target action. */
+  action: string;
+  /** Stable queryless convention identity. */
+  convention: string;
+  /** Opaque normalized convention payload. */
   payload?: unknown;
 }
