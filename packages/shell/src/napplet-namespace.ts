@@ -178,18 +178,24 @@ function nappletNamespacePrelude(domains: string[]): void {
     const values: Record<string, string> = {};
     const names = new Set<string>();
     const query = topic.slice(queryStart + 1);
-    try {
+    if (query) {
       for (const pair of query.split('&')) {
         const separator = pair.indexOf('=');
-        const rawName = separator === -1 ? pair : pair.slice(0, separator);
-        const rawValue = separator === -1 ? '' : pair.slice(separator + 1);
-        const name = decodeURIComponent(rawName);
+        if (separator < 0) {
+          throw new TypeError('Convention query parameters must use name=value form');
+        }
+        let name: string;
+        let value: string;
+        try {
+          name = decodeURIComponent(pair.slice(0, separator));
+          value = decodeURIComponent(pair.slice(separator + 1));
+        } catch {
+          throw new TypeError('Convention query contains malformed percent encoding');
+        }
         if (names.has(name)) throw new TypeError('Convention query names must be unique');
         names.add(name);
-        values[name] = decodeURIComponent(rawValue);
+        values[name] = value;
       }
-    } catch {
-      throw new TypeError('Convention query contains malformed percent encoding');
     }
     return { topic: topic.slice(0, queryStart), payload: values };
   }
@@ -1196,6 +1202,9 @@ function nappletNamespacePrelude(domains: string[]): void {
   function makeIntent(): Record<string, unknown> {
     const deliveryHandlers = new Set<(delivery: unknown) => void>();
     const pendingDeliveries: unknown[] = [];
+    const hasOwn = (value: Record<string, unknown>, key: string): boolean => (
+      Object.prototype.hasOwnProperty.call(value, key)
+    );
     listen((event) => {
       if (!isParentMessage(event)) return;
       const msg = event.data as RuntimeMessage;
@@ -1222,14 +1231,41 @@ function nappletNamespacePrelude(domains: string[]): void {
       };
     }
     const invoke = (uri: unknown, opts?: Record<string, unknown>, actionMustBe?: string) => {
-      const explicitPayload = Boolean(opts && Object.prototype.hasOwnProperty.call(opts, 'payload'));
+      const supplied = opts && typeof opts === 'object' ? opts : undefined;
+      const explicitPayload = supplied?.payload !== undefined;
       const normalized = normalizeIntentUri(uri, explicitPayload, actionMustBe);
-      const options = opts && typeof opts === 'object' ? { ...opts } : {};
-      delete options.payload;
+
+      if (supplied && hasOwn(supplied, 'sender')) {
+        throw new TypeError('Intent callers cannot supply sender');
+      }
+      for (const field of ['archetype', 'action', 'convention']) {
+        if (supplied && hasOwn(supplied, field) && supplied[field] !== normalized[field]) {
+          throw new TypeError(`Intent options cannot override URI-derived ${field}`);
+        }
+      }
+
+      const behaviorValue = supplied?.behavior;
+      const behavior = behaviorValue && typeof behaviorValue === 'object'
+        ? behaviorValue as Record<string, unknown>
+        : undefined;
+      const sanitizedBehavior = {
+        ...(typeof behavior?.focus === 'boolean' ? { focus: behavior.focus } : {}),
+        ...(typeof behavior?.reuse === 'boolean' ? { reuse: behavior.reuse } : {}),
+      };
+      const handler = typeof supplied?.handler === 'string' ? supplied.handler : undefined;
+
       return request(
-        { type: 'intent.invoke', request: { ...normalized, ...options, ...(explicitPayload ? { payload: opts?.payload } : {}) } },
-      'intent.invoke.result',
-      (msg) => fieldOrThrow(msg, 'result', 'intent.invoke.result missing result'),
+        {
+          type: 'intent.invoke',
+          request: {
+            ...normalized,
+            ...(explicitPayload ? { payload: supplied?.payload } : {}),
+            ...(handler === undefined ? {} : { handler }),
+            ...(Object.keys(sanitizedBehavior).length === 0 ? {} : { behavior: sanitizedBehavior }),
+          },
+        },
+        'intent.invoke.result',
+        (msg) => fieldOrThrow(msg, 'result', 'intent.invoke.result missing result'),
       );
     };
     return {

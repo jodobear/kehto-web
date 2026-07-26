@@ -746,6 +746,122 @@ describe('NIP-5D napplet namespace prelude', () => {
     ]);
   });
 
+  it('derives intent requests from one authoritative convention URI and sanitizes options', async () => {
+    const target = createPreludeTestWindow();
+    runPrelude(renderNappletNamespacePrelude({ domains: ['intent'] }), target);
+
+    type Intent = {
+      invoke: (uri: unknown, options?: Record<string, unknown>) => Promise<unknown>;
+      open: (uri: unknown, options?: Record<string, unknown>) => Promise<unknown>;
+    };
+    const intent = target.napplet?.intent as Intent;
+
+    const queryInvoke = intent.invoke('napplet:profile/open?encoded=a%2Bb&literal=a+b&empty=');
+    const queryRequest = withoutShellReady(target).at(-1);
+    expect(queryRequest).toEqual({
+      type: 'intent.invoke',
+      id: 'id-1',
+      request: {
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+        payload: {
+          encoded: 'a+b',
+          literal: 'a+b',
+          empty: '',
+        },
+      },
+    });
+    target.dispatchParentMessage({
+      type: 'intent.invoke.result',
+      id: queryRequest?.id,
+      result: {
+        ok: true,
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+        handler: 'profile-viewer',
+      },
+    });
+    await expect(queryInvoke).resolves.toMatchObject({ ok: true, handler: 'profile-viewer' });
+
+    const optionInvoke = intent.open('napplet:profile/open', {
+      payload: { pubkey: 'abc123' },
+      handler: 'choose',
+      behavior: {
+        focus: true,
+        reuse: false,
+        newWindow: true,
+        unknown: 'discard',
+      },
+      archetype: 'profile',
+      action: 'open',
+      convention: 'napplet:profile/open',
+      protocol: 'NAP-1',
+      newWindow: true,
+      unknown: 'discard',
+    });
+    const optionRequest = withoutShellReady(target).at(-1);
+    expect(optionRequest).toEqual({
+      type: 'intent.invoke',
+      id: 'id-2',
+      request: {
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+        payload: { pubkey: 'abc123' },
+        handler: 'choose',
+        behavior: {
+          focus: true,
+          reuse: false,
+        },
+      },
+    });
+    target.dispatchParentMessage({
+      type: 'intent.invoke.result',
+      id: optionRequest?.id,
+      result: {
+        ok: false,
+        error: 'user cancelled',
+      },
+    });
+    await expect(optionInvoke).resolves.toEqual({ ok: false, error: 'user cancelled' });
+  });
+
+  it('rejects invalid or conflicting intent input before posting a message', () => {
+    const target = createPreludeTestWindow();
+    runPrelude(renderNappletNamespacePrelude({ domains: ['intent'] }), target);
+
+    type Intent = {
+      invoke: (uri: unknown, options?: Record<string, unknown>) => Promise<unknown>;
+      open: (uri: unknown, options?: Record<string, unknown>) => Promise<unknown>;
+    };
+    const intent = target.napplet?.intent as Intent;
+    const before = withoutShellReady(target).length;
+
+    const invalidInvocations: Array<() => unknown> = [
+      () => intent.invoke('napplet:profile/open#fragment'),
+      () => intent.invoke('napplet:profile/open?bad=%E0%A4%A'),
+      () => intent.invoke('napplet:profile/open?missing-separator'),
+      () => intent.invoke('napplet:profile/open?name=one&na%6De=two'),
+      () => intent.invoke('napplet:/open'),
+      () => intent.invoke('napplet:profile/'),
+      () => intent.invoke('napplet:profile/open/extra'),
+      () => intent.invoke('https://example.test/profile/open'),
+      () => intent.invoke('napplet:profile/open?name=value', { payload: { explicit: true } }),
+      () => intent.open('napplet:profile/edit'),
+      () => intent.invoke('napplet:profile/open', { sender: 'forged' }),
+      () => intent.invoke('napplet:profile/open', { archetype: 'note' }),
+      () => intent.invoke('napplet:profile/open', { action: 'edit' }),
+      () => intent.invoke('napplet:profile/open', { convention: 'napplet:profile/edit' }),
+    ];
+
+    for (const invoke of invalidInvocations) {
+      expect(invoke).toThrow();
+    }
+    expect(withoutShellReady(target)).toHaveLength(before);
+  });
+
   it('provides symmetric correlated INC channel handles with retained lifecycle state', async () => {
     const target = createPreludeTestWindow();
     runPrelude(renderNappletNamespacePrelude({ domains: ['inc'] }), target);
