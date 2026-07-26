@@ -1,6 +1,19 @@
-import { existsSync, readFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { verifyEvent } from 'nostr-tools/pure';
+import {
+  definePlaygroundNappletConfig,
+  recomputeManifest,
+  type PlaygroundNappletConfigOptions,
+} from '../../apps/playground/napplets/shared-vite-config.js';
 
 const playgroundNapplets = [
   'bot',
@@ -64,7 +77,7 @@ describe('playground gateway artifact guard', () => {
       // it carries an additional `archetypes` option after `requires`.
       const expectedConfig =
         name === 'profile-viewer'
-          ? `export default definePlaygroundNappletConfig('${name}', { requires: [${expectedRequiresLiteral}], archetypes: [{ slug: 'profile', nap: 'NAP-1' }] });`
+          ? `export default definePlaygroundNappletConfig('${name}', { requires: [${expectedRequiresLiteral}], archetypes: [{ slug: 'profile', convention: 'napplet:profile/open' }] });`
           : `export default definePlaygroundNappletConfig('${name}', { requires: [${expectedRequiresLiteral}] });`;
       expect(config, `${name} d tag/requires`).toContain(expectedConfig);
     }
@@ -78,6 +91,107 @@ describe('playground gateway artifact guard', () => {
     expect(sharedConfig).toContain('manifest requires must use short NAP names');
     expect(sharedConfig).toContain('requires,');
     expect(sharedConfig).not.toContain("window.parent.postMessage({ type: 'shell.ready' }, '*');");
+  });
+
+  it('validates exact convention-bearing archetype build metadata', () => {
+    expect(() => definePlaygroundNappletConfig('profile-viewer', {
+      archetypes: [
+        {
+          slug: 'profile',
+          convention: 'napplet:profile/open',
+          eventKinds: [0, 10002],
+        },
+        {
+          slug: 'profile',
+          convention: 'napplet:profile/edit',
+          eventKinds: [30023],
+        },
+      ],
+    })).not.toThrow();
+
+    const invalid: unknown[] = [
+      { slug: '', convention: 'napplet:profile/open' },
+      { slug: 'Profile', convention: 'napplet:Profile/open' },
+      { slug: 'profile' },
+      { slug: 'profile', convention: '' },
+      { slug: 'profile', convention: 'NAP-1' },
+      { slug: 'profile', convention: 'napplet:profile/open?x=1' },
+      { slug: 'profile', convention: 'napplet:profile/open#section' },
+      { slug: 'profile', convention: 'napplet:note/open' },
+      { slug: 'profile', convention: 'napplet:profile/open', eventKinds: [-1] },
+      { slug: 'profile', convention: 'napplet:profile/open', eventKinds: [1.5] },
+      {
+        slug: 'profile',
+        convention: 'napplet:profile/open',
+        eventKinds: [Number.MAX_SAFE_INTEGER + 1],
+      },
+    ];
+    for (const archetype of invalid) {
+      const options = {
+        archetypes: [archetype],
+      } as unknown as PlaygroundNappletConfigOptions;
+      expect(() => definePlaygroundNappletConfig('invalid', options)).toThrow();
+    }
+  });
+
+  it('recomputes a signed final manifest with repeated scoped convention tags and path-only aggregate identity', () => {
+    const firstDir = mkdtempSync(join(tmpdir(), 'kehto-profile-manifest-'));
+    const secondDir = mkdtempSync(join(tmpdir(), 'kehto-profile-manifest-'));
+    const seed = (dir: string): void => {
+      writeFileSync(join(dir, '.nip5a-manifest.json'), JSON.stringify({
+        created_at: 1_700_000_000,
+        content: '',
+        tags: [
+          ['d', 'profile-viewer'],
+          ['requires', 'inc'],
+          ['archetype', 'profile', 'NAP-1'],
+        ],
+      }));
+    };
+    const archetypes = [
+      {
+        slug: 'profile',
+        convention: 'napplet:profile/open',
+        eventKinds: [0, 10002],
+      },
+      {
+        slug: 'profile',
+        convention: 'napplet:profile/open',
+        eventKinds: [30023],
+      },
+    ];
+
+    try {
+      seed(firstDir);
+      seed(secondDir);
+      recomputeManifest(firstDir, '<!doctype html><title>Profile</title>', archetypes);
+      recomputeManifest(secondDir, '<!doctype html><title>Profile</title>', [
+        { slug: 'profile', convention: 'napplet:profile/edit', eventKinds: [1] },
+      ]);
+
+      const manifest = JSON.parse(
+        readFileSync(join(firstDir, '.nip5a-manifest.json'), 'utf8'),
+      ) as {
+        aggregateHash: string;
+        tags: string[][];
+      };
+      const secondManifest = JSON.parse(
+        readFileSync(join(secondDir, '.nip5a-manifest.json'), 'utf8'),
+      ) as {
+        aggregateHash: string;
+        tags: string[][];
+      };
+      expect(manifest.tags.filter((tag) => tag[0] === 'archetype')).toEqual([
+        ['archetype', 'profile', 'napplet:profile/open', 'kind:0', 'kind:10002'],
+        ['archetype', 'profile', 'napplet:profile/open', 'kind:30023'],
+      ]);
+      expect(manifest.tags.flat()).not.toContain('NAP-1');
+      expect(manifest.aggregateHash).toBe(secondManifest.aggregateHash);
+      expect(verifyEvent(manifest as Parameters<typeof verifyEvent>[0])).toBe(true);
+    } finally {
+      rmSync(firstDir, { recursive: true, force: true });
+      rmSync(secondDir, { recursive: true, force: true });
+    }
   });
 
   it('loads napplets by content-addressed resolution into opaque-origin srcdoc iframes', () => {

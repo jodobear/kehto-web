@@ -42,18 +42,23 @@ const HOSTED_SHELL_BOOTSTRAP = String.raw`
   window.__kehtoHostedShellBootstrap = true;
 })();`;
 
-/** An archetype the napplet fulfills, optionally with its recommended NAP-N protocol. */
+/** One exact queryless convention contract the napplet fulfills. */
 export interface PlaygroundArchetype {
+  /** Lowercase archetype slug. */
   slug: string;
-  nap?: string;
+  /** Stable queryless `napplet:<archetype>/<intent>` identity. */
+  convention: string;
+  /** Optional unsigned event-kind discovery metadata scoped to this contract. */
+  eventKinds?: number[];
 }
 
+/** Options shared by every in-repository playground napplet build. */
 export interface PlaygroundNappletConfigOptions {
+  /** Short NAP domains required by the artifact. */
   requires?: readonly string[];
+  /** Ordered convention contracts emitted as repeated manifest tags. */
   archetypes?: ReadonlyArray<PlaygroundArchetype>;
 }
-
-const NAP_PROTOCOL_PATTERN = /^NAP-\d+$/;
 
 function validateRequires(nappletType: string, requires: readonly string[]): string[] {
   return requires.map((name) => {
@@ -70,18 +75,44 @@ function validateArchetypes(
   nappletType: string,
   archetypes: ReadonlyArray<PlaygroundArchetype>,
 ): PlaygroundArchetype[] {
-  return archetypes.map(({ slug, nap }) => {
-    if (!SHORT_NAP_NAME_PATTERN.test(slug) || slug.startsWith('nap-')) {
+  return archetypes.map(({ slug: rawSlug, convention: rawConvention, eventKinds }) => {
+    const slug = typeof rawSlug === 'string' ? rawSlug.trim() : '';
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
       throw new Error(
-        `${nappletType} manifest archetype slug must be a short NAP name, got "${slug}"`,
+        `${nappletType} manifest archetype slug must contain lowercase letters, numbers, and hyphens`,
       );
     }
-    if (nap !== undefined && !NAP_PROTOCOL_PATTERN.test(nap)) {
+    const convention = typeof rawConvention === 'string' ? rawConvention.trim() : '';
+    if (convention === '') {
       throw new Error(
-        `${nappletType} manifest archetype "${slug}" nap must match NAP-<n>, got "${nap}"`,
+        `${nappletType} manifest archetype convention must be a non-empty string`,
       );
     }
-    return nap === undefined ? { slug } : { slug, nap };
+    if (/^NAP-\d+$/.test(convention)) {
+      throw new Error(`${nappletType} numbered NAP identifier is not a convention`);
+    }
+    const match = /^napplet:([^/?#\s]+)\/([^/?#\s]+)$/.exec(convention);
+    if (!match) {
+      throw new Error(
+        `${nappletType} manifest archetype convention must be a queryless napplet:<archetype>/<intent> identity`,
+      );
+    }
+    if (match[1] !== slug) {
+      throw new Error(`${nappletType} manifest archetype slug must match the convention archetype`);
+    }
+    const kinds = eventKinds ?? [];
+    for (const kind of kinds) {
+      if (!Number.isSafeInteger(kind) || kind < 0) {
+        throw new Error(
+          `${nappletType} manifest archetype eventKinds must contain unsigned integers`,
+        );
+      }
+    }
+    return {
+      slug,
+      convention,
+      ...(kinds.length === 0 ? {} : { eventKinds: [...kinds] }),
+    };
   });
 }
 
@@ -333,7 +364,18 @@ async function waitForPublishedManifest(distPath: string): Promise<void> {
   throw new Error('[playground-single-file] timed out waiting for published manifest plugin output');
 }
 
-function recomputeManifest(
+/**
+ * Recompute and sign the final single-file manifest after asset inlining.
+ *
+ * Exported for the gateway contract test; production builds call it through the
+ * post-order playground plugin below.
+ *
+ * @param distPath - Final Vite output directory.
+ * @param inlinedHtml - Final verified `index.html` bytes before writing.
+ * @param archetypes - Validated ordered convention contracts.
+ * @returns Nothing; writes `index.html` and `.nip5a-manifest.json`.
+ */
+export function recomputeManifest(
   distPath: string,
   inlinedHtml: string,
   archetypes: ReadonlyArray<PlaygroundArchetype> = [],
@@ -382,12 +424,15 @@ function recomputeManifest(
 
   const aggregateHash = computeAggregateHash(pathEntries);
   const pathTags = pathEntries.map(([absPath, hash]) => ['path', absPath, hash]);
-  // Upstream @napplet/vite-plugin 0.4.0 does NOT emit `archetype` tags, so the
+  // The installed upstream plugin does not yet emit convention archetype tags, so the
   // playground injects them here from the validated config. They are not d/x/path,
   // so any re-parse retains them; `retainedTags` is filtered to avoid duplicates.
-  const archetypeTags = archetypes.map((a) =>
-    a.nap ? ['archetype', a.slug, a.nap] : ['archetype', a.slug],
-  );
+  const archetypeTags = archetypes.map((archetype) => [
+    'archetype',
+    archetype.slug,
+    archetype.convention,
+    ...(archetype.eventKinds ?? []).map((kind) => `kind:${kind}`),
+  ]);
   const tags = [
     ['d', dTag],
     ...pathTags,
