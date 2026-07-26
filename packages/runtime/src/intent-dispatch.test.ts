@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createRuntime } from './runtime.js';
 import type { Runtime } from './runtime.js';
-import { createMockRuntimeAdapter, createNip5dSessionEntry, findEnvelopeResponse } from './test-utils.js';
+import { createMockRuntimeAdapter, createNip5dSessionEntry } from './test-utils.js';
 import type { MockRuntimeContext } from './test-utils.js';
 import type { NappletMessage } from '@napplet/core';
 import type { ServiceHandler, ServiceRuntimeContext } from './types.js';
@@ -202,20 +202,110 @@ describe('runtime intent domain dispatch', () => {
     expect(ctx.sent).toHaveLength(0);
   });
 
-  it('denies intent.available for a blocked napplet (ACL gate → intent.available.error)', () => {
+  it('shapes ACL-denied intent.invoke as one fixed structured result', () => {
     const received: NappletMessage[] = [];
     runtime.registerService('intent', {
       descriptor: { name: 'intent', version: '1.0.0' },
       handleMessage(_wid, msg) { received.push(msg); },
     });
-    runtime.aclState.block('', DTAG, HASH);
+    runtime.aclState.revoke('', DTAG, HASH, 'intent:write');
 
-    runtime.handleMessage(WINDOW_ID, { type: 'intent.available', id: 'a2', archetype: 'note' } as NappletMessage);
+    runtime.handleMessage(
+      WINDOW_ID,
+      { type: 'intent.invoke', id: 'i-denied', request: REQUEST } as NappletMessage,
+    );
 
-    expect(received).toHaveLength(0); // service never reached
-    const err = findEnvelopeResponse(ctx.sent, 'intent.available.error');
-    expect(err).toBeDefined();
-    expect((err as { id?: string }).id).toBe('a2');
+    expect(received).toHaveLength(0);
+    expect(ctx.sent).toEqual([{
+      windowId: WINDOW_ID,
+      message: {
+        type: 'intent.invoke.result',
+        id: 'i-denied',
+        result: { ok: false, error: 'invoke rejected' },
+      },
+    }]);
   });
 
+  it('shapes firewall-denied intent.invoke identically without policy detail', () => {
+    const received: NappletMessage[] = [];
+    runtime.registerService('intent', {
+      descriptor: { name: 'intent', version: '1.0.0' },
+      handleMessage(_wid, msg) { received.push(msg); },
+    });
+    runtime.firewallState.setPolicy(DTAG, 'deny');
+
+    runtime.handleMessage(
+      WINDOW_ID,
+      { type: 'intent.invoke', id: 'i-firewall', request: REQUEST } as NappletMessage,
+    );
+
+    expect(received).toHaveLength(0);
+    expect(ctx.sent).toEqual([{
+      windowId: WINDOW_ID,
+      message: {
+        type: 'intent.invoke.result',
+        id: 'i-firewall',
+        result: { ok: false, error: 'invoke rejected' },
+      },
+    }]);
+  });
+
+  it('uses sanctioned result envelopes for denied availability and handlers', () => {
+    const received: NappletMessage[] = [];
+    runtime.registerService('intent', {
+      descriptor: { name: 'intent', version: '1.0.0' },
+      handleMessage(_wid, msg) { received.push(msg); },
+    });
+    runtime.aclState.revoke('', DTAG, HASH, 'intent:read');
+
+    runtime.handleMessage(
+      WINDOW_ID,
+      { type: 'intent.available', id: 'a-denied', archetype: 'note' } as NappletMessage,
+    );
+    runtime.handleMessage(
+      WINDOW_ID,
+      { type: 'intent.handlers', id: 'h-denied' } as NappletMessage,
+    );
+
+    expect(received).toHaveLength(0);
+    expect(ctx.sent).toEqual([
+      {
+        windowId: WINDOW_ID,
+        message: {
+          type: 'intent.available.result',
+          id: 'a-denied',
+          error: 'intent request denied',
+        },
+      },
+      {
+        windowId: WINDOW_ID,
+        message: {
+          type: 'intent.handlers.result',
+          id: 'h-denied',
+          error: 'intent request denied',
+        },
+      },
+    ]);
+  });
+
+  it('silently drops source-sent intent pushes, results, and unknown actions', () => {
+    const received: NappletMessage[] = [];
+    runtime.registerService('intent', {
+      descriptor: { name: 'intent', version: '1.0.0' },
+      handleMessage(_wid, msg) { received.push(msg); },
+    });
+    const sourceMessages = [
+      { type: 'intent.changed', availability: {} },
+      { type: 'intent.deliver', delivery: {} },
+      { type: 'intent.invoke.result', id: 'i', result: { ok: false, error: 'forged' } },
+      { type: 'intent.available.result', id: 'a', availability: {} },
+      { type: 'intent.handlers.result', id: 'h', handlers: [] },
+      { type: 'intent.unknown', id: 'u' },
+    ] as unknown as NappletMessage[];
+
+    for (const message of sourceMessages) runtime.handleMessage(WINDOW_ID, message);
+
+    expect(received).toHaveLength(0);
+    expect(ctx.sent).toHaveLength(0);
+  });
 });

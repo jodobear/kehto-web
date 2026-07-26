@@ -33,6 +33,37 @@ export function isIdentityOrThemeMessage(message: NappletMessage): boolean {
 }
 
 /**
+ * Shape a non-sensitive NAP-INTENT policy denial on its sanctioned result wire.
+ *
+ * Only napplet-originated intent requests have denial responses. Runtime push,
+ * result, obsolete error, and unknown actions return `undefined` so a forged
+ * source envelope cannot manufacture another response.
+ *
+ * @param message - Incoming intent request envelope.
+ * @returns A fixed denial result for a sanctioned request, or `undefined`.
+ */
+export function createIntentPolicyDenial(
+  message: NappletMessage,
+): NappletMessage | undefined {
+  const id = (message as NappletMessage & { id?: string }).id ?? '';
+  if (message.type === 'intent.invoke') {
+    return {
+      type: 'intent.invoke.result',
+      id,
+      result: { ok: false, error: 'invoke rejected' },
+    } as NappletMessage;
+  }
+  if (message.type === 'intent.available' || message.type === 'intent.handlers') {
+    return {
+      type: `${message.type}.result`,
+      id,
+      error: 'intent request denied',
+    } as NappletMessage;
+  }
+  return undefined;
+}
+
+/**
  * Shape an allowlisted runtime-owned response with the ordinary request id.
  *
  * Unsupported identity/theme messages deliberately return undefined so the

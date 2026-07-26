@@ -20,7 +20,11 @@ import { createIdentityHandler } from './identity-handler.js';
 import { createCountHandler } from './count-handler.js';
 import { createIncRuntime, type IncRuntime } from './inc-handler.js';
 import { createRuntimeDomainHandlers, type RuntimeDomainHandlers } from './domain-handlers.js';
-import { createCanonicalDomainResult, isIdentityOrThemeMessage } from './domain-results.js';
+import {
+  createCanonicalDomainResult,
+  createIntentPolicyDenial,
+  isIdentityOrThemeMessage,
+} from './domain-results.js';
 
 /**
  * The napplet protocol engine — handles NIP-5D NAP domain dispatch,
@@ -269,6 +273,14 @@ function createFirewallGate(config: FirewallGateConfig): (windowId: string, enve
     const opClass = obs.opClass;
 
     if (decision === 'reject' || decision === 'prompt') {
+      const intentDenial = createIntentPolicyDenial(envelope);
+      if (intentDenial) {
+        hooks.sendToNapplet(windowId, intentDenial);
+        hooks.onFirewallEvent?.({ windowId, napplet, opClass, decision, action, ruleId, reason, message: envelope } as FirewallEvent);
+        if (decision === 'prompt') fireConsent(windowId, napplet);
+        return 'drop';
+      }
+
       const canonicalResult = createCanonicalDomainResult(envelope);
       if (canonicalResult) {
         hooks.sendToNapplet(windowId, canonicalResult);
@@ -302,6 +314,7 @@ function createFirewallGate(config: FirewallGateConfig): (windowId: string, enve
 }
 
 function denialResponseType(envelope: NappletMessage): string | null {
+  if (envelope.type.startsWith('intent.')) return null;
   if (envelope.type.startsWith('storage.')) return `${envelope.type}.result`;
   if (envelope.type === 'inc.subscribe' || envelope.type === 'inc.channel.open') {
     return `${envelope.type}.result`;
@@ -335,6 +348,12 @@ function createMessageHandler(
     if (caps.senderCap) {
       const result = enforceNap(windowId, caps.senderCap as Capability, envelope);
       if (!result.allowed) {
+        const intentDenial = createIntentPolicyDenial(envelope);
+        if (intentDenial) {
+          hooks.sendToNapplet(windowId, intentDenial);
+          return;
+        }
+
         const canonicalResult = createCanonicalDomainResult(envelope);
         if (canonicalResult) {
           hooks.sendToNapplet(windowId, canonicalResult);

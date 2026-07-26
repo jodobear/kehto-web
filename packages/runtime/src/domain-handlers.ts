@@ -173,6 +173,14 @@ function handleServiceOnlyMessage(
   windowId: string,
   msg: NappletMessage,
 ): void {
+  if (
+    name === 'intent'
+    && msg.type !== 'intent.invoke'
+    && msg.type !== 'intent.available'
+    && msg.type !== 'intent.handlers'
+  ) {
+    return;
+  }
   const service = context.serviceRegistry[name];
   if (!service) return;
   service.handleMessage(windowId, msg, (resp: NappletMessage) => context.hooks.sendToNapplet(windowId, resp));

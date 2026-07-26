@@ -316,25 +316,31 @@ function uploadMap(action: string): CapabilityResolution {
  * cannot dispatch (mirrors `outbox` / `relay`, where the write op is the
  * sensitive one — here `invoke` is a focus-stealing cross-napplet navigation):
  *
- * - `invoke` (napplet → shell)                          → sender `intent:write`,
- *   recipient `null`. The shell resolves the archetype to a handler, creates or
- *   focuses its window, and delivers the payload.
- * - `available` / `handlers` (and any other napplet-originated request)  →
+ * - `invoke` (napplet → runtime)                        → sender `intent:write`,
+ *   recipient `null`. The runtime resolves and retains delivery responsibility.
+ * - `available` / `handlers` (napplet → runtime)        →
  *   sender `intent:read`, recipient `null`. Read-side catalog introspection.
- * - `changed` / `*.result` / `*.error` (shell → napplet pushes)         →
+ * - `changed` / `deliver` / sanctioned `*.result` (runtime → napplet)   →
  *   sender `null`, recipient `intent:read`. The push is gated against the
  *   receiving napplet's cap so a napplet without `intent:read` never sees
- *   availability updates or invoke results.
+ *   availability updates, delivery, or results.
+ * - every other action → no capability mapping in either direction.
  */
 function intentMap(action: string): CapabilityResolution {
-  // Shell-originated pushes: recipient gate (napplet must hold intent:read to see them).
-  if (action === 'changed' || action.endsWith('.result') || action.endsWith('.error')) {
+  if (
+    action === 'changed'
+    || action === 'deliver'
+    || action === 'invoke.result'
+    || action === 'available.result'
+    || action === 'handlers.result'
+  ) {
     return { senderCap: null, recipientCap: 'intent:read' };
   }
-  // Invoke is the write op (cross-napplet dispatch / focus-steal).
   if (action === 'invoke') return { senderCap: 'intent:write', recipientCap: null };
-  // Napplet-originated reads: available, handlers, unknown.
-  return { senderCap: 'intent:read', recipientCap: null };
+  if (action === 'available' || action === 'handlers') {
+    return { senderCap: 'intent:read', recipientCap: null };
+  }
+  return { senderCap: null, recipientCap: null };
 }
 
 /**
@@ -410,7 +416,7 @@ function themeMap(action: string): CapabilityResolution {
  * | `resource` | `bytes*.result`, `bytes*.error` (shell → napplet pushes)   | `null`          | `resource:fetch` |
  * | `intent`   | `invoke` (napplet → shell)                                  | `intent:write`  | `null`        |
  * | `intent`   | `available`, `handlers` (napplet → shell)                   | `intent:read`   | `null`        |
- * | `intent`   | `changed`, `*.result`, `*.error` (shell → napplet pushes)   | `null`          | `intent:read` |
+ * | `intent`   | `changed`, `deliver`, sanctioned `*.result` (runtime pushes) | `null`         | `intent:read` |
  * | unknown    | any                                                         | `null`          | `null`        |
  *
  * The `signer` domain is REMOVED — signer messages fall through to the
