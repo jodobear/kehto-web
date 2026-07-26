@@ -23,6 +23,7 @@ import type { IntentDelivery } from './intent-types.js';
 const SOURCE_WINDOW = 'window-source';
 const SOURCE_DTAG = 'social-feed';
 const TARGET_WINDOW = 'window-profile';
+const RETRY_TARGET_WINDOW = 'window-profile-replacement';
 const TARGET_DTAG = 'profile-viewer';
 const UNRELATED_WINDOW = 'window-unrelated';
 
@@ -197,6 +198,144 @@ function envelopesFor(sent: SentMessage[], windowId: string): NappletMessage[] {
     .map((item) => item.message as NappletMessage);
 }
 
+type LifecycleMode = 'ready' | 'deferred' | 'retry' | 'terminal';
+
+interface LifecycleRun {
+  readonly sent: SentMessage[];
+  readonly sequence: string[];
+  readonly attempts: number;
+  readonly sourceResult: NappletMessage;
+  readonly targetMessages: NappletMessage[];
+}
+
+async function runLifecycle(mode: LifecycleMode): Promise<LifecycleRun> {
+  const sent: SentMessage[] = [];
+  const sequence: string[] = [];
+  const ready = deferred();
+  let runtime!: Runtime;
+  let attempts = 0;
+  let taskSettled = false;
+
+  const hooks = createHostAdapter(sent, (windowId, message) => {
+    if (
+      windowId === SOURCE_WINDOW
+      && !Array.isArray(message)
+      && message.type === 'intent.invoke.result'
+    ) {
+      sequence.push('source result');
+    }
+    if (
+      (windowId === TARGET_WINDOW || windowId === RETRY_TARGET_WINDOW)
+      && !Array.isArray(message)
+      && message.type === 'intent.deliver'
+    ) {
+      sequence.push('target delivery');
+    }
+  });
+  const resolver = createCatalogIntentResolver({
+    loadCatalog: () => [manifestToIntentCatalogEntry(PROFILE_MANIFEST)],
+    targets: {
+      retain({ handler, delivery }) {
+        const retainedHandler = handler;
+        const retainedDelivery = delivery;
+        sequence.push('retain');
+        return {
+          async start() {
+            sequence.push('task start');
+            try {
+              if (mode === 'terminal') {
+                throw new Error('terminal target failure');
+              }
+              if (mode === 'deferred') {
+                await ready.promise;
+              }
+              if (mode === 'retry') {
+                attempts++;
+                const failedWindow = runtime.sessionRegistry.getWindowIdByDTag(retainedHandler);
+                if (!failedWindow) throw new Error('retry target missing');
+                runtime.destroyWindow(failedWindow);
+                runtime.sessionRegistry.unregister(failedWindow);
+                runtime.sessionRegistry.register(
+                  RETRY_TARGET_WINDOW,
+                  session(RETRY_TARGET_WINDOW, TARGET_DTAG),
+                );
+              }
+              attempts++;
+              const targetWindow = runtime.sessionRegistry.getWindowIdByDTag(retainedHandler);
+              if (!targetWindow) throw new Error('target not ready');
+              hooks.sendToNapplet(targetWindow, {
+                type: 'intent.deliver',
+                delivery: retainedDelivery,
+              } as NappletMessage);
+            } finally {
+              taskSettled = true;
+            }
+          },
+        };
+      },
+    },
+  });
+  runtime = createRuntime(hooks);
+  runtime.registerService('intent', createIntentService({ resolver }));
+  runtime.sessionRegistry.register(
+    SOURCE_WINDOW,
+    session(SOURCE_WINDOW, SOURCE_DTAG),
+  );
+  runtime.sessionRegistry.register(
+    UNRELATED_WINDOW,
+    session(UNRELATED_WINDOW, 'unrelated-napplet'),
+  );
+  if (mode === 'ready' || mode === 'retry') {
+    runtime.sessionRegistry.register(
+      TARGET_WINDOW,
+      session(TARGET_WINDOW, TARGET_DTAG),
+    );
+  }
+
+  runtime.handleMessage(SOURCE_WINDOW, {
+    type: 'intent.invoke',
+    id: `invoke-${mode}`,
+    request: {
+      archetype: 'profile',
+      action: 'open',
+      convention: 'napplet:profile/open',
+      payload: { mode },
+      ...(mode === 'ready' ? { behavior: { reuse: true } } : {}),
+    },
+  } as NappletMessage);
+  await flushUntil(() => sequence.includes('task start'));
+  expect(sequence.slice(0, 3)).toEqual(['retain', 'source result', 'task start']);
+
+  if (mode === 'deferred') {
+    expect(envelopesFor(sent, TARGET_WINDOW)).toEqual([]);
+    runtime.sessionRegistry.register(
+      TARGET_WINDOW,
+      session(TARGET_WINDOW, TARGET_DTAG),
+    );
+    ready.resolve();
+  }
+  await flushUntil(() => taskSettled);
+
+  const sourceMessages = envelopesFor(sent, SOURCE_WINDOW);
+  const targetMessages = [
+    ...envelopesFor(sent, TARGET_WINDOW),
+    ...envelopesFor(sent, RETRY_TARGET_WINDOW),
+  ];
+  expect(sourceMessages).toHaveLength(1);
+  expect(envelopesFor(sent, UNRELATED_WINDOW)).toEqual([]);
+  expect(sent.some((item) => (
+    !Array.isArray(item.message) && item.message.type.startsWith('inc.')
+  ))).toBe(false);
+
+  return {
+    sent,
+    sequence,
+    attempts,
+    sourceResult: sourceMessages[0],
+    targetMessages,
+  };
+}
+
 describe('manifest-backed intent runtime integration', () => {
   it('attests, accepts, retains, and delivers after source teardown and target readiness', async () => {
     const sent: SentMessage[] = [];
@@ -359,5 +498,61 @@ describe('manifest-backed intent runtime integration', () => {
     expect(sent.some((item) => (
       !Array.isArray(item.message) && item.message.type.startsWith('inc.')
     ))).toBe(false);
+  });
+
+  it.each([
+    ['already-ready reused target', 'ready', 1],
+    ['deferred cold target', 'deferred', 1],
+    ['internal target replacement and retry', 'retry', 2],
+  ] as const)('keeps %s lifecycle state private', async (_name, mode, expectedAttempts) => {
+    const run = await runLifecycle(mode);
+
+    expect(run.attempts).toBe(expectedAttempts);
+    expect(run.sourceResult).toEqual({
+      type: 'intent.invoke.result',
+      id: `invoke-${mode}`,
+      result: {
+        ok: true,
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+        handler: TARGET_DTAG,
+      },
+    });
+    expect(run.targetMessages).toEqual([{
+      type: 'intent.deliver',
+      delivery: {
+        sender: SOURCE_DTAG,
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+        payload: { mode },
+      },
+    }]);
+    expect(run.sequence).toEqual([
+      'retain',
+      'source result',
+      'task start',
+      'target delivery',
+    ]);
+  });
+
+  it('contains terminal controller rejection without a second source result', async () => {
+    const run = await runLifecycle('terminal');
+
+    expect(run.attempts).toBe(0);
+    expect(run.sourceResult).toEqual({
+      type: 'intent.invoke.result',
+      id: 'invoke-terminal',
+      result: {
+        ok: true,
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+        handler: TARGET_DTAG,
+      },
+    });
+    expect(run.targetMessages).toEqual([]);
+    expect(run.sequence).toEqual(['retain', 'source result', 'task start']);
   });
 });
