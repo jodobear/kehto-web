@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.29
 milestone_name: Napplet Convention and Runtime Conformance
-current_phase: 102
-current_phase_name: nap-inc-event-channel-parity
-status: in_progress
-stopped_at: null
-last_updated: "2026-07-26T12:35:00+01:00"
+current_phase: 104
+current_phase_name: NAP-INTENT and Manifest Contract Parity
+status: planning
+stopped_at: Completed 103-07-PLAN.md
+last_updated: "2026-07-26T13:13:12.382Z"
 last_activity: 2026-07-26
-last_activity_desc: Merged current origin/main; revalidating Phase 102 against merged NAP-INC before published-package adoption
+last_activity_desc: Phase 103 complete, transitioned to Phase 104
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 26
-  completed_plans: 25
-  percent: 33
+  completed_plans: 26
+  percent: 50
 ---
 
 # Project State
@@ -28,17 +28,17 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 
 ## Current Position
 
-Phase: 102 (nap-inc-event-channel-parity) — GAP CLOSURE
-Plan: 13 of 14
-Status: Ready to execute runtime-bounded, lossless opened-handle retention
+Phase: 104 — NAP-INTENT and Manifest Contract Parity
+Plan: Not started
+Status: Ready to plan
 
-Last activity: 2026-07-26 — Planned Phase 102 gap closure against merged NAP-INC before published-package adoption.
+Last activity: 2026-07-26 — Phase 103 complete, transitioned to Phase 104
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 1
+- Total plans completed: 24
 - Average duration: ~6m
 - Total execution time: ~6 minutes
 
@@ -50,6 +50,8 @@ Last activity: 2026-07-26 — Planned Phase 102 gap closure against merged NAP-I
 | 87 | TBD | - | - |
 | 88 | 1 | ~18m | ~18m |
 | 89 | 1 | ~45m | ~45m |
+| 102 | 14 | - | - |
+| 103 | 7 | - | - |
 **Per-Plan Metrics:**
 
 | Plan | Duration | Tasks | Files |

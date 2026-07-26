@@ -84,7 +84,7 @@ final host integration wait for mutually compatible convention-capable
 ## Phases
 
 - [x] **Phase 101: NAP-SHELL Session Integrity** - napplets establish one isolated session and discover only live, granted runtime domains.
-- [ ] **Phase 102: NAP-INC Event and Channel Parity** - napplets exchange exact convention events and authorized channels using dTag identities.
+- [x] **Phase 102: NAP-INC Event and Channel Parity** - napplets exchange exact convention events and authorized channels using dTag identities. (completed 2026-07-26)
 - [x] **Phase 103: Identity and Theme Wire Parity** - identity and theme services use only contract-shaped result and change behavior.
 - [ ] **Phase 104: NAP-INTENT and Manifest Contract Parity** - resolve authoritative convention URIs through verified contracts and retain carrier-neutral delivery independently of source lifetime.
 - [ ] **Phase 105: Published Convention Adoption and Host Flows** - consume released Napplet contracts and prove intent, profile, resource, and theme behavior in Paja and playground.
@@ -127,7 +127,7 @@ identifiers and attested dTag identities.
   4. Napplets can create closeable subscriptions and use `channel.open`, `channel.onOpened`, `channel.list`, and `channel.broadcast` plus symmetric endpoint handles with `emit`, `on`, `onClosed`, and `close`; `channel.list()` remains informational.
   5. Channel access is authorized once at open time; target `inc.channel.opened` is enqueued before opener success; early handles/messages/terminal closure are retained in order; buffer overflow closes rather than drops; dead peers and cleanup leave no live route behind.
 
-**Plans:** 13/14 plans executed
+**Plans:** 14/14 plans complete
 **Wave 1**
 
 - [x] 102-01-PLAN.md — Trace one canonical convention emit through the shared prelude and exact dTag runtime delivery.
@@ -164,7 +164,7 @@ identifiers and attested dTag identities.
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 102-14-PLAN.md — Bound channels at authenticated runtime admission and retain every trusted-parent opened handle.
+- [x] 102-14-PLAN.md — Bound channels at authenticated runtime admission and retain every trusted-parent opened handle.
 
 ### Phase 103: Identity and Theme Wire Parity
 
@@ -178,7 +178,7 @@ identifiers and attested dTag identities.
   3. `theme.get` always returns one complete `theme.get.result`; unknown, denied, and unavailable paths never create `theme.*.error` messages or invented theme subscriptions.
   4. One host theme update atomically changes the value later returned by `theme.get` and delivers exactly one matching complete `theme.changed` event.
 
-**Plans:** 7/7 plans executed
+**Plans:** 7/7 plans complete
 
 **Wave 1**
 
@@ -256,8 +256,8 @@ users rely on.
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 101. NAP-SHELL Session Integrity | v1.29 | 5/5 | Complete | 2026-07-23 |
-| 102. NAP-INC Event and Channel Parity | v1.29 | 13/14 | In progress |  |
-| 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete | 2026-07-23 |
+| 102. NAP-INC Event and Channel Parity | v1.29 | 14/14 | Complete    | 2026-07-26 |
+| 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete    | 2026-07-23 |
 | 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 0/TBD | In progress |  |
 | 105. Published Convention Adoption and Host Flows | v1.29 | 0/TBD | Waiting on upstream package publication | - |
 | 106. Active-Surface Conformance and Release | v1.29 | 0/TBD | Not started | - |
