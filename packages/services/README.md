@@ -40,6 +40,37 @@ Current draft posture:
 - `createResourceService` supports `resource.info` and `resource.bytesMany` from draft NAP-RESOURCE. `resource.info` returns advisory schemes and coarse limits; bulk requests return ordered per-URL items and keep per-URL failures local while preserving legacy single-fetch fields for existing Kehto callers.
 - `createDmService` keeps NAP-DM request correlation, subscriptions, and message normalization in runtime-owned code. Adapters cover concrete transports: NIP-17 gift wraps via `nostr-tools`, structural NDR runtimes with relay hooks, and Cordn/ContextVM coordinator clients. Kehto mirrors NAP-DM wire types locally until `@napplet/core` / `@napplet/nap` publish them.
 
+## NAP-INTENT manifest resolver
+
+Phase 104 follows the draft [NAP-INTENT PR #91 at
+`a718915ddefa2f03a0126579601f59d8bd86f7c4`](https://github.com/napplet/naps/pull/91).
+Callers invoke a stable, queryless `napplet:<archetype>/<action>` convention.
+Installed verified manifest tags produce exact `{ convention, eventKinds? }`
+contracts; numbered protocol names and payload inspection do not select a
+handler.
+
+- `manifestToIntentCatalogEntry()` converts resolved manifest
+  `{ dTag, title?, archetypes: [{ slug, convention, eventKinds? }] }` data into
+  exact candidates with `actions`, `conventions`, and `contracts`.
+- `createCatalogIntentResolver()` filters by exact convention, applies the
+  user-owned default/chooser/explicit-authorization policy, and asks an
+  `IntentTargetController` to retain immutable delivery responsibility.
+- `createIntentService()` validates source envelopes, uses the runtime-attested
+  sender, returns one immediate acceptance or rejection, starts an accepted
+  retained task only after the source result, and broadcasts catalog changes
+  through recipient-policy-aware runtime sends.
+
+`ok: true` means responsibility was retained, not that the target handled the
+intent. Once the target is ready it receives one no-ID `intent.deliver` with
+`sender`, `archetype`, `action`, `convention`, and optional opaque `payload`.
+Reuse, target windows, retries, replacement, persistence, and terminal reasons
+remain private controller state and never appear in the result or delivery.
+
+Paja currently exposes only an exact-contract development simulator, and the
+playground currently exposes only a verified-manifest catalog builder. Phase
+105 owns released `@napplet/*` package adoption plus their persistent live
+catalog/controller and feed-to-profile flow.
+
 ## Quick Start
 
 ```ts
@@ -501,6 +532,15 @@ Each factory returns a `ServiceHandler` registrable via `runtime.registerService
   (`theme:read`). Returns a `ThemeService` with `publishTheme()` and
   `getCurrentTheme()` for host-side updates.
 
+### Intent NAP
+- `createIntentService` — exact `intent.invoke`, `intent.available`, and
+  `intent.handlers` request/result handling plus recipient-gated
+  `intent.changed`.
+- `manifestToIntentCatalogEntry` — verified manifest archetype contracts to
+  catalog entries.
+- `createCatalogIntentResolver` — exact convention selection and retained
+  target-controller seam.
+
 ### Identity and theme wire guarantees
 
 Against draft NAP-IDENTITY/NAP-THEME and the web projection at
@@ -520,7 +560,7 @@ complete normal result without `error`: this explicit policy reconciles the
 draft error-only example without a mixed theme/error extension.
 
 ### Types
-`AudioSource`, `AudioServiceOptions`, `Notification`, `NotificationServiceOptions`, `IdentityServiceOptions`, `RelayPoolServiceOptions`, `CacheServiceOptions`, `CoordinatedRelayOptions`, `KeysServiceOptions`, `MediaServiceOptions`, `NotifyServiceOptions`, `ThemeServiceOptions`, `ThemeService`, `BleServiceOptions`, `BleServiceContext`, `WebrtcServiceOptions`, `WebrtcServiceContext`, `DmServiceOptions`, `DmAdapter`, `DmRelayPool`, `Nip17DmAdapterOptions`, `NdrDmAdapterOptions`, `CordnDmAdapterOptions`.
+`AudioSource`, `AudioServiceOptions`, `Notification`, `NotificationServiceOptions`, `IdentityServiceOptions`, `RelayPoolServiceOptions`, `CacheServiceOptions`, `CoordinatedRelayOptions`, `KeysServiceOptions`, `MediaServiceOptions`, `NotifyServiceOptions`, `ThemeServiceOptions`, `ThemeService`, `IntentRequest`, `IntentResult`, `IntentDelivery`, `IntentContract`, `IntentCandidate`, `IntentAvailability`, `IntentResolver`, `IntentTargetController`, `BleServiceOptions`, `BleServiceContext`, `WebrtcServiceOptions`, `WebrtcServiceContext`, `DmServiceOptions`, `DmAdapter`, `DmRelayPool`, `Nip17DmAdapterOptions`, `NdrDmAdapterOptions`, `CordnDmAdapterOptions`.
 
 ## API Reference
 

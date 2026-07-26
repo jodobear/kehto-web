@@ -7,8 +7,9 @@
  * through `manifestToIntentCatalogEntry` into an `IntentCatalogEntry`, the shape
  * `createCatalogIntentResolver.loadCatalog` consumes.
  *
- * This builder is the wiring proof for ARCH-03; surfacing an interactive intent
- * UI in the playground is intentionally out of scope.
+ * This builder is the Phase 104 wiring proof for ARCH-03. Phase 105 owns the
+ * persistent live playground catalog/controller and interactive intent flow;
+ * this module does not claim that host lifecycle wiring yet.
  *
  * @packageDocumentation
  */

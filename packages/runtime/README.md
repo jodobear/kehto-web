@@ -50,6 +50,28 @@ This runtime follows draft NAP-IDENTITY, NAP-THEME, and the web projection at
 
 Published `@napplet/*` package adoption is intentionally deferred to Phase 105.
 
+## NAP-INTENT runtime boundary
+
+Phase 104 implements the draft [NAP-INTENT PR #91 at
+`a718915ddefa2f03a0126579601f59d8bd86f7c4`](https://github.com/napplet/naps/pull/91).
+The runtime accepts only source-side `intent.invoke`, `intent.available`, and
+`intent.handlers` requests. It validates the exact queryless
+`napplet:<archetype>/<action>` identity, derives the sender dTag from the live
+authenticated session, and shapes policy denials as sanctioned result
+envelopes without exposing ACL or firewall details.
+
+Registered services receive a frozen `ServiceRuntimeContext`: current dTag
+resolution, a frozen live-window snapshot, and recipient-policy-aware sends.
+An `intent.invoke.result` with `ok: true` means only that a host controller has
+already retained delivery responsibility. The service sends that result before
+starting the retained task; target startup, readiness, reuse, replacement,
+retry, and terminal failure remain private host policy. A ready target receives
+one no-ID `intent.deliver` with the runtime-attested sender, never a visible INC
+carrier or window/lifecycle fields.
+
+Phase 105 still owns released `@napplet/*` package adoption and the persistent
+installed-manifest controllers for the live Paja and playground hosts.
+
 ## NAP-INC Draft Contract
 
 The active INC boundary follows [NAP-INC PR #89 at

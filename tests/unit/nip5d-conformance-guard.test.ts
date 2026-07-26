@@ -141,6 +141,21 @@ const activeServiceGuidanceFiles = [
   'skills/integrate-shell/SKILL.md',
 ] as const;
 
+const activeIntentContractFiles = [
+  'packages/services/src/intent-types.ts',
+  'packages/services/src/catalog-intent-resolver.ts',
+  'packages/services/src/manifest-intent-catalog.ts',
+  'apps/playground/src/playground-intent-catalog.ts',
+] as const;
+
+const activeArchetypeMetadataFiles = [
+  'packages/nip/src/5d/index.ts',
+  'apps/playground/napplets/shared-vite-config.ts',
+  'apps/playground/napplets/profile-viewer/vite.config.ts',
+  'apps/playground/src/napplet-resolver.ts',
+  'apps/playground/src/playground-intent-catalog.ts',
+] as const;
+
 const unsafeServiceGuidancePatterns = [
   { label: 'legacy audio factory', pattern: /\bcreateAudioService\s*\(/ },
   { label: 'legacy notification INC factory', pattern: /\bcreateNotificationService\s*\(/ },
@@ -219,6 +234,21 @@ function interfaceFieldNames(source: string, interfaceName: string): string[] {
     .filter((name) => name !== 'type');
 }
 
+function localInterfaceFieldNames(source: string, interfaceName: string): string[] {
+  const body = interfaceBody(source, interfaceName);
+  return [...body.matchAll(/^\s{2}(?:readonly\s+)?([a-zA-Z][a-zA-Z0-9_]*)\??:/gm)]
+    .map((match) => match[1]);
+}
+
+function sourceBetween(source: string, start: string, end: string): string {
+  const startIndex = source.indexOf(start);
+  const endIndex = source.indexOf(end, startIndex);
+  if (startIndex < 0 || endIndex < 0) {
+    throw new Error(`missing source slice: ${start} -> ${end}`);
+  }
+  return source.slice(startIndex, endIndex);
+}
+
 describe('NIP-5D conformance static guards', () => {
   it('keeps test resolution on published napplet packages', () => {
     const rootPackageJson = JSON.parse(readRepoFile('package.json')) as {
@@ -254,16 +284,92 @@ describe('NIP-5D conformance static guards', () => {
     expect(violations).toEqual([]);
   });
 
+  it('keeps active intent and manifest surfaces on exact convention contracts', () => {
+    const intentTypes = readRepoFile('packages/services/src/intent-types.ts');
+    const resolver = readRepoFile('packages/services/src/catalog-intent-resolver.ts');
+    const paja = readRepoFile('packages/paja/src/browser-adapter.ts');
+    const pajaIntent = [
+      sourceBetween(
+        paja,
+        'function createDevIntentAvailability',
+        'function createDevCvmTransport',
+      ),
+      sourceBetween(
+        paja,
+        'if (getSimulation().intent.enabled)',
+        'if (getSimulation().capabilities.domains.link)',
+      ),
+    ].join('\n');
+    const forbiddenCanonicalField =
+      /\b(?:protocol|protocols|handled|windowId|newWindow)\s*(?:\?|):/;
+
+    expect(localInterfaceFieldNames(intentTypes, 'IntentContract')).toEqual([
+      'convention',
+      'eventKinds',
+    ]);
+    expect(localInterfaceFieldNames(intentTypes, 'IntentCandidate')).toEqual([
+      'dTag',
+      'title',
+      'actions',
+      'conventions',
+      'contracts',
+      'isDefault',
+    ]);
+    expect(localInterfaceFieldNames(intentTypes, 'IntentAcceptedResult')).toEqual([
+      'ok',
+      'archetype',
+      'action',
+      'convention',
+      'handler',
+    ]);
+    expect(localInterfaceFieldNames(intentTypes, 'IntentRejectedResult')).toEqual([
+      'ok',
+      'error',
+    ]);
+    expect(localInterfaceFieldNames(intentTypes, 'IntentDelivery')).toEqual([
+      'sender',
+      'archetype',
+      'action',
+      'convention',
+      'payload',
+    ]);
+    expect(localInterfaceFieldNames(resolver, 'IntentRetentionParams')).toEqual([
+      'handler',
+      'delivery',
+      'behavior',
+    ]);
+
+    for (const file of activeIntentContractFiles) {
+      const source = removeComments(readRepoFile(file));
+      expect(source, `${file} obsolete canonical intent field`).not.toMatch(
+        forbiddenCanonicalField,
+      );
+    }
+    expect(removeComments(pajaIntent), 'Paja development intent simulator').not.toMatch(
+      forbiddenCanonicalField,
+    );
+    expect(paja).toContain("const DEV_INTENT_CONVENTION = 'napplet:paja-target/open'");
+    expect(pajaIntent).toContain('contracts: [{ convention: DEV_INTENT_CONVENTION }]');
+    expect(pajaIntent).toContain('retained: {');
+
+    for (const file of activeArchetypeMetadataFiles) {
+      const source = removeComments(readRepoFile(file));
+      expect(source, `${file} numbered archetype metadata`).not.toMatch(
+        /\bnap\s*:|NAP-[0-9]+/,
+      );
+    }
+  });
+
   it('requires every playground napplet to declare and preflight its NAP contract', () => {
     for (const name of playgroundNapplets) {
       const config = readRepoFile(`apps/playground/napplets/${name}/vite.config.ts`);
       const source = readRepoFile(`apps/playground/napplets/${name}/src/main.ts`);
       const requiresLiteral = stringLiteralList(expectedRequires[name]);
 
-      // profile-viewer also declares the NAAT archetype axis (Phase 87, ARCH-03).
+      // profile-viewer also declares one exact queryless archetype convention.
       const expectedConfigCall =
         name === 'profile-viewer'
-          ? `definePlaygroundNappletConfig('${name}', { requires: [${requiresLiteral}], archetypes: [{ slug: 'profile', nap: 'NAP-1' }] })`
+          ? `definePlaygroundNappletConfig('${name}', { requires: [${requiresLiteral}], archetypes: [{ slug: 'profile', convention: 'napplet:profile/open' }] })`
           : `definePlaygroundNappletConfig('${name}', { requires: [${requiresLiteral}] })`;
       expect(config, `${name} vite requires`).toContain(expectedConfigCall);
       expect(source, `${name} source requires`).toContain(

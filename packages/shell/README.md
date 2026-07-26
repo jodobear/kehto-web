@@ -57,10 +57,26 @@ order, closes on bounded overflow, and treats teardown as deterministic.
 resolution reply](https://github.com/kehto/web/issues/203#issuecomment-5060904495);
 the prior opener-only interpretation is obsolete.
 
-Phase scope remains explicit: **Phase 104** owns public #91 NAP-INTENT binding,
-resolution, and delivery changes; **Phase 105** owns released package adoption.
-Do not claim published package conformance before Phase 105. Preserve historical
-changelogs and archived planning rather than rewriting them as active guidance.
+### NAP-INTENT binding and delivery
+
+Phase 104 implements the draft [NAP-INTENT PR #91 at
+`a718915ddefa2f03a0126579601f59d8bd86f7c4`](https://github.com/napplet/naps/pull/91).
+The protected `window.napplet.intent` binding normalizes URI invocation into
+exact `archetype`, `action`, queryless `convention`, and optional payload
+fields. It rejects fragments, malformed/repeated queries, query plus explicit
+payload, mismatched normalized fields, and caller-supplied sender data.
+
+Only parent-originated result, change, and delivery envelopes settle the
+binding. Incoming no-ID `intent.deliver` values are retained until an
+`onDelivery` handler is registered. The runtime, not the source, attests the
+sender dTag; an accepted result records retained responsibility and does not
+expose target window, handled, protocol, retry, or lifecycle state.
+
+Phase 105 owns released `@napplet/*` package adoption and persistent live
+Paja/playground catalogs and target controllers. The Phase 104 Paja simulator
+and playground catalog builder are transitional exact-contract consumers, not
+claims of completed host lifecycle wiring. Preserve historical changelogs and
+archived planning rather than rewriting them as active guidance.
 
 ## Quick Start
 

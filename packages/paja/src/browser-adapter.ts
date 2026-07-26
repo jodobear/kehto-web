@@ -34,7 +34,7 @@ import {
   type CvmTransport,
   type IntentAvailability,
   type IntentRequest,
-  type IntentResult,
+  type IntentResolverOutcome,
   type McpMessage,
   type Uploader,
   type UploadRequest,
@@ -99,6 +99,8 @@ export interface PajaSignerProvider {
 export type PajaIdentityProvider = () => Pick<SessionEntry, 'dTag' | 'aggregateHash'>;
 
 const DEV_INTENT_ARCHETYPE = 'paja-target';
+const DEV_INTENT_CONVENTION = 'napplet:paja-target/open';
+const DEV_INTENT_HANDLER = 'dev-target';
 const DEV_COMMON_PUBKEY = '1'.repeat(64);
 const DEV_COMMON_EVENT_ID = '2'.repeat(64);
 const DEV_SIGNER_SECRET_KEY = generateSecretKey();
@@ -184,16 +186,27 @@ function createDevUploader(getSimulation: () => PajaSimulation): Uploader {
   };
 }
 
-function createDevIntentAvailability(): IntentAvailability {
+function createDevIntentAvailability(
+  archetype = DEV_INTENT_ARCHETYPE,
+): IntentAvailability {
+  if (archetype !== DEV_INTENT_ARCHETYPE) {
+    return {
+      archetype,
+      available: false,
+      hasDefault: false,
+      candidates: [],
+    };
+  }
   return {
-    archetype: DEV_INTENT_ARCHETYPE,
+    archetype,
     available: true,
     hasDefault: true,
     candidates: [{
-      dTag: 'dev-target',
+      dTag: DEV_INTENT_HANDLER,
       title: 'Dev runtime target',
       actions: ['open'],
-      protocols: ['NAP-01'],
+      conventions: [DEV_INTENT_CONVENTION],
+      contracts: [{ convention: DEV_INTENT_CONVENTION }],
       isDefault: true,
     }],
   };
@@ -413,24 +426,36 @@ function createDevServices(
     });
   }
   if (getSimulation().intent.enabled) {
+    // Development-only exact-contract simulator. Phase 105 replaces this with
+    // a persistent installed-manifest catalog and real retained target policy.
     services.intent = createIntentService({
       resolver: {
-        invoke(request: IntentRequest): IntentResult {
+        invoke(request: IntentRequest): IntentResolverOutcome {
+          if (
+            request.archetype !== DEV_INTENT_ARCHETYPE
+            || request.action !== 'open'
+            || request.convention !== DEV_INTENT_CONVENTION
+          ) {
+            return {
+              result: { ok: false, error: 'unsupported convention' },
+            };
+          }
           return {
-            ok: true,
-            archetype: request.archetype,
-            action: request.action ?? 'open',
-            handled: request.archetype === DEV_INTENT_ARCHETYPE,
-            handler: 'dev-target',
-            windowId: 'kehto-paja-window',
-            protocol: request.protocol ?? 'NAP-01',
+            result: {
+              ok: true,
+              archetype: request.archetype,
+              action: request.action,
+              convention: request.convention,
+              handler: DEV_INTENT_HANDLER,
+            },
+            retained: {
+              start() {
+                // No-op until Phase 105 installs real target lifecycle wiring.
+              },
+            },
           };
         },
-        available: (archetype) => ({
-          ...createDevIntentAvailability(),
-          archetype,
-          available: archetype === DEV_INTENT_ARCHETYPE,
-        }),
+        available: (archetype) => createDevIntentAvailability(archetype),
         handlers: () => [createDevIntentAvailability()],
       },
     });

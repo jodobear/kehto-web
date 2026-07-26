@@ -73,13 +73,15 @@ describe('playground gateway artifact guard', () => {
       const expectedRequiresLiteral = expectedRequires[name]
         .map((capability) => `'${capability}'`)
         .join(', ');
-      // profile-viewer also declares the NAAT archetype axis (Phase 87, ARCH-03):
-      // it carries an additional `archetypes` option after `requires`.
+      // profile-viewer also declares one exact queryless archetype convention.
       const expectedConfig =
         name === 'profile-viewer'
           ? `export default definePlaygroundNappletConfig('${name}', { requires: [${expectedRequiresLiteral}], archetypes: [{ slug: 'profile', convention: 'napplet:profile/open' }] });`
           : `export default definePlaygroundNappletConfig('${name}', { requires: [${expectedRequiresLiteral}] });`;
       expect(config, `${name} d tag/requires`).toContain(expectedConfig);
+      expect(config, `${name} no numbered archetype metadata`).not.toMatch(
+        /\bnap\s*:\s*['"]NAP-[0-9]+/,
+      );
     }
 
     const sharedConfig = readRepoFile('apps/playground/napplets/shared-vite-config.ts');
@@ -392,7 +394,7 @@ describe('playground gateway artifact guard', () => {
     expect(existsSync('apps/playground/src/mock-relay-pool.ts')).toBe(false);
   });
 
-  it('keeps profile-viewer on the NAP-01 profile-open flow', () => {
+  it('keeps the profile demo on its transitional INC flow until Phase 105 intent wiring', () => {
     const profileSource = readRepoFile('apps/playground/napplets/profile-viewer/src/main.ts');
     const profileHtml = readRepoFile('apps/playground/napplets/profile-viewer/index.html');
 

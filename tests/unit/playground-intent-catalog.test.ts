@@ -37,6 +37,9 @@ describe('buildPlaygroundIntentCatalog', () => {
         },
       },
     ]);
+    expect(JSON.stringify(catalog)).not.toMatch(
+      /"protocols?"|"handled"|"windowId"|"newWindow"|"nap":"NAP-/,
+    );
   });
 
   it('includes a napplet with no archetypes as an entry with archetypes:{}', () => {
