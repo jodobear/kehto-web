@@ -53,6 +53,8 @@ describe('inc channel sub-protocol (NAP-04 / DRIFT-RT-09)', () => {
 
   beforeEach(() => {
     ctx = createMockRuntimeAdapter();
+    let channelIdCounter = 0;
+    ctx.hooks.crypto.randomUUID = () => (++channelIdCounter).toString(16).padStart(32, '0');
     runtime = createRuntime(ctx.hooks);
     // Register three NIP-5D sessions — public INC identities are their dTags.
     // Window IDs remain runtime-local transport keys.

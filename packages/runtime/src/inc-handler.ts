@@ -26,6 +26,8 @@ type IncState = {
 
 type ChannelOpenAuthorizer = (targetWindowId: string, message: NappletMessage) => boolean;
 
+const MAX_CHANNELS_PER_WINDOW = 32;
+
 export interface IncRuntime {
   handleMessage(windowId: string, msg: NappletMessage): void;
   destroyWindow(windowId: string): void;
@@ -102,6 +104,10 @@ function peerOf(state: IncState, channelId: string, self: string): string | null
 
 function resolveTarget(sessionRegistry: SessionRegistry, target: string): string | null {
   return sessionRegistry.getWindowIdByDTag(target) ?? null;
+}
+
+function hasReachedChannelLimit(state: IncState, windowId: string): boolean {
+  return (state.channelsByWindow.get(windowId)?.size ?? 0) >= MAX_CHANNELS_PER_WINDOW;
 }
 
 function handleIncMessage(
@@ -197,6 +203,10 @@ function handleChannelOpen(
   }
   if (!authorizeChannelOpen(peerWindow, m)) {
     hooks.sendToNapplet(windowId, { type: 'inc.channel.open.result', id, error: 'target denied' } as NappletMessage);
+    return;
+  }
+  if (hasReachedChannelLimit(state, windowId) || hasReachedChannelLimit(state, peerWindow)) {
+    hooks.sendToNapplet(windowId, { type: 'inc.channel.open.result', id, error: 'channel limit reached' } as NappletMessage);
     return;
   }
   const channelId = hooks.crypto.randomUUID().replace(/-/g, '').slice(0, 32);
