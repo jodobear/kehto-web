@@ -34,6 +34,27 @@ mode. `shell` is the mandatory, non-toggleable handshake domain; the deprecated 
 path remains an upstream compatibility alias to `inc`. The upstream `dm` domain
 is not advertised until Paja wires a deterministic development DM backend.
 
+## Dev-server CORS requirement
+
+The target iframe is sandboxed without `allow-same-origin`, so the napplet
+document has an opaque origin and requests its own assets with `Origin: null`.
+`<script type="module">` is always fetched in CORS mode, so a dev server that
+does not allow that origin blocks the napplet's entry module and the frame
+renders blank. Vite's default `server.cors` allowlist covers only `localhost`,
+`127.0.0.1`, and `[::1]` origins, so it rejects `null`:
+
+```js
+// vite.config.js
+export default {
+  server: { cors: { origin: '*' } },
+};
+```
+
+Any dev server works as long as it answers `Origin: null` with
+`Access-Control-Allow-Origin: *` or `null`. Paja probes the target on startup
+and logs a `paja.target.cors.error` entry in the message log, plus a console
+warning, when the target would block the sandboxed frame.
+
 The console shows supported interfaces with per-domain injection toggles,
 runtime ACL controls, signer controls, and a filterable message log with visible
 error details. Paja auto-connects a browser NIP-07 signer when `window.nostr` is
@@ -52,6 +73,16 @@ or `/web/paja/?nevent=...` link for that pointer, and the browser remembers open
 runtime tabs in local storage so returning to `/web/paja/` restores the previous
 pointer set. An explicit pointer in the URL still takes precedence over restored
 tabs.
+
+Before Paja assigns a verified runtime-pointer document to `srcdoc`, it inserts
+Kehto's local Class-1 CSP before the host-owned namespace prelude. The policy
+denies all defaults; permits inline script/style, `data:`/`blob:` images, and
+`data:` fonts; grants `connect-src` only to the resolved relay and Blossom
+origins; explicitly denies worker, child, frame, media, object, manifest,
+prefetch, base, and form capabilities; and ends with `frame-ancestors 'self'`.
+The NIP-5D verified-srcdoc and opaque-sandbox rules do not mandate this CSP;
+it is Kehto policy. Local target-URL authoring mode is intentionally outside
+this verified-artifact policy path.
 
 Environment simulation can be supplied through CLI flags or a JSON config file:
 
