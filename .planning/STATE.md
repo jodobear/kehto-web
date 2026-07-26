@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.29
 milestone_name: Napplet Convention and Runtime Conformance
-current_phase: 104
-current_phase_name: NAP-INTENT and Manifest Contract Parity
-status: executing
+current_phase: 105
+current_phase_name: Published Convention Adoption and Host Flows
+status: planning
 stopped_at: Completed 104-06-PLAN.md; ready for re-verification
-last_updated: "2026-07-26T15:23:47.083Z"
+last_updated: "2026-07-26T15:26:22.728Z"
 last_activity: 2026-07-26
-last_activity_desc: Phase 104 gap closure complete; ready for re-verification
+last_activity_desc: Phase 104 complete, transitioned to Phase 105
 progress:
   total_phases: 6
   completed_phases: 4
@@ -28,17 +28,17 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 
 ## Current Position
 
-Phase: 104 (nap-intent-and-manifest-contract-parity) — EXECUTING
-Plan: 6 of 6
-Status: Executing verification gap closure
+Phase: 105 — Published Convention Adoption and Host Flows
+Plan: Not started
+Status: Ready to plan
 
-Last activity: 2026-07-26 — Phase 104 gap closure complete; ready for re-verification
+Last activity: 2026-07-26 — Phase 104 complete, transitioned to Phase 105
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 24
+- Total plans completed: 30
 - Average duration: ~6m
 - Total execution time: ~6 minutes
 
@@ -52,7 +52,7 @@ Last activity: 2026-07-26 — Phase 104 gap closure complete; ready for re-verif
 | 89 | 1 | ~45m | ~45m |
 | 102 | 14 | - | - |
 | 103 | 7 | - | - |
-| 104 | 5 | - | - |
+| 104 | 6 | - | - |
 **Per-Plan Metrics:**
 
 | Plan | Duration | Tasks | Files |

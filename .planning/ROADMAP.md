@@ -86,7 +86,7 @@ final host integration wait for mutually compatible convention-capable
 - [x] **Phase 101: NAP-SHELL Session Integrity** - napplets establish one isolated session and discover only live, granted runtime domains.
 - [x] **Phase 102: NAP-INC Event and Channel Parity** - napplets exchange exact convention events and authorized channels using dTag identities. (completed 2026-07-26)
 - [x] **Phase 103: Identity and Theme Wire Parity** - identity and theme services use only contract-shaped result and change behavior.
-- [ ] **Phase 104: NAP-INTENT and Manifest Contract Parity** - resolve authoritative convention URIs through verified contracts and retain carrier-neutral delivery independently of source lifetime.
+- [x] **Phase 104: NAP-INTENT and Manifest Contract Parity** - resolve authoritative convention URIs through verified contracts and retain carrier-neutral delivery independently of source lifetime. (completed 2026-07-26)
 - [ ] **Phase 105: Published Convention Adoption and Host Flows** - consume released Napplet contracts and prove intent, profile, resource, and theme behavior in Paja and playground.
 - [ ] **Phase 106: Active-Surface Conformance and Release** - prove the complete migration, regression health, and release readiness.
 
@@ -215,7 +215,7 @@ and sends runtime-attested carrier-neutral delivery only after target readiness.
   5. `ok: true` is emitted after the runtime retains delivery responsibility and before any policy-driven source close; target delivery remains valid after source destruction, occurs only after readiness, carries the authenticated source dTag, exposes no INC envelope, and sends no second source result.
   6. Focused lifecycle tests allow target reuse, either source/target startup order, brief overlap, retry/replacement/terminal policy seams, and delivery buffering without choosing those runtime policies as public contract.
 
-**Plans:** 6/6 plans executed
+**Plans:** 6/6 plans complete
 
 **Wave 1**
 
@@ -288,7 +288,7 @@ users rely on.
 | 101. NAP-SHELL Session Integrity | v1.29 | 5/5 | Complete | 2026-07-23 |
 | 102. NAP-INC Event and Channel Parity | v1.29 | 14/14 | Complete    | 2026-07-26 |
 | 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete    | 2026-07-23 |
-| 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 6/6 | In Progress |  |
+| 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 6/6 | Complete    | 2026-07-26 |
 | 105. Published Convention Adoption and Host Flows | v1.29 | 0/TBD | Waiting on upstream package publication | - |
 | 106. Active-Surface Conformance and Release | v1.29 | 0/TBD | Not started | - |
 
