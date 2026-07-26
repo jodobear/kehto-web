@@ -6,13 +6,13 @@ current_phase: 102
 current_phase_name: nap-inc-event-channel-parity
 status: in_progress
 stopped_at: null
-last_updated: "2026-07-26T12:20:00+01:00"
+last_updated: "2026-07-26T12:35:00+01:00"
 last_activity: 2026-07-26
 last_activity_desc: Merged current origin/main; revalidating Phase 102 against merged NAP-INC before published-package adoption
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 25
+  total_plans: 26
   completed_plans: 25
   percent: 33
 ---
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 
 ## Current Position
 
-Phase: 104 (nap-intent-and-manifest-contract-parity) — IN PROGRESS
-Plan: 0 of TBD
-Status: Implementing URI-authoritative intent binding and carrier-neutral delivery
+Phase: 102 (nap-inc-event-channel-parity) — GAP CLOSURE
+Plan: 13 of 14
+Status: Ready to execute runtime-bounded, lossless opened-handle retention
 
-Last activity: 2026-07-26 — Merged current `origin/main`; resuming Phase 102 gap closure against merged NAP-INC before published-package adoption.
+Last activity: 2026-07-26 — Planned Phase 102 gap closure against merged NAP-INC before published-package adoption.
 
 ## Performance Metrics
 
@@ -90,7 +90,7 @@ Baseline contract: `napplet/naps@6461e4b37c29dc09a20dff35d9515889c4433874`. Prop
 - Numbered cross-napplet protocols are gone; conventions use `napplet:<archetype>/<intent>[...?params]`.
 - Full conformance also requires active SHELL, INTENT, INC, IDENTITY, and THEME corrections.
 - `kehto/web#203` tracks implementation against the proposed resolutions: exact queryless identity and binding-owned query transposition from #89/#90, plus the #92 symmetric-channel reply. The issue remains open until Kehto implementation and positive/negative tests satisfy its close criteria.
-- Phase 102 re-verification found draft #92 underspecified for repeated unopened-handle overflow: full late-handle retention and bounded memory cannot both hold without a required backpressure/cap policy. The conflict is recorded in `kehto/web#203` comment `5063109050`; do not silently choose lossy or unbounded semantics.
+- Merged `napplet/naps@5ac0490461ca6fec2f0d2e45b4835cf9bc08de24/naps/NAP-INC.md` resolves Phase 102's repeated unopened-handle conflict: retain every trusted-parent handle in the binding and enforce the permitted per-napplet concurrent-channel maximum at authenticated runtime admission. Plan 102-14 owns the correction.
 - Final package adoption is gated on the concurrent `napplet/web` chase publishing convention-capable core/nap/shim/sdk/vite-plugin releases.
 
 ### Key Context for v1.21 (Phases 86–89)

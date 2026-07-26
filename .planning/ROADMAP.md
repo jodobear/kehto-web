@@ -127,7 +127,7 @@ identifiers and attested dTag identities.
   4. Napplets can create closeable subscriptions and use `channel.open`, `channel.onOpened`, `channel.list`, and `channel.broadcast` plus symmetric endpoint handles with `emit`, `on`, `onClosed`, and `close`; `channel.list()` remains informational.
   5. Channel access is authorized once at open time; target `inc.channel.opened` is enqueued before opener success; early handles/messages/terminal closure are retained in order; buffer overflow closes rather than drops; dead peers and cleanup leave no live route behind.
 
-**Plans:** 13/13 plans executed
+**Plans:** 13/14 plans executed
 **Wave 1**
 
 - [x] 102-01-PLAN.md — Trace one canonical convention emit through the shared prelude and exact dTag runtime delivery.
@@ -161,6 +161,10 @@ identifiers and attested dTag identities.
 **Wave 7** *(blocked on Wave 6 completion)*
 
 - [x] 102-13-PLAN.md — Retain and expose the terminal symmetric handle when unopened-handle buffering overflows.
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 102-14-PLAN.md — Bound channels at authenticated runtime admission and retain every trusted-parent opened handle.
 
 ### Phase 103: Identity and Theme Wire Parity
 
@@ -252,7 +256,7 @@ users rely on.
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 101. NAP-SHELL Session Integrity | v1.29 | 5/5 | Complete | 2026-07-23 |
-| 102. NAP-INC Event and Channel Parity | v1.29 | 13/13 | Complete | 2026-07-24 |
+| 102. NAP-INC Event and Channel Parity | v1.29 | 13/14 | In progress |  |
 | 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete | 2026-07-23 |
 | 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 0/TBD | In progress |  |
 | 105. Published Convention Adoption and Host Flows | v1.29 | 0/TBD | Waiting on upstream package publication | - |
