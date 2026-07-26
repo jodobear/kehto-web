@@ -4,15 +4,15 @@ milestone: v1.29
 milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 104
 current_phase_name: NAP-INTENT and Manifest Contract Parity
-status: planning
-stopped_at: Completed 103-07-PLAN.md
-last_updated: "2026-07-26T13:13:12.382Z"
+status: executing
+stopped_at: Phase 104 planning complete; ready to execute Wave 1
+last_updated: "2026-07-26T13:55:27Z"
 last_activity: 2026-07-26
-last_activity_desc: Phase 103 complete, transitioned to Phase 104
+last_activity_desc: Phase 104 plans passed local structural verification; ready to execute
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 26
+  total_plans: 31
   completed_plans: 26
   percent: 50
 ---
@@ -24,15 +24,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-23)
 
 **Core value:** Modular, framework-agnostic runtime for hosting napplet applications.
-**Current focus:** Phase 102 — nap-inc-event-channel-parity
+**Current focus:** Phase 104 — nap-intent-and-manifest-contract-parity
 
 ## Current Position
 
-Phase: 104 — NAP-INTENT and Manifest Contract Parity
-Plan: Not started
-Status: Ready to plan
+Phase: 104 (nap-intent-and-manifest-contract-parity) — EXECUTING
+Plan: 0 of 5
+Status: Ready to execute
 
-Last activity: 2026-07-26 — Phase 103 complete, transitioned to Phase 104
+Last activity: 2026-07-26 — Phase 104 plans passed local structural verification; ready to execute
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Last activity: 2026-07-26 — Phase 103 complete, transitioned to Phase 104
 | 89 | 1 | ~45m | ~45m |
 | 102 | 14 | - | - |
 | 103 | 7 | - | - |
+| 104 | 5 | - | - |
 **Per-Plan Metrics:**
 
 | Plan | Duration | Tasks | Files |

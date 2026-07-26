@@ -145,12 +145,19 @@ The runtime already owns everything needed:
 - `SessionRegistry.getEntryByWindowId()` and `getAllEntries()`;
 - `RuntimeAdapter.sendToNapplet(windowId, message)`;
 - `RuntimeAdapter.isDomainAllowed(windowId, domain)`;
+- `resolveCapabilitiesNap(message).recipientCap` and the source-bound NAP ACL
+  enforcement gate;
 - registration/unregistration of service handlers.
 
 The narrow reusable seam is a runtime-owned service context attached when a
 handler is registered. It should expose read-only session lookup/enumeration,
-target send, and domain eligibility. Existing handlers can ignore it, so this
-does not require changing every service implementation.
+plus a policy-aware target-send operation that verifies current session
+liveness, immutable domain eligibility, and the resolved recipient capability
+before using the adapter transport. It must not expose the raw target transport:
+domain-only filtering would leak `intent.changed` catalog details to a napplet
+whose current `intent:read` grant was never issued or has been revoked.
+Existing handlers can ignore the context, so this does not require changing
+every service implementation.
 
 ### Acceptance and retained delivery
 
@@ -257,9 +264,10 @@ availability/handler infrastructure failures.
 The current intent service stores reply callbacks only after a client calls an
 intent operation. That violates INTENT-11. Once the handler is attached to the
 runtime context, a resolver change can enumerate current registered sessions,
-filter to `intent`-eligible windows, and send one `intent.changed` to each.
-Destroyed sessions naturally disappear from the registry without a
-request-history map.
+attempt one policy-aware `intent.changed` send to each, and reach only windows
+that are still live, whose immutable environment contains `intent`, and whose
+current ACL grants `intent:read`. Destroyed sessions naturally disappear from
+the registry without a request-history map.
 
 ### Compile consumers
 
@@ -302,10 +310,15 @@ must not alter the canonical wire objects.
 
 Add an optional service lifecycle callback receiving a context with:
 
-- `sendToNapplet(windowId, message)`;
-- `getSession(windowId)`;
-- `getSessions()`;
-- `isDomainAllowed(windowId, domain)`.
+- `resolveDTag(windowId)`;
+- `listWindowIds()`;
+- `sendToEligibleNapplet(windowId, message)`.
+
+`sendToEligibleNapplet` returns whether delivery occurred and is intentionally
+stricter than the adapter transport: it requires a live registered recipient,
+an allowed message domain, a runtime-to-recipient capability mapping, and a
+current ACL grant for that capability. The service never receives raw hooks,
+ACL state, or a mutable session registry.
 
 Attach it to adapter-provided services during runtime creation and to services
 registered later. Provide a matching unregistration/destruction cleanup seam
@@ -455,7 +468,7 @@ Full repository gates remain mandatory before PR handoff.
 | Ambiguous selection silently picks an attacker-controlled catalog order | High | Default/sole/chooser only; missing chooser is rejection. |
 | Explicit dTag bypasses user policy | High | Require a dedicated authorization hook after exact compatibility filtering. |
 | Malformed signed manifest metadata becomes discovery authority | High | Fail closed in verified-manifest parsing and repeat validation in build tooling. |
-| `intent.changed` leaks installed catalog details | Medium | Send only to current runtime sessions eligible for the intent domain; host redaction remains policy. |
+| `intent.changed` leaks installed catalog details | High | Use the runtime's policy-aware target send so current session, immutable intent-domain, and `intent:read` ACL eligibility are all checked at send time; host redaction remains policy. |
 | Generic runtime changes regress other services | High | Make lifecycle/context callbacks optional and keep existing three-argument handler implementations valid. |
 | Draft authority changes during work | High | Re-query PR #91 head before execution and final verification; stop and re-audit on drift. |
 | Dependency supply-chain drift | High | Install nothing in Phase 104; Phase 105 separately verifies exact npm/JSR lineage and lockfile changes. |
@@ -476,4 +489,3 @@ Full repository gates remain mandatory before PR handoff.
 - Complete generated API/docs refresh.
 - Final changesets, full regression matrix, security/review/milestone audit, and
   release-ready PR closeout.
-

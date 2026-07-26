@@ -69,8 +69,10 @@ window-manager dependencies into `@kehto/services`.
 - `packages/acl/src/resolve.test.ts`
 
 The runtime context should be generic enough for services but minimal: session
-identity, live enumeration, target send, and domain eligibility. It must not
-expose mutable ACL/session internals.
+identity, live enumeration, and policy-aware target send. The send closure must
+combine session liveness, immutable domain eligibility, and the message's
+recipient ACL mapping; it must not expose raw transport or mutable ACL/session
+internals.
 
 ### Integration and compile consumers
 
@@ -178,31 +180,43 @@ retry/replacement policy.
 
 ```typescript
 handler.onRegistered?.({
-  sendToNapplet: hooks.sendToNapplet,
-  getSession: (windowId) => sessionRegistry.getEntryByWindowId(windowId),
-  getSessions: () => sessionRegistry.getAllEntries(),
-  isDomainAllowed: (windowId, domain) =>
-    hooks.isDomainAllowed?.(windowId, domain) ?? true,
+  resolveDTag: (windowId) =>
+    sessionRegistry.getEntryByWindowId(windowId)?.dTag,
+  listWindowIds: () =>
+    sessionRegistry.getAllEntries().map((entry) => entry.windowId),
+  sendToEligibleNapplet: (windowId, message) => {
+    const entry = sessionRegistry.getEntryByWindowId(windowId);
+    const domain = message.type.split('.', 1)[0];
+    const { recipientCap } = resolveCapabilitiesNap(message);
+    if (!entry || !recipientCap) return false;
+    if (hooks.isDomainAllowed?.(windowId, domain) === false) return false;
+    if (!enforceNap(windowId, recipientCap, message).allowed) return false;
+    hooks.sendToNapplet(windowId, message);
+    return true;
+  },
 });
 ```
 
 Use narrow closures rather than exposing `hooks` or the mutable registry.
+Refuse messages without a recipient capability: source request/reply transport
+remains the existing fixed-source callback and cannot be escalated through this
+context.
 Attach both adapter-provided and later registered services, and clean up on
 unregister/destroy.
 
 ### Pattern 8: Change broadcast from live state
 
 ```typescript
-for (const session of runtime.getSessions()) {
-  if (!runtime.isDomainAllowed(session.windowId, 'intent')) continue;
-  runtime.sendToNapplet(session.windowId, {
+for (const windowId of runtime.listWindowIds()) {
+  runtime.sendToEligibleNapplet(windowId, {
     type: 'intent.changed',
     availability,
   });
 }
 ```
 
-No prior `intent.available` or `intent.handlers` call is required.
+No prior `intent.available` or `intent.handlers` call is required. The send
+operation itself rechecks liveness, domain eligibility, and `intent:read`.
 
 ## Anti-Patterns
 
@@ -258,4 +272,3 @@ runtime service context + ACL denial --------+----> intent service orchestration
 No plan should claim source-independent delivery until the integration proof
 uses a real authenticated runtime session and destroys the source before
 releasing target readiness.
-
