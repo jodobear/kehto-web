@@ -146,7 +146,7 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 | 260712-slw | Fix Paja naddr relay resolution end-to-end | 2026-07-12 | 8ba8e30 | Verified | [260712-slw-fix-paja-naddr-relay-resolution-end-to-e](./quick/260712-slw-fix-paja-naddr-relay-resolution-end-to-e/) |
 | 260723-cvz | Diagnose and document Paja dev-mode opaque-origin CORS failure blocking napplet module scripts | 2026-07-23 | 0af445b | Verified | [260723-cvz-fix-paja-dev-mode-napplet-load-failure-c](./quick/260723-cvz-fix-paja-dev-mode-napplet-load-failure-c/) |
 | 260724-czo | Inject a full Class-1 CSP into verified srcdoc loaders | 2026-07-24 | d3d966a | Verified | [260724-czo-inject-a-full-class-1-csp-into-verified-](./quick/260724-czo-inject-a-full-class-1-csp-into-verified-/) |
-| 260726-g8r | Update AGENTS.md to require Kehto worktrees under ~/.worktrees/kehto | 2026-07-26 | 7687a87 | Verified | [260726-g8r-update-agents-md-to-require-kehto-worktr](./quick/260726-g8r-update-agents-md-to-require-kehto-worktr/) |
+| 260726-g8r | Update AGENTS.md to require Kehto worktrees under ~/.worktrees/kehto | 2026-07-26 | 683018b | Verified | [260726-g8r-update-agents-md-to-require-kehto-worktr](./quick/260726-g8r-update-agents-md-to-require-kehto-worktr/) |
 
 ## Session Continuity
 
