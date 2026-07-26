@@ -76,13 +76,13 @@ function validateArchetypes(
   archetypes: ReadonlyArray<PlaygroundArchetype>,
 ): PlaygroundArchetype[] {
   return archetypes.map(({ slug: rawSlug, convention: rawConvention, eventKinds }) => {
-    const slug = typeof rawSlug === 'string' ? rawSlug.trim() : '';
+    const slug = typeof rawSlug === 'string' ? rawSlug : '';
     if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
       throw new Error(
         `${nappletType} manifest archetype slug must contain lowercase letters, numbers, and hyphens`,
       );
     }
-    const convention = typeof rawConvention === 'string' ? rawConvention.trim() : '';
+    const convention = typeof rawConvention === 'string' ? rawConvention : '';
     if (convention === '') {
       throw new Error(
         `${nappletType} manifest archetype convention must be a non-empty string`,

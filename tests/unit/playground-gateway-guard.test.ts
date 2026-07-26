@@ -114,8 +114,12 @@ describe('playground gateway artifact guard', () => {
     const invalid: unknown[] = [
       { slug: '', convention: 'napplet:profile/open' },
       { slug: 'Profile', convention: 'napplet:Profile/open' },
+      { slug: ' profile', convention: 'napplet:profile/open' },
+      { slug: 'profile ', convention: 'napplet:profile/open' },
       { slug: 'profile' },
       { slug: 'profile', convention: '' },
+      { slug: 'profile', convention: ' napplet:profile/open' },
+      { slug: 'profile', convention: 'napplet:profile/open ' },
       { slug: 'profile', convention: 'NAP-1' },
       { slug: 'profile', convention: 'napplet:profile/open?x=1' },
       { slug: 'profile', convention: 'napplet:profile/open#section' },
