@@ -215,7 +215,7 @@ and sends runtime-attested carrier-neutral delivery only after target readiness.
   5. `ok: true` is emitted after the runtime retains delivery responsibility and before any policy-driven source close; target delivery remains valid after source destruction, occurs only after readiness, carries the authenticated source dTag, exposes no INC envelope, and sends no second source result.
   6. Focused lifecycle tests allow target reuse, either source/target startup order, brief overlap, retry/replacement/terminal policy seams, and delivery buffering without choosing those runtime policies as public contract.
 
-**Plans:** 5/5 plans executed
+**Plans:** 6/6 plans executed
 
 **Wave 1**
 
@@ -244,7 +244,7 @@ and sends runtime-attested carrier-neutral delivery only after target readiness.
 
 **Wave 6** *(verification gap closure)*
 
-- [ ] 104-06-PLAN.md — Reject whitespace-padded archetype authoring metadata
+- [x] 104-06-PLAN.md — Reject whitespace-padded archetype authoring metadata
   instead of normalizing it into a signed contract.
 
 ### Phase 105: Published Convention Adoption and Host Flows
@@ -288,7 +288,7 @@ users rely on.
 | 101. NAP-SHELL Session Integrity | v1.29 | 5/5 | Complete | 2026-07-23 |
 | 102. NAP-INC Event and Channel Parity | v1.29 | 14/14 | Complete    | 2026-07-26 |
 | 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete    | 2026-07-23 |
-| 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 5/6 | Gap closure |  |
+| 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 6/6 | In Progress |  |
 | 105. Published Convention Adoption and Host Flows | v1.29 | 0/TBD | Waiting on upstream package publication | - |
 | 106. Active-Surface Conformance and Release | v1.29 | 0/TBD | Not started | - |
 

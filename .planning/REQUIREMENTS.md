@@ -418,7 +418,7 @@ lockfile.
 | INTENT-11 | Phase 104 | Complete |
 | ARCH-01 | Phase 104 | Complete |
 | ARCH-02 | Phase 104 | Complete |
-| ARCH-04 | Phase 104 | Pending |
+| ARCH-04 | Phase 104 | Complete |
 | PKG-01 | Phase 105 | Pending |
 | PKG-02 | Phase 105 | Pending |
 | PKG-03 | Phase 105 | Pending |
