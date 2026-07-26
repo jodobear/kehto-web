@@ -3,12 +3,12 @@
  *
  * Shell-side handler for the NAP-INTENT wire protocol. It is a pure envelope
  * router: it validates `intent.*` envelopes, delegates archetype resolution,
- * default handling, window lifecycle, and payload delivery to an injected
- * {@link IntentResolver}, and posts the correlated result / push messages
- * (echoing the request `id`) back to the napplet.
+ * default handling and retained target delivery to an injected
+ * {@link IntentResolver}, then posts correlated result and push messages back
+ * to the napplet.
  *
  * The resolver is injected (options-as-bridge) so this service has no shell or
- * window-manager dependency and is fully unit-testable. A concrete
+ * target-lifecycle dependency and is fully unit-testable. A concrete
  * catalog-backed resolver ships alongside as {@link createCatalogIntentResolver}.
  *
  * ──────────────────────────── Responsibilities ────────────────────────────
@@ -17,15 +17,15 @@
  *             intent.handlers.result, intent.changed
  *
  * The shell owns archetype→handler resolution, the user's default-handler
- * preference, the "open with…" chooser, and window creation/focus — all behind
- * the {@link IntentResolver}. This service only marshals the wire protocol and
- * fans `intent.changed` pushes out to the napplets it has served.
+ * preference, chooser, and retained target policy behind the
+ * {@link IntentResolver}. This service only marshals the wire protocol and
+ * fans `intent.changed` pushes out to eligible napplets.
  *
  * @example
  * ```ts
  * import { createIntentService, createCatalogIntentResolver } from '@kehto/services';
  *
- * const resolver = createCatalogIntentResolver({ loadCatalog, windows });
+ * const resolver = createCatalogIntentResolver({ loadCatalog, targets });
  * runtime.registerService('intent', createIntentService({ resolver }));
  * ```
  *
@@ -34,7 +34,12 @@
 
 import type { NappletMessage } from '@napplet/core';
 import type { ServiceDescriptor, ServiceHandler } from '@kehto/runtime';
-import type { IntentAvailability, IntentRequest, IntentResult } from './intent-types.js';
+import type {
+  IntentAcceptedResult,
+  IntentAvailability,
+  IntentRejectedResult,
+  IntentRequest,
+} from './intent-types.js';
 
 /** Intent service version — follows semver. */
 const INTENT_SERVICE_VERSION = '1.0.0';
@@ -46,18 +51,58 @@ export interface IntentResolverContext {
 }
 
 /**
+ * Opaque runtime-owned delivery responsibility retained before acceptance.
+ *
+ * Starting the task may wait for target readiness and apply host retry,
+ * replacement, or terminal-failure policy. It never produces a second source
+ * result.
+ */
+export interface IntentRetainedDelivery {
+  /**
+   * Begin target lifecycle and eventual delivery policy.
+   *
+   * @returns Nothing, or a promise settled when controller policy completes.
+   */
+  start(): void | Promise<void>;
+}
+
+/** A resolver rejection before delivery responsibility was retained. */
+export interface IntentRejectedResolverOutcome {
+  /** Exact canonical pre-acceptance rejection. */
+  result: IntentRejectedResult;
+}
+
+/** A resolver acceptance backed by already-retained delivery responsibility. */
+export interface IntentAcceptedResolverOutcome {
+  /** Exact canonical acceptance result. */
+  result: IntentAcceptedResult;
+  /** Opaque task that the service starts only after sending the source result. */
+  retained: IntentRetainedDelivery;
+}
+
+/** Pre-acceptance rejection or accepted retained-delivery responsibility. */
+export type IntentResolverOutcome =
+  | IntentRejectedResolverOutcome
+  | IntentAcceptedResolverOutcome;
+
+/**
  * Abstract intent resolver. Implementors own the installed-napplet catalog,
  * archetype→handler resolution, the user's default-handler preference, the
- * "open with…" chooser, window creation/focus, and payload delivery. The
+ * chooser and retained target delivery policy. The
  * service translates wire envelopes into these calls and back.
  */
 export interface IntentResolver {
   /**
-   * Resolve `request.archetype` to a handler, create or focus its window, and
-   * deliver `payload`. Returns once the handler is resolved and the window
-   * created; delivery MAY complete asynchronously.
+   * Resolve the request and retain target delivery responsibility.
+   *
+   * @param request - Validated normalized intent request.
+   * @param context - Runtime-attested source identity.
+   * @returns A structured rejection, or an acceptance plus an unstarted task.
    */
-  invoke(request: IntentRequest, context: IntentResolverContext): IntentResult | Promise<IntentResult>;
+  invoke(
+    request: IntentRequest,
+    context: IntentResolverContext,
+  ): IntentResolverOutcome | Promise<IntentResolverOutcome>;
   /** Report whether the runtime can currently satisfy `archetype`, and how. */
   available(archetype: string): IntentAvailability | Promise<IntentAvailability>;
   /** Report availability for every archetype the runtime can currently satisfy. */

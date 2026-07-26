@@ -155,6 +155,10 @@ export type {
   IntentServiceOptions,
   IntentResolver,
   IntentResolverContext,
+  IntentRetainedDelivery,
+  IntentRejectedResolverOutcome,
+  IntentAcceptedResolverOutcome,
+  IntentResolverOutcome,
 } from './intent-service.js';
 export type {
   IntentHandlerPreference,
@@ -176,8 +180,8 @@ export type {
   CatalogIntentResolverOptions,
   IntentCatalogEntry,
   IntentArchetypeSupport,
-  IntentWindowController,
-  IntentOpenParams,
+  IntentTargetController,
+  IntentRetentionParams,
 } from './catalog-intent-resolver.js';
 
 export { manifestToIntentCatalogEntry } from './manifest-intent-catalog.js';

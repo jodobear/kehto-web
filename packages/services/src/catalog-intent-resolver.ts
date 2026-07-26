@@ -24,10 +24,16 @@ import type {
   IntentBehavior,
   IntentCandidate,
   IntentContract,
+  IntentDelivery,
+  IntentRejectedResult,
   IntentRequest,
-  IntentResult,
 } from './intent-types.js';
-import type { IntentResolver, IntentResolverContext } from './intent-service.js';
+import type {
+  IntentResolver,
+  IntentResolverContext,
+  IntentResolverOutcome,
+  IntentRetainedDelivery,
+} from './intent-service.js';
 
 /** The exact manifest-derived conventions a napplet fulfills for one archetype. */
 export interface IntentArchetypeSupport {
@@ -53,44 +59,35 @@ export interface IntentCatalogEntry {
   archetypes: Record<string, IntentArchetypeSupport>;
 }
 
-/**
- * Transitional target parameters used until retained-delivery orchestration is
- * introduced by the next execution task.
- */
-export interface IntentOpenParams {
-  /** dTag of the resolved handler napplet. */
-  dTag: string;
-  /** Runtime-attested source napplet dTag. */
-  sender: string;
-  /** The normalized archetype being dispatched. */
-  archetype: string;
-  /** The normalized action being dispatched. */
-  action: string;
-  /** The exact compatible convention. */
-  convention: string;
-  /** The opaque payload to deliver. */
-  payload?: unknown;
-  /** Non-authoritative target lifecycle hints. */
-  behavior?: IntentBehavior;
+/** Exact carrier-neutral values retained for one selected intent target. */
+export interface IntentRetentionParams {
+  /** Selected target napplet dTag. */
+  readonly handler: string;
+  /** Immutable canonical delivery retained independently of the source. */
+  readonly delivery: Readonly<IntentDelivery>;
+  /** Copied non-authoritative target lifecycle hints. */
+  readonly behavior?: Readonly<IntentBehavior>;
 }
 
-/** Transitional target controller replaced by retained delivery in the next task. */
-export interface IntentWindowController {
+/** Host controller that retains source-independent target delivery policy. */
+export interface IntentTargetController {
   /**
-   * Prepare or focus the selected target.
+   * Retain delivery responsibility without starting target policy.
    *
-   * @param params - Exact selected target and normalized intent values.
-   * @returns An implementation-private target marker.
+   * @param params - Immutable selected target and canonical delivery values.
+   * @returns An opaque unstarted delivery task.
    */
-  open(params: IntentOpenParams): { windowId: string } | Promise<{ windowId: string }>;
+  retain(
+    params: IntentRetentionParams,
+  ): IntentRetainedDelivery | Promise<IntentRetainedDelivery>;
 }
 
 /** Options for {@link createCatalogIntentResolver}. */
 export interface CatalogIntentResolverOptions {
   /** Return the installed-napplet catalog sourced from signed manifests. */
   loadCatalog(): IntentCatalogEntry[] | Promise<IntentCatalogEntry[]>;
-  /** Transitional target controller; retained delivery replaces it next. */
-  windows: IntentWindowController;
+  /** Target controller that retains responsibility before resolver acceptance. */
+  targets: IntentTargetController;
   /**
    * Return the user's default handler dTag for an archetype.
    *
@@ -167,7 +164,7 @@ function candidatesFor(
   return candidates;
 }
 
-function reject(error: string): IntentResult {
+function reject(error: string): IntentRejectedResult {
   return { ok: false, error };
 }
 
@@ -187,7 +184,7 @@ type HandlerSelection =
  * ```ts
  * const resolver = createCatalogIntentResolver({
  *   loadCatalog: () => installedNapplets,
- *   windows: { open: (params) => prepareTarget(params) },
+ *   targets: { retain: (params) => retainTargetDelivery(params) },
  *   getDefaultHandler: (archetype) => userDefaults[archetype],
  * });
  * ```
@@ -196,12 +193,12 @@ export function createCatalogIntentResolver(options: CatalogIntentResolverOption
   if (!options || typeof options.loadCatalog !== 'function') {
     throw new Error('createCatalogIntentResolver: options.loadCatalog is required');
   }
-  if (!options.windows || typeof options.windows.open !== 'function') {
-    throw new Error('createCatalogIntentResolver: options.windows is required');
+  if (!options.targets || typeof options.targets.retain !== 'function') {
+    throw new Error('createCatalogIntentResolver: options.targets is required');
   }
   const {
     loadCatalog,
-    windows,
+    targets,
     getDefaultHandler,
     chooseHandler,
     authorizeExplicitHandler,
@@ -268,41 +265,64 @@ export function createCatalogIntentResolver(options: CatalogIntentResolverOption
     return chooseCompatible(request, compatible, sender);
   }
 
-  async function invoke(request: IntentRequest, context: IntentResolverContext): Promise<IntentResult> {
+  async function invoke(
+    request: IntentRequest,
+    context: IntentResolverContext,
+  ): Promise<IntentResolverOutcome> {
     const catalog = await loadCatalog();
     const defaultHandler = getDefaultHandler?.(request.archetype);
     const candidates = candidatesFor(catalog, request.archetype, defaultHandler);
-    if (candidates.length === 0) return reject('no handler');
+    if (candidates.length === 0) return { result: reject('no handler') };
 
     const compatible = candidates.filter((candidate) =>
       candidate.contracts.some((contract) => contract.convention === request.convention));
-    if (compatible.length === 0) return reject('unsupported convention');
+    if (compatible.length === 0) return { result: reject('unsupported convention') };
 
     const sender = context.sender;
-    if (typeof sender !== 'string' || sender.length === 0) return reject('invoke rejected');
-    const selected = await pickHandler(request, compatible, sender);
-    if ('error' in selected) return reject(selected.error);
-
-    try {
-      await windows.open({
-        dTag: selected.candidate.dTag,
-        sender,
-        archetype: request.archetype,
-        action: request.action,
-        convention: request.convention,
-        ...(request.payload === undefined ? {} : { payload: request.payload }),
-        ...(request.behavior === undefined ? {} : { behavior: request.behavior }),
-      });
-    } catch {
-      return reject('invoke rejected');
+    if (typeof sender !== 'string' || sender.length === 0) {
+      return { result: reject('invoke rejected') };
     }
+    const selected = await pickHandler(request, compatible, sender);
+    if ('error' in selected) return { result: reject(selected.error) };
 
-    return {
-      ok: true,
+    const delivery = Object.freeze({
+      sender,
       archetype: request.archetype,
       action: request.action,
       convention: request.convention,
+      ...(request.payload === undefined ? {} : { payload: request.payload }),
+    }) satisfies Readonly<IntentDelivery>;
+    const behavior = request.behavior === undefined
+      ? undefined
+      : Object.freeze({
+          ...(request.behavior.focus === undefined ? {} : { focus: request.behavior.focus }),
+          ...(request.behavior.reuse === undefined ? {} : { reuse: request.behavior.reuse }),
+        });
+    const params = Object.freeze({
       handler: selected.candidate.dTag,
+      delivery,
+      ...(behavior === undefined ? {} : { behavior }),
+    }) satisfies IntentRetentionParams;
+
+    let retained: IntentRetainedDelivery;
+    try {
+      retained = await targets.retain(params);
+    } catch {
+      return { result: reject('invoke rejected') };
+    }
+    if (!retained || typeof retained.start !== 'function') {
+      return { result: reject('invoke rejected') };
+    }
+
+    return {
+      result: {
+        ok: true,
+        archetype: request.archetype,
+        action: request.action,
+        convention: request.convention,
+        handler: selected.candidate.dTag,
+      },
+      retained,
     };
   }
 
