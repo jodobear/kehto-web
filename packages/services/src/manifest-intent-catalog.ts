@@ -18,9 +18,6 @@
 import type { IntentArchetypeSupport, IntentCatalogEntry } from './catalog-intent-resolver.js';
 import type { IntentContract } from './intent-types.js';
 
-/** NAP-INTENT default action when a manifest does not enumerate actions. */
-const DEFAULT_ACTIONS: readonly string[] = ['open'];
-
 /**
  * The structural subset of `@kehto/nip/5d` `NappletManifest` the adapter needs.
  * Intentionally a duck-typed shape so the playground (or any caller) can pass a
@@ -32,20 +29,30 @@ export interface ManifestArchetypeInput {
   /** Optional human-readable title from the manifest. */
   title?: string;
   /**
-   * Archetype slugs this napplet fulfills, from the manifest's `archetype` tags;
-   * the optional `nap` is the recommended default wire protocol.
+   * Ordered convention contracts from the manifest's `archetype` tags.
    */
-  archetypes: Array<{ slug: string; convention?: string; eventKinds?: number[]; nap?: string }>;
+  archetypes: Array<{ slug: string; convention: string; eventKinds?: number[] }>;
+}
+
+function actionFromConvention(slug: string, convention: string): string {
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
+    throw new TypeError('manifest archetype slug is invalid');
+  }
+  const match = /^napplet:([^/?#\s]+)\/([^/?#\s]+)$/.exec(convention);
+  if (!match || match[1] !== slug) {
+    throw new TypeError('manifest archetype convention is invalid or mismatched');
+  }
+  return match[2];
 }
 
 /**
  * Map a resolved napplet manifest's archetype data into an
  * {@link IntentCatalogEntry}.
  *
- * Each archetype `{ slug, nap }` becomes a keyed support record where `actions`
- * defaults to `['open']` (the NAP-INTENT default action — manifests do not
- * enumerate actions in this phase) and `protocols` is `[nap]` when a NAP-N is
- * present, else `[]`. Duplicate slugs keep the last occurrence.
+ * Each manifest tag remains one ordered contract. Repeated slugs group into one
+ * support record while repeated conventions remain distinct contracts; action
+ * and convention arrays are stable, deduplicated indexes derived from those
+ * contracts.
  *
  * @param manifest - A resolved manifest's structural archetype data.
  * @returns The `IntentCatalogEntry` for `createCatalogIntentResolver`.
@@ -55,25 +62,37 @@ export interface ManifestArchetypeInput {
  * manifestToIntentCatalogEntry({
  *   dTag: 'profile-viewer',
  *   title: 'Profile',
- *   archetypes: [{ slug: 'profile', nap: 'NAP-1' }],
+ *   archetypes: [{ slug: 'profile', convention: 'napplet:profile/open' }],
  * });
  * // → { dTag: 'profile-viewer', title: 'Profile',
- * //     archetypes: { profile: { actions: ['open'], protocols: ['NAP-1'] } } }
+ * //     archetypes: { profile: {
+ * //       actions: ['open'],
+ * //       conventions: ['napplet:profile/open'],
+ * //       contracts: [{ convention: 'napplet:profile/open' }],
+ * //     } } }
  * ```
  */
 export function manifestToIntentCatalogEntry(manifest: ManifestArchetypeInput): IntentCatalogEntry {
   const archetypes: Record<string, IntentArchetypeSupport> = {};
-  for (const { slug, convention, eventKinds, nap } of manifest.archetypes) {
-    const stableConvention = convention ?? nap;
-    const contracts: IntentContract[] = stableConvention
-      ? [{ convention: stableConvention, ...(eventKinds?.length ? { eventKinds: [...eventKinds] } : {}) }]
-      : [];
-    archetypes[slug] = {
-      actions: [...DEFAULT_ACTIONS],
-      protocols: stableConvention ? [stableConvention] : [],
-      conventions: stableConvention ? [stableConvention] : [],
-      contracts,
+  for (const { slug, convention, eventKinds } of manifest.archetypes) {
+    const action = actionFromConvention(slug, convention);
+    if (eventKinds?.some((kind) => !Number.isSafeInteger(kind) || kind < 0)) {
+      throw new TypeError('manifest archetype event kinds must be unsigned safe integers');
+    }
+    const support = archetypes[slug] ??= {
+      actions: [],
+      conventions: [],
+      contracts: [],
     };
+    const contract: IntentContract = {
+      convention,
+      ...(eventKinds === undefined || eventKinds.length === 0
+        ? {}
+        : { eventKinds: [...eventKinds] }),
+    };
+    support.contracts.push(contract);
+    if (!support.actions.includes(action)) support.actions.push(action);
+    if (!support.conventions.includes(convention)) support.conventions.push(convention);
   }
   return {
     dTag: manifest.dTag,

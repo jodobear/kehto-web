@@ -34,10 +34,18 @@ export type IntentCatalogSource = Pick<PlaygroundNapplet, 'dTag' | 'title' | 'ar
  * @example
  * ```ts
  * const catalog = buildPlaygroundIntentCatalog([
- *   { dTag: 'profile-viewer', title: 'Profile', archetypes: [{ slug: 'profile', nap: 'NAP-1' }] },
+ *   {
+ *     dTag: 'profile-viewer',
+ *     title: 'Profile',
+ *     archetypes: [{ slug: 'profile', convention: 'napplet:profile/open' }],
+ *   },
  * ]);
  * // → [{ dTag: 'profile-viewer', title: 'Profile',
- * //      archetypes: { profile: { actions: ['open'], protocols: ['NAP-1'] } } }]
+ * //      archetypes: { profile: {
+ * //        actions: ['open'],
+ * //        conventions: ['napplet:profile/open'],
+ * //        contracts: [{ convention: 'napplet:profile/open' }],
+ * //      } } }]
  * ```
  */
 export function buildPlaygroundIntentCatalog(

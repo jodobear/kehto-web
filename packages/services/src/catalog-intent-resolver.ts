@@ -34,15 +34,14 @@ import type {
 } from './intent-types.js';
 import type { IntentResolver, IntentResolverContext } from './intent-service.js';
 
-/** The actions/protocols a napplet fulfills for a single archetype. */
+/** The exact manifest-derived conventions a napplet fulfills for one archetype. */
 export interface IntentArchetypeSupport {
   /** Verbs this napplet supports for the archetype (e.g. `["open", "edit"]`). */
   actions: string[];
-  /** NAP-N protocol ids this napplet accepts for the archetype. */
-  protocols: string[];
-  /** Stable queryless convention contracts from the manifest. */
-  conventions?: string[];
-  contracts?: IntentContract[];
+  /** Stable queryless convention identities derived from {@link contracts}. */
+  conventions: string[];
+  /** Authoritative ordered contracts parsed from the installed manifest. */
+  contracts: IntentContract[];
 }
 
 /**
@@ -137,10 +136,12 @@ function candidatesFor(
     candidates.push({
       dTag: entry.dTag,
       ...(entry.title === undefined ? {} : { title: entry.title }),
-      actions: support.actions,
-      protocols: support.protocols,
-      conventions: support.conventions ?? [],
-      contracts: support.contracts ?? [],
+      actions: [...support.actions],
+      conventions: [...support.conventions],
+      contracts: support.contracts.map((contract) => ({
+        convention: contract.convention,
+        ...(contract.eventKinds === undefined ? {} : { eventKinds: [...contract.eventKinds] }),
+      })),
       ...(entry.dTag === defaultHandler ? { isDefault: true } : {}),
     });
   }
