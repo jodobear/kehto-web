@@ -5,7 +5,7 @@ import type { Observation } from '@kehto/firewall';
 
 import type {
   RuntimeAdapter, ConsentHandler, FirewallEvent,
-  ServiceHandler, ServiceRegistry, ServiceInfo,
+  ServiceHandler, ServiceRegistry, ServiceInfo, ServiceRuntimeContext,
 } from './types.js';
 import { notifyServiceWindowDestroyed } from './service-dispatch.js';
 import { createSessionRegistry, type SessionRegistry } from './session-registry.js';
@@ -377,6 +377,58 @@ function createRuntimeInstance(context: RuntimeInstanceContext): Runtime {
     replayDetector, serviceRegistry, sessionRegistry, subscriptions, consentHandlerRef,
   } = context;
   const undeclaredServiceConsents = new Set<string>();
+  const attachedServices = new Map<string, ServiceHandler>();
+  const isDomainAllowed = hooks.isDomainAllowed;
+  const sendToNapplet = hooks.sendToNapplet;
+  const serviceContext: ServiceRuntimeContext = Object.freeze({
+    resolveDTag(windowId: string): string | undefined {
+      return sessionRegistry.getEntryByWindowId(windowId)?.dTag;
+    },
+    listWindowIds(): readonly string[] {
+      return Object.freeze(
+        sessionRegistry.getAllEntries().map((entry) => entry.windowId),
+      );
+    },
+    sendToEligibleNapplet(windowId: string, message: NappletMessage): boolean {
+      const entry = sessionRegistry.getEntryByWindowId(windowId);
+      if (!entry || typeof message.type !== 'string') return false;
+      const dotIndex = message.type.indexOf('.');
+      if (dotIndex <= 0) return false;
+      const domain = message.type.slice(0, dotIndex);
+      if (isDomainAllowed && !isDomainAllowed(windowId, domain)) return false;
+      const { recipientCap } = resolveCapabilitiesNap(message);
+      if (!recipientCap) return false;
+      if (!aclState.check('', entry.dTag, entry.aggregateHash, recipientCap as Capability)) {
+        return false;
+      }
+      sendToNapplet(windowId, message);
+      return true;
+    },
+  });
+
+  function attachService(name: string, handler: ServiceHandler): void {
+    attachedServices.set(name, handler);
+    try {
+      handler.onRegistered?.(serviceContext);
+    } catch {
+      // A failed optional attachment leaves the service safely context-free.
+    }
+  }
+
+  function detachService(name: string): void {
+    const handler = attachedServices.get(name);
+    if (!handler) return;
+    attachedServices.delete(name);
+    try {
+      handler.onUnregistered?.();
+    } catch {
+      // Service cleanup is best-effort and cannot block runtime teardown.
+    }
+  }
+
+  for (const [name, handler] of Object.entries(serviceRegistry)) {
+    attachService(name, handler);
+  }
 
   return {
     handleMessage: context.handleMessage,
@@ -384,6 +436,7 @@ function createRuntimeInstance(context: RuntimeInstanceContext): Runtime {
       eventBuffer.bufferAndDeliver(createInjectedEvent(hooks, topic, payload), null);
     },
     destroy(): void {
+      for (const name of [...attachedServices.keys()]) detachService(name);
       manifestCache.persist();
       aclState.persist();
       firewallState.persist();
@@ -398,14 +451,17 @@ function createRuntimeInstance(context: RuntimeInstanceContext): Runtime {
       consentHandlerRef.current = handler;
     },
     registerService(name: string, handler: ServiceHandler): void {
+      detachService(name);
       serviceRegistry[name] = handler;
       registeredServices.set(name, {
         name: handler.descriptor.name,
         version: handler.descriptor.version,
         description: handler.descriptor.description,
       });
+      attachService(name, handler);
     },
     unregisterService(name: string): void {
+      detachService(name);
       delete serviceRegistry[name];
       registeredServices.delete(name);
     },

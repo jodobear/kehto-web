@@ -409,6 +409,41 @@ export interface AclEntryExternal {
 }
 
 /**
+ * Narrow runtime-owned access granted to a registered service.
+ *
+ * The context exposes current immutable identity values and policy-aware target
+ * delivery without exposing the mutable session registry, ACL state, adapter
+ * hooks, or raw transport.
+ */
+export interface ServiceRuntimeContext {
+  /**
+   * Resolve a currently registered window to its authenticated napplet dTag.
+   *
+   * @param windowId - Internal live window identifier.
+   * @returns The authenticated dTag, or `undefined` when no live session exists.
+   */
+  resolveDTag(windowId: string): string | undefined;
+  /**
+   * List current registered window identifiers.
+   *
+   * @returns A fresh frozen snapshot of live window identifiers.
+   */
+  listWindowIds(): readonly string[];
+  /**
+   * Send a runtime-originated message after current recipient policy checks.
+   *
+   * The message must have a recipient capability mapping. The target must be a
+   * live session whose immutable domain environment and current ACL grant both
+   * permit the message.
+   *
+   * @param windowId - Intended live recipient window.
+   * @param message - Runtime-originated NIP-5D envelope.
+   * @returns `true` only when the message was delivered to the adapter.
+   */
+  sendToEligibleNapplet(windowId: string, message: NappletMessage): boolean;
+}
+
+/**
  * Handler for service-specific messages from napplets.
  * Services receive NIP-5D NappletMessage envelopes and respond via the `send` callback.
  * The same interface is used for all services regardless of what NAP domain they handle.
@@ -429,6 +464,14 @@ export interface AclEntryExternal {
 export interface ServiceHandler {
   /** Metadata describing this service. */
   descriptor: ServiceDescriptor;
+  /**
+   * Attach this handler to one runtime instance.
+   *
+   * @param context - Narrow runtime-owned identity and recipient-send access.
+   */
+  onRegistered?(context: ServiceRuntimeContext): void;
+  /** Release runtime attachment state when replaced, unregistered, or destroyed. */
+  onUnregistered?(): void;
   /**
    * Handle a NIP-5D envelope from a napplet.
    *

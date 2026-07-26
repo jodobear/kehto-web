@@ -29,6 +29,7 @@ export type {
   FirewallPersistence,
   FirewallEvent,
   ServiceHandler,
+  ServiceRuntimeContext,
   ServiceRegistry,
   CompatibilityReport,
   ServiceInfo,
