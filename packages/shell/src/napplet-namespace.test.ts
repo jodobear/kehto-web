@@ -862,6 +862,183 @@ describe('NIP-5D napplet namespace prelude', () => {
     expect(withoutShellReady(target)).toHaveLength(before);
   });
 
+  it('retains only canonical trusted intent deliveries and drains them FIFO', () => {
+    const target = createPreludeTestWindow();
+    runPrelude(renderNappletNamespacePrelude({ domains: ['intent', 'inc'] }), target);
+
+    type Delivery = {
+      sender: string;
+      archetype: string;
+      action: string;
+      convention: string;
+      payload?: unknown;
+    };
+    type Intent = {
+      onDelivery: (handler: (delivery: Delivery) => void) => { close(): void };
+    };
+    const intent = target.napplet?.intent as Intent;
+    const first: Delivery[] = [];
+    const second: Delivery[] = [];
+    const afterClose: Delivery[] = [];
+
+    target.dispatchMessage({}, {
+      type: 'intent.deliver',
+      delivery: {
+        sender: 'forged',
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+      },
+    });
+    for (const delivery of [
+      null,
+      {},
+      { sender: 42, archetype: 'profile', action: 'open', convention: 'napplet:profile/open' },
+      { sender: 'source', archetype: null, action: 'open', convention: 'napplet:profile/open' },
+      { sender: 'source', archetype: 'profile', action: [], convention: 'napplet:profile/open' },
+      { sender: 'source', archetype: 'profile', action: 'open', convention: 7 },
+    ]) {
+      target.dispatchParentMessage({ type: 'intent.deliver', delivery });
+    }
+    target.dispatchParentMessage({
+      type: 'intent.deliver',
+      id: 'carrier-id',
+      request: { forged: true },
+      delivery: {
+        sender: 'social-feed',
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+        payload: { pubkey: 'one' },
+        id: 'delivery-id',
+        windowId: 'source-window',
+        handled: true,
+        protocol: 'NAP-1',
+      },
+    });
+    target.dispatchParentMessage({
+      type: 'intent.deliver',
+      delivery: {
+        sender: 'note-list',
+        archetype: 'note',
+        action: 'edit',
+        convention: 'napplet:note/edit',
+      },
+    });
+
+    const firstSubscription = intent.onDelivery((delivery) => first.push(delivery));
+    expect(first).toEqual([
+      {
+        sender: 'social-feed',
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+        payload: { pubkey: 'one' },
+      },
+      {
+        sender: 'note-list',
+        archetype: 'note',
+        action: 'edit',
+        convention: 'napplet:note/edit',
+      },
+    ]);
+
+    const secondSubscription = intent.onDelivery((delivery) => second.push(delivery));
+    expect(second).toEqual([]);
+    target.dispatchParentMessage({
+      type: 'intent.deliver',
+      delivery: {
+        sender: 'social-feed',
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+        payload: { pubkey: 'live' },
+      },
+    });
+    expect(first.at(-1)?.payload).toEqual({ pubkey: 'live' });
+    expect(second).toEqual([first.at(-1)]);
+
+    firstSubscription.close();
+    secondSubscription.close();
+    target.dispatchParentMessage({
+      type: 'intent.deliver',
+      delivery: {
+        sender: 'social-feed',
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+        payload: { pubkey: 'after-close' },
+      },
+    });
+    intent.onDelivery((delivery) => afterClose.push(delivery));
+    expect(afterClose).toEqual([{
+      sender: 'social-feed',
+      archetype: 'profile',
+      action: 'open',
+      convention: 'napplet:profile/open',
+      payload: { pubkey: 'after-close' },
+    }]);
+    expect(withoutShellReady(target)).toEqual([]);
+  });
+
+  it('protects one intent binding and its pending delivery state across namespace attacks', () => {
+    const target = createPreludeTestWindow();
+    runPrelude(renderNappletNamespacePrelude({ domains: ['intent'] }), target);
+
+    type Intent = {
+      invoke: (...args: unknown[]) => Promise<unknown>;
+      onDelivery: (handler: (delivery: unknown) => void) => { close(): void };
+    };
+    const namespace = target.napplet as Record<string, unknown>;
+    const intent = namespace.intent as Intent;
+    const invoke = intent.invoke;
+    const onDelivery = intent.onDelivery;
+    const received: unknown[] = [];
+
+    target.dispatchParentMessage({
+      type: 'intent.deliver',
+      delivery: {
+        sender: 'social-feed',
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+      },
+    });
+
+    namespace.intent = { invoke: () => Promise.resolve({ ok: false, error: 'forged' }) };
+    expect(target.napplet?.intent).toBe(intent);
+    expect(Reflect.defineProperty(namespace, 'intent', {
+      value: { onDelivery: () => ({ close() {} }) },
+      configurable: true,
+      enumerable: true,
+    })).toBe(true);
+    expect(target.napplet?.intent).toBe(intent);
+    expect(Reflect.deleteProperty(namespace, 'intent')).toBe(true);
+    expect(target.napplet?.intent).toBe(intent);
+    target.napplet = {
+      intent: {
+        invoke: () => Promise.resolve({ ok: false, error: 'forged' }),
+        onDelivery: () => ({ close() {} }),
+      },
+    };
+
+    const current = target.napplet?.intent as Intent;
+    expect(current).toBe(intent);
+    expect(current.invoke).toBe(invoke);
+    expect(current.onDelivery).toBe(onDelivery);
+    expect(Reflect.set(current, 'invoke', () => Promise.resolve({ ok: false, error: 'forged' }))).toBe(false);
+    expect(Reflect.deleteProperty(current, 'onDelivery')).toBe(false);
+    expect(Reflect.defineProperty(current, 'invoke', { value: () => Promise.resolve({ ok: false }) })).toBe(false);
+
+    current.onDelivery((delivery) => received.push(delivery));
+    expect(received).toEqual([{
+      sender: 'social-feed',
+      archetype: 'profile',
+      action: 'open',
+      convention: 'napplet:profile/open',
+    }]);
+  });
+
   it('provides symmetric correlated INC channel handles with retained lifecycle state', async () => {
     const target = createPreludeTestWindow();
     runPrelude(renderNappletNamespacePrelude({ domains: ['inc'] }), target);

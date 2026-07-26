@@ -1200,17 +1200,46 @@ function nappletNamespacePrelude(domains: string[]): void {
   }
 
   function makeIntent(): Record<string, unknown> {
-    const deliveryHandlers = new Set<(delivery: unknown) => void>();
-    const pendingDeliveries: unknown[] = [];
+    type IntentDelivery = {
+      sender: string;
+      archetype: string;
+      action: string;
+      convention: string;
+      payload?: unknown;
+    };
+    const deliveryHandlers = new Set<(delivery: IntentDelivery) => void>();
+    const pendingDeliveries: IntentDelivery[] = [];
     const hasOwn = (value: Record<string, unknown>, key: string): boolean => (
       Object.prototype.hasOwnProperty.call(value, key)
     );
+    const normalizeDelivery = (value: unknown): IntentDelivery | undefined => {
+      if (
+        !value
+        || typeof value !== 'object'
+        || typeof (value as Record<string, unknown>).sender !== 'string'
+        || typeof (value as Record<string, unknown>).archetype !== 'string'
+        || typeof (value as Record<string, unknown>).action !== 'string'
+        || typeof (value as Record<string, unknown>).convention !== 'string'
+      ) {
+        return undefined;
+      }
+      const delivery = value as Record<string, unknown>;
+      return {
+        sender: delivery.sender as string,
+        archetype: delivery.archetype as string,
+        action: delivery.action as string,
+        convention: delivery.convention as string,
+        ...(hasOwn(delivery, 'payload') ? { payload: delivery.payload } : {}),
+      };
+    };
     listen((event) => {
       if (!isParentMessage(event)) return;
       const msg = event.data as RuntimeMessage;
       if (typeof msg !== 'object' || msg === null || msg.type !== 'intent.deliver') return;
-      if (deliveryHandlers.size === 0) pendingDeliveries.push(msg.delivery);
-      else for (const handler of deliveryHandlers) handler(msg.delivery);
+      const delivery = normalizeDelivery(msg.delivery);
+      if (!delivery) return;
+      if (deliveryHandlers.size === 0) pendingDeliveries.push(delivery);
+      else for (const handler of deliveryHandlers) handler(delivery);
     });
     function normalizeIntentUri(uri: unknown, explicitPayload: boolean, actionMustBe?: string): Record<string, unknown> {
       if (typeof uri !== 'string' || !uri.startsWith('napplet:')) {
@@ -1286,7 +1315,7 @@ function nappletNamespacePrelude(domains: string[]): void {
         callback,
         (msg) => msg.availability,
       ),
-      onDelivery: (callback: (delivery: unknown) => void) => {
+      onDelivery: (callback: (delivery: IntentDelivery) => void) => {
         if (typeof callback !== 'function') throw new TypeError('Intent delivery handler must be a function');
         deliveryHandlers.add(callback);
         const pending = pendingDeliveries.splice(0);
@@ -1444,6 +1473,7 @@ function nappletNamespacePrelude(domains: string[]): void {
   let inc: Record<string, unknown> | undefined;
   let identity: Record<string, unknown> | undefined;
   let theme: Record<string, unknown> | undefined;
+  let intent: Record<string, unknown> | undefined;
 
   function makeProtectedInc(existing: unknown): Record<string, unknown> {
     const extensions = existing && typeof existing === 'object'
@@ -1463,8 +1493,17 @@ function nappletNamespacePrelude(domains: string[]): void {
     return theme;
   }
 
+  function makeProtectedIntent(): Record<string, unknown> {
+    intent ??= Object.freeze(makeIntent());
+    return intent;
+  }
+
   function isProtectedDomain(domain: string): boolean {
-    return domain === 'shell' || domain === 'inc' || domain === 'identity' || domain === 'theme';
+    return domain === 'shell'
+      || domain === 'inc'
+      || domain === 'identity'
+      || domain === 'theme'
+      || domain === 'intent';
   }
 
   function makeDomain(domain: string, existing: unknown): unknown {
@@ -1472,6 +1511,7 @@ function nappletNamespacePrelude(domains: string[]): void {
     if (domain === 'inc') return makeProtectedInc(existing);
     if (domain === 'identity') return makeProtectedIdentity();
     if (domain === 'theme') return makeProtectedTheme();
+    if (domain === 'intent') return makeProtectedIntent();
     if (existing && typeof existing === 'object' && Object.keys(existing).length > 0) return existing;
     switch (domain) {
       case 'relay': return makeRelay();
@@ -1484,7 +1524,6 @@ function nappletNamespacePrelude(domains: string[]): void {
       case 'cvm': return makeCvm();
       case 'outbox': return makeOutbox();
       case 'upload': return makeUpload();
-      case 'intent': return makeIntent();
       case 'webrtc': return makeWebrtc();
       case 'ble': return makeBle();
       case 'link': return makeLink();
