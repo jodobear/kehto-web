@@ -146,7 +146,7 @@ None.
 ## Next Phase Readiness
 
 - The concrete repeated-open blocker in `102-VERIFICATION.md` is closed and ready for re-verification against the merged NAP-INC authority.
-- Published Napplet package adoption and the legacy full-E2E fixture failures remain intentionally assigned to Phase 105.
+- Published Napplet package adoption and the legacy full-E2E fixture cases remain intentionally assigned to Phase 105.
 
 ## Self-Check: PASSED
 
