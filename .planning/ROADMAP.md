@@ -256,7 +256,10 @@ users rely on.
 **Requirements:** PKG-01, PKG-02, PKG-03, PKG-04, IDENTITY-05, THEME-04, ARCH-03
 **Success Criteria** (what must be TRUE):
 
-  1. Kehto locks verified npm/JSR-compatible releases whose core, nap, shim, SDK, and Vite-plugin surfaces implement the same pinned draft contract; no unpublished API or compatibility overload is guessed.
+  1. Kehto locks verified npm/JSR-compatible convention releases, consumes only
+     their published surfaces, and explicitly preserves the conformant
+     host-owned NAP-SHELL binding that the selected core/shim line omits; no
+     unpublished API or compatibility overload is guessed.
   2. Paja and playground maintain installed verified catalogs separately from live frames and wire real intent service/default/chooser/ready-target delivery rather than hard-coded running candidates.
   3. The live feed invokes `napplet:profile/open?pubkey=...`; the profile target advertises stable metadata and receives one buffered `IntentDelivery` with normalized payload and attested feed dTag after readiness, including cold start/source teardown, with no visible INC envelope.
   4. Playground profile consumers load remote profile media through NAP-RESOURCE into revocable safe object URLs and clean them up rather than assigning remote URLs directly to image elements.

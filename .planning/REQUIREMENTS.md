@@ -86,9 +86,14 @@ acceptance-only results, and carrier-neutral delivery, with no canonical
 `protocol`/`protocols`, `handled`, `windowId`, `newWindow`, intent ID, or
 delivery ID fields.
 
-### PKG-02: Published Shell Contracts
+### PKG-02: Published Shell Compatibility
 
-Selected published `@napplet/core` and `@napplet/shim` versions expose the NAP-SHELL environment/global contract, include the `shell` domain, perform one ready/init bootstrap, and answer `supports(domain)` synchronously from local initialized state.
+Selected published `@napplet/core` and `@napplet/shim` versions are audited
+against NAP-SHELL before adoption. The selected 0.29.0/0.27.0 line explicitly
+omits the mandatory `shell` domain, so Kehto records that upstream package drift
+and retains its host-owned injected NAP-SHELL binding until a corrected upstream
+release replaces it. Package adoption must not remove or overwrite the live
+binding, its one ready/init bootstrap, or synchronous local `supports(domain)`.
 
 ### PKG-03: Published Manifest and SDK Contracts
 
