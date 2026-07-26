@@ -5,15 +5,15 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 104
 current_phase_name: NAP-INTENT and Manifest Contract Parity
 status: executing
-stopped_at: Phase 104 planning complete; ready to execute Wave 1
-last_updated: "2026-07-26T13:55:27Z"
+stopped_at: Completed 104-01-PLAN.md
+last_updated: "2026-07-26T14:17:27.813Z"
 last_activity: 2026-07-26
 last_activity_desc: Phase 104 plans passed local structural verification; ready to execute
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 31
-  completed_plans: 26
+  completed_plans: 27
   percent: 50
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 104 (nap-intent-and-manifest-contract-parity) — EXECUTING
-Plan: 0 of 5
+Plan: 1 of 5
 Status: Ready to execute
 
 Last activity: 2026-07-26 — Phase 104 plans passed local structural verification; ready to execute
@@ -81,6 +81,7 @@ Last activity: 2026-07-26 — Phase 104 plans passed local structural verificati
 | Phase 103 P05 | 5m | 2 tasks | 5 files |
 | Phase 103 P06 | 13m | 2 tasks | 8 files |
 | Phase 103 P07 | 8m | 3 tasks | 12 files |
+| Phase 104 P01 | 7 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -196,8 +197,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-23T22:02:16.273Z
-Stopped at: Completed 103-07-PLAN.md
+Last session: 2026-07-26T14:17:27.805Z
+Stopped at: Completed 104-01-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

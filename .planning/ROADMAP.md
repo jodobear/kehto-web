@@ -215,11 +215,11 @@ and sends runtime-attested carrier-neutral delivery only after target readiness.
   5. `ok: true` is emitted after the runtime retains delivery responsibility and before any policy-driven source close; target delivery remains valid after source destruction, occurs only after readiness, carries the authenticated source dTag, exposes no INC envelope, and sends no second source result.
   6. Focused lifecycle tests allow target reuse, either source/target startup order, brief overlap, retry/replacement/terminal policy seams, and delivery buffering without choosing those runtime policies as public contract.
 
-**Plans:** 0/5 plans executed
+**Plans:** 1/5 plans executed
 
 **Wave 1**
 
-- [ ] 104-01-PLAN.md — Lock exact intent value types and the protected
+- [x] 104-01-PLAN.md — Lock exact intent value types and the protected
   URI-authoritative binding with trusted FIFO delivery buffering.
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -283,7 +283,7 @@ users rely on.
 | 101. NAP-SHELL Session Integrity | v1.29 | 5/5 | Complete | 2026-07-23 |
 | 102. NAP-INC Event and Channel Parity | v1.29 | 14/14 | Complete    | 2026-07-26 |
 | 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete    | 2026-07-23 |
-| 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 0/5 | In progress |  |
+| 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 1/5 | In Progress|  |
 | 105. Published Convention Adoption and Host Flows | v1.29 | 0/TBD | Waiting on upstream package publication | - |
 | 106. Active-Surface Conformance and Release | v1.29 | 0/TBD | Not started | - |
 
