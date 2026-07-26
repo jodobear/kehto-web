@@ -387,12 +387,10 @@ function nappletNamespacePrelude(domains: string[]): void {
       pendingEvents: ChannelEvent[];
       closed?: ChannelClosed;
     };
-    const maxRetainedChannels = 32;
     const maxRetainedEvents = 32;
     const channelStates = new Map<string, ChannelState>();
     const openedHandlers = new Set<(handle: Record<string, unknown>) => void>();
     const pendingOpened: ChannelState[] = [];
-    let overflowedOpened: ChannelState | undefined;
     const unopenedEvents = new Map<string, ChannelEvent[]>();
     const unopenedClosed = new Map<string, ChannelClosed>();
 
@@ -461,11 +459,6 @@ function nappletNamespacePrelude(domains: string[]): void {
       const handle = makeChannelHandle(state);
       if (openedHandlers.size > 0) {
         for (const handler of openedHandlers) handler(handle);
-        return;
-      }
-      if (pendingOpened.length >= maxRetainedChannels) {
-        closeChannelState(state, { channelId: state.channelId, reason: 'buffer overflow' }, true);
-        overflowedOpened ??= state;
         return;
       }
       pendingOpened.push(state);
@@ -595,9 +588,6 @@ function nappletNamespacePrelude(domains: string[]): void {
           openedHandlers.add(handler);
           const pending = pendingOpened.splice(0);
           for (const state of pending) handler(makeChannelHandle(state));
-          const overflowed = overflowedOpened;
-          overflowedOpened = undefined;
-          if (overflowed) handler(makeChannelHandle(overflowed));
           return subscriptionHandle(() => openedHandlers.delete(handler));
         },
         list() {
