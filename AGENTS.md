@@ -38,14 +38,14 @@ git checkout main && git pull --ff-only
 git checkout -b <type>/<slug>     # feat/… fix/… chore/… release/…
 ```
 
-Additional Kehto worktrees must live under `~/.worktrees/kehto/`. Do not create
-checkout siblings in `/Users/sandwich/Develop` such as `../kehto-*` or
-`/Users/sandwich/Develop/kehto-*`; that directory is only for primary project
-repositories. Before adding a worktree, run `git worktree list` and reuse the
-existing checkout when the target branch is already attached. If a Kehto worktree
-was created under `/Users/sandwich/Develop`, move it with `git worktree move
-<old-path> ~/.worktrees/kehto/<branch-slug>` and then run `git worktree list` to
-confirm the registered path.
+Additional Kehto worktrees must live under the shared worktree root
+`~/.worktrees`, using `~/.worktrees/kehto/<branch-slug>` for this repo. Do not
+create checkout siblings next to the primary repo, such as `../kehto-*`; project
+directories should contain only primary repositories. Before adding a worktree,
+run `git worktree list` and reuse the existing checkout when the target branch is
+already attached. If a Kehto worktree was created next to the primary repo, move
+it with `git worktree move <old-path> ~/.worktrees/kehto/<branch-slug>` and then
+run `git worktree list` to confirm the registered path.
 
 If you discover you're already on `main` with uncommitted edits, branch immediately
 (`git checkout -b …` carries the changes with you) before committing. Direct pushes to
