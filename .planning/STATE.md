@@ -5,15 +5,15 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 106
 current_phase_name: Active-Surface Conformance and Release
 status: executing
-stopped_at: Completed 105-12-PLAN.md
-last_updated: "2026-07-27T15:38:11.965Z"
+stopped_at: Completed 106-01-PLAN.md
+last_updated: "2026-07-27T15:51:56.862Z"
 last_activity: 2026-07-27
-last_activity_desc: Phase 105 complete, transitioned to Phase 106
+last_activity_desc: Phase 106 execution started
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 47
-  completed_plans: 44
+  completed_plans: 45
   percent: 83
 ---
 
@@ -24,15 +24,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-23)
 
 **Core value:** Modular, framework-agnostic runtime for hosting napplet applications.
-**Current focus:** Phase 105 — published-convention-adoption-and-host-flows
+**Current focus:** Phase 106 — Active-Surface Conformance and Release
 
 ## Current Position
 
-Phase: 106 — Active-Surface Conformance and Release
-Plan: Not started
+Phase: 106 (Active-Surface Conformance and Release) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
 
-Last activity: 2026-07-27 — Phase 105 complete, transitioned to Phase 106
+Last activity: 2026-07-27 — Phase 106 execution started
 
 ## Performance Metrics
 
@@ -100,6 +100,7 @@ Last activity: 2026-07-27 — Phase 105 complete, transitioned to Phase 106
 | Phase 105-published-convention-adoption-and-host-flows P10 | 5m | 2 tasks | 3 files |
 | Phase 105-published-convention-adoption-and-host-flows P11 | 20m | 2 tasks | 14 files |
 | Phase 105-published-convention-adoption-and-host-flows P12 | 10 min | 1 tasks | 6 files |
+| Phase 106 P01 | 10m | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -215,8 +216,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T11:42:20.711Z
-Stopped at: Completed 105-12-PLAN.md
+Last session: 2026-07-27T15:51:56.849Z
+Stopped at: Completed 106-01-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -318,3 +319,5 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: Installed resolver-verified manifests remain distinct from live frames/controllers for availability and selection.
 - [Phase ?]: Kehto retains its host-owned mandatory shell prelude because published shim 0.27.0 is non-shell.
 - [Phase ?]: Profile media follows NAP-IDENTITY resource.bytes delegation without inferring standalone NAP-RESOURCE wire semantics.
+- [Phase ?]: PR #89 semantic delta is conformant: symmetric INC channel obligations already exist in runtime and prelude.
+- [Phase ?]: Phase 106 active scans explicitly separate current guidance from historical records.

@@ -323,11 +323,11 @@ users rely on.
   5. The exact upstream draft heads and published npm/JSR artifacts are revalidated; any drift is reported and reconciled rather than silently inferred.
   6. Build, type-check, unit, relevant and full E2E, docs, AI-slop, and diff gates pass; changesets cover every changed published Kehto package and the branch is ready for its concise PR.
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 **Wave 1**
 
-- [ ] 106-01-PLAN.md — Revalidate mutable NAP/package authority, enforce classified active surfaces, and map focused contract evidence.
+- [x] 106-01-PLAN.md — Revalidate mutable NAP/package authority, enforce classified active surfaces, and map focused contract evidence.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -346,7 +346,7 @@ users rely on.
 | 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete    | 2026-07-23 |
 | 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 6/6 | Complete    | 2026-07-26 |
 | 105. Published Convention Adoption and Host Flows | v1.29 | 12/12 | Complete    | 2026-07-27 |
-| 106. Active-Surface Conformance and Release | v1.29 | 0/TBD | Not started | - |
+| 106. Active-Surface Conformance and Release | v1.29 | 1/3 | In Progress|  |
 
 ---
 
