@@ -1,8 +1,8 @@
 ---
 phase: 105-published-convention-adoption-and-host-flows
-reviewed: 2026-07-27T11:51:15Z
+reviewed: 2026-07-27T12:34:30Z
 depth: standard
-files_reviewed: 90
+files_reviewed: 92
 files_reviewed_list:
   - .changeset/phase-105-published-package-line.md
   - apps/playground/README.md
@@ -13,6 +13,7 @@ files_reviewed_list:
   - apps/playground/napplets/preferences/package.json
   - apps/playground/napplets/profile-viewer/package.json
   - apps/playground/napplets/profile-viewer/src/main.ts
+  - apps/playground/napplets/profile-viewer/src/profile-load-controller.ts
   - apps/playground/napplets/profile-viewer/src/profile-media.ts
   - apps/playground/napplets/profile-viewer/vite.config.ts
   - apps/playground/napplets/resource-demo/package.json
@@ -91,82 +92,35 @@ files_reviewed_list:
   - tests/unit/playground-gateway-guard.test.ts
   - tests/unit/playground-installed-catalog.test.ts
   - tests/unit/playground-intent-controller.test.ts
+  - tests/unit/profile-load-controller.test.ts
   - tests/unit/profile-resource-media.test.ts
   - tests/unit/published-napplet-contract.test.ts
   - tests/unit/sdk-migration-guard.test.ts
 findings:
-  critical: 1
-  warning: 2
+  critical: 0
+  warning: 0
   info: 0
-  total: 3
-status: issues_found
+  total: 0
+status: clean
 ---
 
 # Phase 105: Code Review Report
 
-**Reviewed:** 2026-07-27T11:51:15Z
+**Reviewed:** 2026-07-27T12:34:30Z
 **Depth:** standard
-**Files Reviewed:** 90
-**Status:** issues_found
+**Files Reviewed:** 92
+**Status:** clean
 
 ## Summary
 
-The published package pins, generated metadata, resource-Blob handling, and NAP-SHELL/INTENT authority references were reviewed against the Phase 105 authorities: NAP-INTENT at `a718915ddefa2f03a0126579601f59d8bd86f7c4`, and NAP-IDENTITY/THEME/SHELL at `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`. The implementation has an artifact-identity violation in both host flows and two lifecycle robustness defects. This conflicts with NAP-INTENT's requirement to retain delivery independently after acceptance and to route through installed manifest authority.
+Final liveness-fix re-review retains the 92-file scope and includes every change in `b9d5f07b3e289f934555249fca36443f7de6861c`. The changed host and regression-test code was reviewed against NAP-INTENT PR 91 head `a718915ddefa2f03a0126579601f59d8bd86f7c4` and NAP-IDENTITY, NAP-THEME, and NAP-SHELL master `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`; there is no standalone NAP-RESOURCE authority.
 
-Focused relevant unit tests passed (106 tests), and `pnpm type-check` completed successfully. Those checks do not exercise the replacement and overlapping-request races below.
+WR-01 remains closed: profile callbacks, timers, and subscriptions are generation-scoped. WR-02 remains closed: both controllers reject non-finite limits and cap finite retries at 1–10. The fixed catalog listeners synchronously invalidate stale retained readiness waits on install, same-identity record replacement, and removal; Paja keys record state and waiters by generation object, while playground maintains one listener per page lifecycle and removes it on `pagehide`. Rechecks occur before readiness resolution, after readiness, at controller currentness, and synchronously before `postMessage`, with no await between the final check and delivery. The focused suite passes: 34 tests across five files, including the unready-A retry-to-B host flows.
 
-## Critical Issues
-
-### CR-01: Intent delivery may target a live artifact that no longer matches the installed verified record
-
-**Classification:** BLOCKER
-
-**File:** `/Users/sandwich/.worktrees/kehto/napplet-scheme-conformance/apps/playground/src/shell-host.ts:282-283`; `/Users/sandwich/.worktrees/kehto/napplet-scheme-conformance/packages/paja/src/browser-host.ts:332-336`
-
-**Issue:** Both hosts select a live target only by `dTag` after handler selection was made from the installed catalog. If the catalog is refreshed with a different verified aggregate under the same d-tag while an older iframe/tab remains live, they reuse that older artifact. Paja can select the first matching live tab even when several versions are open. The subsequent delivery is therefore sent to code whose `(dTag, aggregateHash)` does not match the manifest record that authorized the accepted intent. This violates the documented verified-catalog boundary and can execute an intent in stale, potentially less-restricted code.
-
-**Fix:** Require the live target's aggregate hash to equal the selected installed record before reuse. Otherwise tear down/reload the stale target (or open a fresh one from the current verified descriptor), then re-check the d-tag, aggregate hash, and supported convention before delivery. Add regression coverage for replacing an installed record with the same d-tag and a different aggregate while its old iframe/tab remains live.
-
-```ts
-const live = [...napplets.values()].find((info) =>
-  info.dTag === params.handler && info.aggregateHash === record.aggregateHash,
-);
-if (live) return replaceIntentGeneration(live);
-// A same-dTag frame with a different aggregate must not receive this delivery.
-```
-
-## Warnings
-
-### WR-01: Profile subscription callbacks can overwrite a newer profile and cancel its timeout
-
-**Classification:** WARNING
-
-**File:** `/Users/sandwich/.worktrees/kehto/napplet-scheme-conformance/apps/playground/napplets/profile-viewer/src/main.ts:202-231`
-
-**Issue:** A second `loadProfile()` closes the prior subscription and starts a new timer, but the old subscription's already-queued `finish` callback still closes over the shared `profileLoadTimer` and DOM. If it runs after the newer load starts, it clears the newer request's timeout and may render the old pubkey/profile. This is a user-visible stale-state race when intents arrive close together.
-
-**Fix:** Use a monotonically increasing request/generation token. Capture it in `finish` and the event callback, and return unless it is still current before clearing timers, closing subscriptions, or rendering. Keep each request's timer local rather than relying solely on the shared timer slot. Add a test that queues the first completion after starting a second delivery.
-
-### WR-02: Invalid controller attempt limits can silently abandon or spin accepted delivery
-
-**Classification:** WARNING
-
-**File:** `/Users/sandwich/.worktrees/kehto/napplet-scheme-conformance/apps/playground/src/playground-intent-controller.ts:125-128`; `/Users/sandwich/.worktrees/kehto/napplet-scheme-conformance/packages/paja/src/browser-intent-controller.ts:122-125`
-
-**Issue:** `normalizeAttempts()` accepts `NaN` and infinity. `NaN` makes the retry loop execute zero times after the source was already accepted; `Infinity` can create an unbounded retry loop when the target remains unavailable. Both contradict the stated bounded terminal policy.
-
-**Fix:** Require a finite integer and apply an explicit maximum (or reject invalid construction input).
-
-```ts
-function normalizeAttempts(value: number | undefined): number {
-  if (value === undefined) return 2;
-  if (!Number.isFinite(value)) throw new TypeError('maxAttempts must be finite');
-  return Math.min(MAX_ATTEMPTS, Math.max(1, Math.floor(value)));
-}
-```
+All reviewed files meet the required correctness and security standard. No findings remain.
 
 ---
 
-_Reviewed: 2026-07-27T11:51:15Z_
+_Reviewed: 2026-07-27T12:34:30Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
