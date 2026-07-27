@@ -31,8 +31,8 @@ app package's development scripts.
 
 | Package | Range |
 |---------|-------|
-| `@napplet/core` | `>=0.23.0 <=0.28.x` |
-| `@napplet/nap` | `>=0.23.0 <=0.28.x` |
+| `@napplet/core` | `>=0.29.0 <0.30.0` |
+| `@napplet/nap` | `>=0.29.0 <0.30.0` |
 | `nostr-tools` | `>=2.23.3 <=2.x` |
 
 ## Primary APIs
@@ -195,6 +195,37 @@ all queried relays reached EOSE without a matching manifest. Wider relay search
 does not weaken loading: manifest signature, aggregate, Blossom hash, and
 `srcdoc` verification still fail closed.
 
+### Installed catalog and intent lifecycle
+
+The verified pointer catalog and the live runtime-tab/controller map have
+different jobs. Paja writes immutable, serializable manifest facts only after a
+pointer and its bytes have been resolver-verified, and removes them only at an
+explicit installed-artifact removal boundary. A tab close, reload, or source
+teardown does not remove the catalog entry. This lets an installed handler be
+discovered and cold-started even when it has no live frame.
+
+Availability and selection derive solely from that installed catalog's exact
+convention contracts. A compatible default may be used; multiple compatible
+candidates go to the host chooser; an unresolved ambiguity is rejected. An
+explicit handler d-tag is valid only when it names a compatible installed record
+and passes sender-aware explicit authorization. A current frame is only a later
+delivery endpoint, never selection authority.
+
+Paja retains the immutable delivery before sending an accepted
+`intent.invoke.result`. After acceptance, its controller may reuse a current
+target or start a cold one, but it waits for the current target generation's
+registered `MessageEvent.source` and real `shell.ready` session before one
+target-only `intent.deliver`. The source may close after acceptance. A replaced
+generation is not delivered to; failed open/readiness attempts follow the
+private retry/replacement policy and a terminal failure remains terminal. The
+accepted result means Paja owns delivery responsibility, not that a target has
+handled it. This host flow has no INC carrier or completion acknowledgement.
+
+The published `@napplet/shim@0.27.0` is intentionally non-shell. Kehto's
+host-owned prelude remains responsible for mandatory `window.napplet.shell`,
+the one bare `shell.ready` / first `shell.init` handshake, and local cached
+`ready()`, `supports()`, read-only `services`, and one-shot `onReady()`.
+
 ## NAP and Service Parity
 
 Paja advertises the web NAP domains that can be reached through the
@@ -207,8 +238,8 @@ current Kehto runtime and deterministic development adapters:
 injected availability domain. The deprecated legacy compatibility package path
 is represented as an upstream alias to `inc`; upstream
 `@napplet/nap` does not register a separate runtime domain for that alias. The
-upstream `dm` domain is tracked as deferred until Paja wires a deterministic
-development DM backend.
+upstream `dm` domain is not advertised: Paja has no deterministic development
+DM backend and this documentation does not imply any NAP-DM behavior.
 
 Default service wiring uses live relay/outbox behavior, localStorage state
 persistence through the runtime, browser or configured identity, deterministic

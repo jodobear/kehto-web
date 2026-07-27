@@ -17,7 +17,8 @@ The target URL is explicit on purpose. Kehto can spawn any framework command and
 wait for that URL, but it does not guess which URL the framework chose. Loading
 that URL through Paja as injected `srcdoc` lets Kehto install mandatory
 `window.napplet.shell` plus enabled optional domains before app code runs. The
-shell shim completes `shell.ready` / `shell.init` and caches capability queries,
+Kehto host-owned shell prelude completes `shell.ready` / `shell.init` and caches
+capability queries,
 while a `<base>` tag keeps the
 app's own assets and HMR pointed at the target dev server without Vite, Svelte,
 React, or any other framework lock-in.
@@ -73,6 +74,38 @@ or `/web/paja/?nevent=...` link for that pointer, and the browser remembers open
 runtime tabs in local storage so returning to `/web/paja/` restores the previous
 pointer set. An explicit pointer in the URL still takes precedence over restored
 tabs.
+
+## Installed intent handlers and delivery
+
+Paja keeps resolver-verified pointer and manifest facts in an installed catalog,
+separate from the live tab/controller map. A verified install inserts or replaces
+the catalog record; an explicit artifact removal removes it. Closing, reloading,
+or replacing a frame never makes an installed handler unavailable, so a cold
+target can still be selected and started later.
+
+Intent selection considers only exact compatible contracts from that catalog.
+Paja can use a compatible user default, ask its host chooser when more than one
+candidate is available, or reject an ambiguity. An explicit handler d-tag is
+accepted only when it is an installed compatible handler and the invoking sender
+has been explicitly authorized for it. It is not a request to deliver to an
+arbitrary running frame.
+
+When Paja accepts an invocation, it first retains an immutable target delivery,
+then returns the accepted result. Only after that result can it reuse a current
+target or start a cold target. The controller waits for the target generation's
+registered `MessageEvent.source` to establish its real `shell.ready` session;
+it checks that generation is still current and sends one target-only
+`intent.deliver`. The invoking source may be torn down after acceptance without
+changing that responsibility. A superseded target/source, failed open/readiness,
+or terminal send is handled by the controller's replacement/retry/terminal
+policy; it never turns into an INC carrier or a delivery acknowledgement.
+
+`@napplet/shim@0.27.0` supplies no generic shell API. Kehto deliberately keeps
+its host-owned mandatory `window.napplet.shell` prelude: it installs the live
+receiver before the one bare `shell.ready`, caches the first `shell.init`, and
+provides local `ready()`, `supports()`, read-only `services`, and one-shot
+`onReady()`. This is the documented upstream-package-drift exception, not a
+shim capability.
 
 Before Paja assigns a verified runtime-pointer document to `srcdoc`, it inserts
 Kehto's local Class-1 CSP before the host-owned namespace prelude. The policy

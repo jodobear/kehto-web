@@ -26,7 +26,7 @@ The active playground boot path is production-equivalent:
 2. The shared config lets `@napplet/vite-plugin` validate and sign the normal external-asset graph, then Kehto's post-build plugin rewrites the final gateway artifact to a single HTML file and recomputes the manifest.
 3. Each napplet build emits exactly `dist/index.html` plus `dist/.nip5a-manifest.json`.
 4. The shell resolves the manifest, verifies the signed content-addressed bytes, binds the iframe origin to the computed `(dTag, aggregateHash)`, and writes the verified HTML through `iframe.srcdoc`.
-5. Before authored scripts run, the shell prepends Kehto's local Class-1 CSP and a host-owned NIP-5D prelude outside the signed artifact bytes. The policy denies all defaults, permits only inline script/style plus `data:`/`blob:` images and `data:` fonts, and limits `connect-src` to caller-granted origins. It explicitly denies worker, child, frame, media, object, manifest, prefetch, base, and form capabilities, then ends with `frame-ancestors 'self'`. It always installs mandatory `window.napplet.shell`, then filters optional domains to the verified manifest allowlist. `shell.ready` establishes the runtime session and receives the cached `shell.init` environment.
+5. Before authored scripts run, the shell prepends Kehto's local Class-1 CSP and a host-owned NIP-5D prelude outside the signed artifact bytes. The policy denies all defaults, permits only inline script/style plus `data:`/`blob:` images and `data:` fonts, and limits `connect-src` to caller-granted origins. It explicitly denies worker, child, frame, media, object, manifest, prefetch, base, and form capabilities, then ends with `frame-ancestors 'self'`. It always installs mandatory `window.napplet.shell`, then filters optional domains to the verified manifest allowlist. The published `@napplet/shim@0.27.0` is non-shell, so this Kehto prelude remains the required receiver before one bare `shell.ready`, the first `shell.init` cache, and local `ready()`, `supports()`, read-only `services`, and one-shot `onReady()` behavior. `shell.ready` establishes the runtime session.
 6. The iframe sandbox remains opaque-origin: `allow-scripts` only, no `allow-same-origin`.
 
 The gateway route may still serve manifest/blob data as a local accelerator or debugging surface, but it is not the identity authority. New tests and docs should treat verified `srcdoc` loading plus `(dTag, aggregateHash)` provenance as the canonical playground boot path.
@@ -37,8 +37,8 @@ NIP-5D defines the verified `srcdoc` and opaque `allow-scripts` sandbox contract
 
 The playground hosts 9 sandboxed napplets, each built independently under `apps/playground/napplets/<name>/` and loaded into a topology-rendered iframe at runtime. Some incomplete demo source folders are retained for later iteration, but they are not part of `DEMO_NAPPLETS` and are not loaded in the playground.
 
-The cross-napplet domain is `inc` (the NAP rename of the legacy `inc`). The four
-napplets below declare `requires` with `inc` and preflight injected
+The cross-napplet domain is `inc` (the NAP rename of the legacy `inc`). The
+napplets that declare `requires` with `inc` preflight injected
 `window.napplet.inc` availability; the runtime dual-routes `inc`+`inc` for the
 back-compat window, so legacy `inc.*` envelopes still reach the same handler
 (removal tracked as CLEANUP-01).
@@ -49,9 +49,9 @@ back-compat window, so legacy `inc.*` envelopes still reach the same handler
 | chat | inc, storage, relay | `inc.emit`, `inc.subscribe`, `storage.get`, `storage.set`, `relay.publish` | [apps/playground/napplets/chat/src/](./napplets/chat/src/) |
 | composer | relay | `relay.publish`, `relay.publishEncrypted` | [apps/playground/napplets/composer/src/](./napplets/composer/src/) |
 | cvm-relatr | cvm | `cvm.discover`, `cvm.request` (`tools/call` calculate_trust_score) against the Relatr ContextVM server | [apps/playground/napplets/cvm-relatr/src/](./napplets/cvm-relatr/src/) |
-| feed | identity, relay, inc | `identity.getPublicKey`, `relay.subscribe`, `inc.emit` (`profile:open`) | [apps/playground/napplets/feed/src/](./napplets/feed/src/) |
+| feed | identity, relay, resource, intent, theme | `identity.getPublicKey`, `relay.subscribe`, `resource.bytes`, `intent.invoke` (`napplet:profile/open?pubkey=…`) | [apps/playground/napplets/feed/src/](./napplets/feed/src/) |
 | preferences | storage, theme | `storage.set`, `storage.get`, `theme.changed` allowlisted listener | [apps/playground/napplets/preferences/src/](./napplets/preferences/src/) |
-| profile-viewer | inc, relay | `inc.subscribe` (`profile:open`), `relay.subscribe` | [apps/playground/napplets/profile-viewer/src/](./napplets/profile-viewer/src/) |
+| profile-viewer | intent, relay, resource, theme | early `intent.onDelivery`, `relay.subscribe`, `resource.bytes` | [apps/playground/napplets/profile-viewer/src/](./napplets/profile-viewer/src/) |
 | resource-demo | resource, connect | `resource.bytesMany`, connect grant/CSP fixture | [apps/playground/napplets/resource-demo/src/](./napplets/resource-demo/src/) |
 | toaster | notify | `notify.create`, `notify.list`, `notify.dismiss` | [apps/playground/napplets/toaster/src/](./napplets/toaster/src/) |
 
@@ -85,8 +85,8 @@ The demo renders service nodes reflecting the NIP-5D service surface the runtime
 
 ## Identity and theme host wiring
 
-The playground follows draft NAP-IDENTITY/NAP-THEME and the web projection at
-`napplet/naps@896c32c92deee68dc4d10fc1132b62df20cccb6f`. Its signer controller
+The playground follows draft NAP-IDENTITY/NAP-THEME/NAP-SHELL at
+`napplet/naps@5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`. Its signer controller
 emits one protected `identity.changed` transition for a real connect or sign-out
 only; it never turns an identity result into a retry, INC event, intent delivery,
 or raw iframe broadcast. `identity.getPublicKey.result` uses `pubkey: ""` for
@@ -100,6 +100,38 @@ all-origin iframe fan-out. Denied or unavailable theme reads retain Kehto's
 fixed non-sensitive complete normal result without `error`; this is the
 documented reconciliation of the upstream error-only example, not a mixed
 theme/error extension. Published Napplet package adoption remains Phase 105.
+
+## Installed profile handlers and safe profile flow
+
+The playground's verified installed catalog is persistent manifest state, not
+the live frame map. Only a resolver-verified install can insert or replace a
+record, and only an explicit artifact removal can remove one; closing a frame
+does not make its manifest unavailable. Intent availability therefore comes from
+exact installed contracts. The host may use a compatible default, present a
+chooser for several candidates, or reject ambiguity. An explicit d-tag requires
+both an exact installed contract and sender-aware authorization.
+
+The feed invokes `napplet:profile/open?pubkey=…`; the stable handler metadata is
+the queryless `napplet:profile/open` convention. On acceptance, the host retains
+the delivery before its accepted result, then reuses or starts the target,
+waits for its current registered source and `shell.ready`, and makes one
+target-only `intent.deliver`. The feed can disappear after acceptance. A stale
+or replaced target is never used; controller retry and terminal policy remain
+host-owned. This is NAP-INTENT delivery, not INC.
+
+Profile-viewer registers `intent.onDelivery` early so the binding can buffer a
+target delivery until its handler exists. It validates the delivered `pubkey`,
+loads kind-0 metadata, and obtains profile pictures/banners through
+`resourceBytes(url)`. It creates Blob URLs only from those bytes and revokes
+them on replacement, stale completion, image error, profile clear, and
+`pagehide`; it never writes a remote profile URL directly to an image. There is
+currently no standalone `NAP-RESOURCE.md` at the pinned NAP authority, so this
+documents the explicit NAP-IDENTITY `resource.bytes` delegation and Kehto's
+existing resource policy without inventing additional resource wire behavior.
+
+Theme is synchronized by reading the current value with `theme.get` and then
+receiving one automatic `theme.changed` per eligible frame after a host update;
+there is no theme subscribe/unsubscribe or raw iframe broadcast.
 
 ### Service and INC routing boundary
 
