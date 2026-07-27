@@ -14,6 +14,13 @@ and DM.
 pnpm add @kehto/services
 ```
 
+## Published Napplet Compatibility
+
+`@kehto/services` publishes against `@napplet/core` and `@napplet/nap`
+`>=0.29.0 <0.30.0`. The exact installed contracts are core/nap 0.29.0 from
+source `dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b` and release
+`60889f1c2476e063500c7ab6624af6abe0dbcbe5`.
+
 ## Overview
 
 `@kehto/services` ships the reference implementations of the `ServiceHandler`
@@ -35,9 +42,9 @@ Current draft posture:
 - `createNotifyService` handles direct `notify.*` envelopes. It is not an INC
   topic handler.
 - `createOutboxService` supports `outbox.getEvent` from draft NAP-OUTBOX. Single-event lookups run through shell-owned relay routing and only return events whose ID matches the request. The draft wire contract keeps `outbox.query` one-shot and `outbox.subscribe` streaming; Kehto's concrete `createRelayPoolOutboxRouter` additionally exposes host-side `queryStream()` so verified query events can arrive before asynchronous NIP-65 discovery completes.
-- `createResourceService` supports `resource.bytesMany` from draft NAP-RESOURCE. Bulk requests return ordered per-URL items and keep per-URL failures local while preserving legacy single-fetch fields for existing Kehto callers.
+- `createResourceService` retains Kehto-local `resource.bytesMany` compatibility behavior. It is not presented as standalone NAP-RESOURCE wire authority; profile media authority is NAP-IDENTITY's delegated `resource.bytes` contract.
 - `createUploadService` supports `upload.info` from draft NAP-UPLOAD. Hosts may expose configured rails, return URL forms, maximum bytes, and MIME type policy without requiring napplets to start an upload.
-- `createResourceService` supports `resource.info` and `resource.bytesMany` from draft NAP-RESOURCE. `resource.info` returns advisory schemes and coarse limits; bulk requests return ordered per-URL items and keep per-URL failures local while preserving legacy single-fetch fields for existing Kehto callers.
+- `createResourceService` retains `resource.info` and `resource.bytesMany` as Kehto-local compatibility behavior. They do not infer missing standalone NAP-RESOURCE wire semantics.
 - `createDmService` keeps NAP-DM request correlation, subscriptions, and message normalization in runtime-owned code. Adapters cover concrete transports: NIP-17 gift wraps via `nostr-tools`, structural NDR runtimes with relay hooks, and Cordn/ContextVM coordinator clients. Kehto mirrors NAP-DM wire types locally until `@napplet/core` / `@napplet/nap` publish them.
 
 ## NAP-INTENT manifest resolver
@@ -68,8 +75,10 @@ remain private controller state and never appear in the result or delivery.
 
 Paja currently exposes only an exact-contract development simulator, and the
 playground currently exposes only a verified-manifest catalog builder. Phase
-105 owns released `@napplet/*` package adoption plus their persistent live
-catalog/controller and feed-to-profile flow.
+105 completed released `@napplet/*` package adoption plus the persistent live
+catalog/controller and feed-to-profile flow. Its public `Intent*` types are
+canonical releases from `@napplet/core` / `@napplet/nap`, not a local mirror;
+successful acceptance retains host delivery responsibility before target start.
 
 ## Quick Start
 
@@ -543,8 +552,8 @@ Each factory returns a `ServiceHandler` registrable via `runtime.registerService
 
 ### Identity and theme wire guarantees
 
-Against draft NAP-IDENTITY/NAP-THEME and the web projection at
-`napplet/naps@896c32c92deee68dc4d10fc1132b62df20cccb6f`,
+Against NAP-IDENTITY/NAP-THEME at `napplet/naps` master
+`5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`,
 `createIdentityService` is readonly: `identity.getPublicKey` always sends one
 matching `.result` with `pubkey: ""` when a signer is absent or fails, and the
 other supported reads retain their safe primary result fields. Unknown identity

@@ -12,6 +12,11 @@ Pure, WASM-ready ACL module for the napplet protocol — zero dependencies, zero
 pnpm add @kehto/acl
 ```
 
+## Published Napplet Compatibility
+
+The published peer compatibility floor is `@napplet/core` and `@napplet/nap`
+`>=0.29.0 <0.30.0`, matching the released 0.29.0 convention contract line.
+
 ## Overview
 
 `@kehto/acl` is Kehto's access-control core. It owns an immutable `AclState` keyed on the current NIP-5D 2-segment identity `(dTag, hash)` shape (the earlier `(pubkey, dTag, hash)` triple is dropped; `migrateAclState` ships for legacy persistence readers).

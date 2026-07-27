@@ -12,6 +12,13 @@ Browser adapter over @kehto/runtime — ShellBridge and domain proxies.
 pnpm add @kehto/shell
 ```
 
+## Published Napplet Compatibility
+
+`@kehto/shell` publishes against `@napplet/core` and `@napplet/nap`
+`>=0.29.0 <0.30.0`. The installed core/nap 0.29.0 contracts are from source
+`dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b` and release
+`60889f1c2476e063500c7ab6624af6abe0dbcbe5`.
+
 ## Overview
 
 `@kehto/shell` is the browser-specific integration layer for kehto. It wraps `@kehto/runtime` with the window/postMessage transport, localStorage persistence hooks, an audio manager, and the five canonical per-domain proxies defined by NIP-5D.
@@ -21,7 +28,7 @@ The primary entry point is `createShellBridge()` — it owns the postMessage lis
 Current draft behaviors this package enforces:
 
 - The shell does not inject a host-provided nostr object into napplets — NIP-5D explicitly forbids napplet-visible signing. Napplets call `relay.publish` / `relay.publishEncrypted` and the shell mediates the signing flow internally (NIP-44 default, NIP-04 opt-in for encrypted envelopes).
-- `injectNappletNamespacePrelude()` implements the NIP-5D injected-domain bootstrap and mandatory NAP-SHELL shim: hosts prepend it to `srcdoc` outside verified artifact bytes, install the parent-bound `shell.init` receiver, emit one `shell.ready`, and expose callable NAP interfaces before authored scripts run. Optional namespaces are filtered to the bare-domain allowlist; `shell` is always retained.
+- `injectNappletNamespacePrelude()` implements the NIP-5D injected-domain bootstrap and mandatory NAP-SHELL shim: hosts prepend it to `srcdoc` outside verified artifact bytes, install the parent-bound `shell.init` receiver, emit one `shell.ready`, and expose callable NAP interfaces before authored scripts run. Optional namespaces are filtered to the bare-domain allowlist; `shell` is always retained. Published core 0.29.0 and shim 0.27.0 omit generic mandatory shell, so Kehto retains this host-owned prelude under NAP-SHELL `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24` until an upstream correction is reviewed.
 - `window.napplet.shell.supports(domain)` answers synchronously and locally from the cached first `shell.init` environment. It returns `false` before `shell.init`, for unknown values, and for domains that are not live and granted to that napplet; it never sends a support-query message.
 - Five optional per-domain proxies — `createIdentityProxy`, `createThemeProxy`, `createKeysProxy`, `createMediaProxy`, `createNotifyProxy` — can be composed between napplet and runtime to intercept request traffic per NAP. They are NOT wired by default. Identity/theme proxy `emit()` compatibility members fail closed; hosts must deliver automatic changes through `ShellBridge.publishIdentityChanged()` / `publishTheme()`, which enforce live session, granted domain, and current ACL.
 - `keys.forward` is napplet-to-shell only. Active napplets suppress locally-bound keys from `keys.bindings` before forwarding; shell-initiated action triggers use `keys.action`.
@@ -72,11 +79,10 @@ binding. Incoming no-ID `intent.deliver` values are retained until an
 sender dTag; an accepted result records retained responsibility and does not
 expose target window, handled, protocol, retry, or lifecycle state.
 
-Phase 105 owns released `@napplet/*` package adoption and persistent live
+Phase 105 completed released `@napplet/*` package adoption and persistent live
 Paja/playground catalogs and target controllers. The Phase 104 Paja simulator
-and playground catalog builder are transitional exact-contract consumers, not
-claims of completed host lifecycle wiring. Preserve historical changelogs and
-archived planning rather than rewriting them as active guidance.
+and playground catalog builder are historical exact-contract consumers; preserve
+archived planning rather than presenting it as active guidance.
 
 ## Quick Start
 
@@ -132,8 +138,8 @@ const bridge = createShellBridge({
 
 ### Protected identity and theme delivery
 
-The injected identity/theme bindings follow the draft NAP-IDENTITY, NAP-THEME,
-and web projection at `napplet/naps@896c32c92deee68dc4d10fc1132b62df20cccb6f`.
+The injected identity/theme bindings follow NAP-IDENTITY and NAP-THEME at
+`napplet/naps` master `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`.
 They are readonly protected objects: identity exposes supported reads and
 `onChanged`, while theme exposes `get` and `onChanged` only. Results and
 automatic changes are accepted only when their `MessageEvent.source` is

@@ -12,6 +12,13 @@ Browser-agnostic protocol engine for the napplet protocol.
 pnpm add @kehto/runtime
 ```
 
+## Published Napplet Compatibility
+
+`@kehto/runtime` publishes against `@napplet/core` and `@napplet/nap`
+`>=0.29.0 <0.30.0`. The exact installed convention contracts are core/nap
+0.29.0 from source `dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b` and release
+`60889f1c2476e063500c7ab6624af6abe0dbcbe5`.
+
 ## Overview
 
 `@kehto/runtime` is Kehto's NIP-5D protocol engine. It owns every incoming napplet message, gates it through the ACL enforcement layer, routes it to the correct NAP handler, and emits the corresponding reply envelope.
@@ -32,8 +39,8 @@ Signing is shell-mediated inside `relay.publish` / `relay.publishEncrypted` (NIP
 
 ## Identity and theme result policy
 
-This runtime follows draft NAP-IDENTITY, NAP-THEME, and the web projection at
-`napplet/naps@896c32c92deee68dc4d10fc1132b62df20cccb6f`.
+This runtime follows NAP-IDENTITY and NAP-THEME at `napplet/naps` master
+`5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`.
 
 - `identity.getPublicKey` always yields exactly one correlated
   `identity.getPublicKey.result`; no signer or a signer failure is
@@ -48,7 +55,8 @@ This runtime follows draft NAP-IDENTITY, NAP-THEME, and the web projection at
   Change delivery is host-owned and recipient-gated by the shell bridge; it is
   not routed through NAP-INC or NAP-INTENT.
 
-Published `@napplet/*` package adoption is intentionally deferred to Phase 105.
+Phase 105 adopts the published `@napplet/*` convention package line; archived
+phase records remain history rather than active compatibility guidance.
 
 ## NAP-INTENT runtime boundary
 
@@ -69,8 +77,13 @@ retry, and terminal failure remain private host policy. A ready target receives
 one no-ID `intent.deliver` with the runtime-attested sender, never a visible INC
 carrier or window/lifecycle fields.
 
-Phase 105 still owns released `@napplet/*` package adoption and the persistent
-installed-manifest controllers for the live Paja and playground hosts.
+The canonical public `Intent*` contracts are the released `@napplet/core` /
+`@napplet/nap` declarations; Kehto retains no local type mirror. An accepted
+result transfers delivery responsibility before a retained task starts, and a
+post-acceptance outcome never creates a second source result.
+
+Phase 105 completed released package adoption and persistent installed-manifest
+controllers for the live Paja and playground hosts.
 
 ## NAP-INC Draft Contract
 
@@ -103,9 +116,9 @@ resolution reply](https://github.com/kehto/web/issues/203#issuecomment-506090449
 not the obsolete opener-only model.
 
 This is INC documentation only. **Phase 104** owns every public #91 NAP-INTENT
-binding/resolution/delivery change; **Phase 105** owns released package adoption.
-Do not claim package conformance before Phase 105. Historical changelogs and
-archived planning are preserved records, not targets for active-surface edits.
+binding/resolution/delivery change; **Phase 105** records the completed released
+package adoption. Historical changelogs and archived planning are preserved
+records, not targets for active-surface edits.
 
 Everything plugs into a single factory, `createRuntime()`, via a `RuntimeAdapter` hook bag — persistence, relay pool, auth, services, and so on. No DOM, no postMessage, no localStorage: those live in `@kehto/shell`.
 

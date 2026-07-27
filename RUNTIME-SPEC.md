@@ -13,8 +13,11 @@ domain-object clarification from `dskvr/nips#4`, merged into the NIP-5D branch
 behind PR #2303 on 2026-06-26.
 
 Protocol message domains are defined by **NAP** (Nostr Applet Protocol) extension
-specs in the [`napplet/naps`](https://github.com/napplet/naps) registry. The two
-NAPs core to this runtime are maintained at upstream living docs:
+specs in the [`napplet/naps`](https://github.com/napplet/naps) registry. Active
+authority is NAP-INTENT PR #91
+[`a718915ddefa2f03a0126579601f59d8bd86f7c4`](https://github.com/napplet/naps/pull/91)
+and NAP-IDENTITY, NAP-THEME, and NAP-SHELL at master
+`5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`. The core NAP references are:
 
 - NIP-5D: <https://github.com/nostr-protocol/nips/pull/2303/>
 - NAP-SHELL and NAP-INTENT: <https://github.com/napplet/naps>
@@ -60,17 +63,16 @@ The downstream ambiguity tracker is
 resolution recorded in [its clarification reply](https://github.com/kehto/web/issues/203#issuecomment-5060904495).
 The obsolete opener-only interpretation is not current guidance.
 
-This Phase 102 documentation does not implement NAP-INTENT: **Phase 104** owns
-every public #91 intent binding, resolution, and delivery lifecycle change.
-**Phase 105** owns adoption of released convention-capable packages. Until then,
-Kehto documents this draft boundary without claiming published package
-conformance. Historical changelogs, migration records, and archived planning
-remain historical evidence rather than active implementation drift.
+**Phase 104** owns every public #91 intent binding, resolution, and delivery
+lifecycle change. **Phase 105** adopts the released convention-capable packages.
+Historical changelogs, migration records, and archived planning remain historical
+evidence rather than active implementation drift.
 
 > **Terminology.** The current term for an extension spec is **NAP**; the
 > capability prefix is `nap:`; the cross-napplet domain is `inc`.
 > The current protocol helper package is `@napplet/nap`; no current code depends
-> on the old helper package. The runtime routes `inc.*` envelopes only.
+> on the old helper package. The runtime routes active NAP envelopes, including
+> `inc.*` and `intent.*`.
 
 ## Toolchain
 
@@ -78,16 +80,26 @@ Kehto's runtime packages target the current `@napplet` line:
 
 | Package                 | Version  | Role                                            |
 | ----------------------- | -------- | ----------------------------------------------- |
-| `@napplet/core`         | `0.28.0` | protocol types, constants, `createDispatch` / `registerNap` |
-| `@napplet/nap`          | `0.28.0` | NAP capability helpers |
-| `@napplet/sdk`          | `0.24.4` | napplet-side SDK (playground napplets)          |
-| `@napplet/shim`         | `0.26.8` | napplet-side shim; installs injected `window.napplet.<domain>` objects |
-| `@napplet/vite-plugin`  | `0.11.2` | napplet build/sign plugin |
+| `@napplet/core`         | `0.29.0` | protocol types, constants, `createDispatch` / `registerNap` |
+| `@napplet/nap`          | `0.29.0` | NAP capability helpers |
+| `@napplet/sdk`          | `0.25.0` | napplet-side SDK (playground napplets)          |
+| `@napplet/shim`         | `0.27.0` | generic non-shell NAP domains; does not supply mandatory shell |
+| `@napplet/vite-plugin`  | `0.12.0` | napplet build/sign plugin |
 
 The runtime's domain dispatcher routes via `createDispatch()` + `registerNap()`
 from `@napplet/core` (the rename of the former `registerNap` / `NapHandler`
-surface). `napplet/web#53` is resolved — the playground builds against
-`@napplet/vite-plugin@0.11.2`.
+surface). The selected packages are published from source
+`dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b` and release
+`60889f1c2476e063500c7ab6624af6abe0dbcbe5`.
+
+## Published Intent Contract
+
+NAP-INTENT public `Intent*` request, result, catalog, and delivery types are
+the canonical published core/nap 0.29.0 declarations; Kehto retains no local
+mirror. An `ok: true` result records host acceptance and retained delivery
+responsibility, not completed target handling. The host sends that result before
+starting retained delivery, and a post-acceptance failure must not manufacture a
+second source result.
 
 ## Content-Addressed Loading & Identity
 
@@ -135,6 +147,14 @@ The playground always injects mandatory `shell`, then adds optional domains from
 the verified manifest after stripping permission/protocol entries. Demo napplets
 may preflight optional availability by checking required
 `window.napplet.<domain>` objects or query the cached NAP-SHELL environment.
+
+### Published shell-package exception
+
+NAP-SHELL at `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24` remains mandatory.
+Published core 0.29.0 and shim 0.27.0 omit a generic mandatory
+`window.napplet.shell` surface, so Kehto retains its host-owned, parent-bound
+prelude. This is a locked upstream package-drift exception, not a claim that
+the shim supplies shell.
 
 ## NAP-SHELL Handshake
 

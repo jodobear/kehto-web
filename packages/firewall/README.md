@@ -12,6 +12,11 @@ Pure, WASM-ready behavioral firewall engine for the napplet protocol — zero de
 pnpm add @kehto/firewall
 ```
 
+## Published Napplet Compatibility
+
+The published peer compatibility floor is `@napplet/core`
+`>=0.29.0 <0.30.0`, matching the released 0.29.0 convention contract line.
+
 ## Overview
 
 `@kehto/firewall` is Kehto's behavioral abuse-detection engine. It is the temporal complement to `@kehto/acl`: where ACL asks *"is this napplet statically allowed to perform this operation?"*, the firewall asks *"is this napplet abusing an operation over time?"*.
