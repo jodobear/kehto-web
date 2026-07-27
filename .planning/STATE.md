@@ -5,15 +5,15 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
-stopped_at: Completed Wave 7 full-unit correction for 105-09-PLAN.md
-last_updated: "2026-07-27T11:02:32.866Z"
+stopped_at: Completed 105-10-PLAN.md
+last_updated: "2026-07-27T11:14:26.474Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 44
-  completed_plans: 41
+  completed_plans: 42
   percent: 67
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 105 (published-convention-adoption-and-host-flows) — EXECUTING
-Plan: 10 of 12
+Plan: 11 of 12
 Status: Ready to execute
 
 Last activity: 2026-07-27 — Phase 105 execution started
@@ -97,6 +97,7 @@ Last activity: 2026-07-27 — Phase 105 execution started
 | Phase 105 P08 | 20m | 2 tasks | 12 files |
 | Phase 105 P07 | 24m | 2 tasks | 5 files |
 | Phase 105-published-convention-adoption-and-host-flows P09 | 13m | 2 tasks | 14 files |
+| Phase 105-published-convention-adoption-and-host-flows P10 | 5m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -212,8 +213,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T11:02:32.766Z
-Stopped at: Completed Wave 7 full-unit correction for 105-09-PLAN.md
+Last session: 2026-07-27T11:14:26.462Z
+Stopped at: Completed 105-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -307,3 +308,5 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: Profile picture and banner media use resourceBytes plus revocable Blob URLs; no standalone NAP-RESOURCE wire semantics were inferred.
 - [Phase ?]: Profile cold-start verification closes live frames without revoking their verified catalog records, then proves one intent delivery without INC.
 - [Phase ?]: The active playground gateway guard mirrors published intent/resource manifests and forbids legacy profile INC imports or carriers.
+- [Phase ?]: Classify static migration evidence to explicit live sources while excluding history and intentional fixtures.
+- [Phase ?]: Retain the Kehto-owned mandatory NAP-SHELL prelude as positive proof of the published core/shim shell omission exception.
