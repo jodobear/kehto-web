@@ -333,6 +333,47 @@ describe('NIP-5D napplet namespace prelude', () => {
     subscription.close();
   });
 
+  it('keeps the mandatory host shell source-bound, synchronous, and immutable across namespace replacement', async () => {
+    const target = createPreludeTestWindow({ shell: { ready: () => Promise.resolve('forged') } });
+
+    runPrelude(renderNappletNamespacePrelude({ domains: ['relay'] }), target);
+
+    const shell = target.napplet?.shell as {
+      ready: () => Promise<{ capabilities: { domains: readonly string[] }; services: readonly string[] }>;
+      supports: (domain: string) => boolean;
+      readonly services: readonly string[];
+      onReady: (handler: (environment: unknown) => void) => { close(): void };
+    };
+    const observed: unknown[] = [];
+    shell.onReady((environment) => observed.push(environment));
+    const ready = shell.ready();
+
+    expect(target.postedMessages).toEqual([{ type: 'shell.ready' }]);
+    expect(target.postedMessageListenerCounts).toEqual([expect.any(Number)]);
+    expect(target.postedMessageListenerCounts[0]).toBeGreaterThan(0);
+    expect(shell.supports('relay')).toBe(false);
+    expect(shell.services).toEqual([]);
+
+    (target.napplet as Record<string, unknown>).shell = { supports: () => true };
+    target.napplet = { shell: { ready: () => Promise.resolve('forged') } };
+    expect(target.napplet?.shell).toBe(shell);
+    expect(target.postedMessages.filter((message) => message.type === 'shell.ready')).toHaveLength(1);
+
+    target.dispatchMessage({}, { type: 'shell.init', capabilities: { domains: ['forged'] }, services: ['forged'] });
+    target.dispatchParentMessage({ type: 'shell.init', capabilities: { domains: ['relay'] }, services: ['relay-pool'] });
+    const environment = await ready;
+
+    expect(environment).toEqual({ capabilities: { domains: ['relay'] }, services: ['relay-pool'] });
+    expect(observed).toEqual([environment]);
+    expect(shell.supports('relay')).toBe(true);
+    expect(shell.supports('forged')).toBe(false);
+    expect(Object.isFrozen(shell.services)).toBe(true);
+
+    target.dispatchParentMessage({ type: 'shell.init', capabilities: { domains: ['forged'] }, services: ['forged'] });
+    expect(shell.services).toEqual(['relay-pool']);
+    expect(observed).toEqual([environment]);
+  });
+
   it('isolates immutable shell.init snapshots between prelude windows', async () => {
     const first = createPreludeTestWindow();
     const second = createPreludeTestWindow();
