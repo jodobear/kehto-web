@@ -78,9 +78,34 @@ const historicalMigrationExclusions = [
 ] as const;
 
 // Current user-facing guidance is audited independently from executable source.
-// The empty RED-phase inventory is populated by the implementation commit.
-const activeMigrationTextFiles = [] as const;
-const obsoleteActivePatterns = {} as const;
+// The dated design remains listed so its authoritative warning cannot regress;
+// its dated body is historical material and is intentionally not vocabulary-scanned.
+const activeMigrationTextFiles = [
+  'README.md',
+  'apps/playground/README.md',
+  'docs/reference/api.md',
+  'docs/policies/NIP-5D-CONFORMANCE.md',
+  'docs/superpowers/specs/2026-06-15-nap-intent-design.md',
+  'packages/acl/README.md',
+  'packages/cli/README.md',
+  'packages/firewall/README.md',
+  'packages/nip/README.md',
+  'packages/paja/README.md',
+  'packages/runtime/README.md',
+  'packages/services/README.md',
+  'packages/shell/README.md',
+] as const;
+
+const obsoleteActivePatterns = {
+  'numbered-negotiation': { roots: activeMigrationSourceDirs, pattern: /\bnap-(?:110|117|98)\b/i },
+  'query-bearing-stable-identity': { roots: activeMigrationSourceDirs, pattern: /(?:convention|identity|route)\s*(?:=|:)\s*['"`][^'"`\n]*\?/ },
+  'prefix-or-query-matching': { roots: activeMigrationSourceDirs, pattern: /\b(?:topic|convention)\.(?:startsWith|includes)\(\s*[^'"`]/ },
+  'caller-supplied-sender': { roots: ['packages/runtime/src'], pattern: /(?:m|message)\.sender\b/ },
+  'intent-completion-fields': { roots: ['packages/services/src', 'packages/paja/src', 'apps/playground/src'], pattern: /intent\.(?:invoke|deliver)(?:\.result)?[^\n]{0,120}\b(?:handled|windowId|newWindow)\s*:/ },
+  'inc-coupled-intent': { roots: ['packages/services/src', 'packages/paja/src', 'apps/playground/src'], pattern: /(?:inc\.(?:emit|subscribe)[^\n]*intent\.|intent\.[^\n]*inc\.(?:emit|subscribe))/ },
+  'intent-lifecycle-result-fields': { roots: ['packages/services/src', 'packages/paja/src', 'apps/playground/src'], pattern: /intent\.(?:deliver\.result|accepted)\b/ },
+  'intent-delivery-identifiers': { roots: ['packages/services/src', 'packages/paja/src', 'apps/playground/src'], pattern: /\b(?:intentId|deliveryId)\b/ },
+} as const;
 
 const bannedSdkImportPattern = /from\s+['"]@napplet\/sdk['"]/;
 const staleNapSegment = [110, 117, 98].map((code) => String.fromCharCode(code)).join('');
@@ -118,7 +143,7 @@ function sourceFiles(root: string): string[] {
     const stat = statSync(path);
     if (stat.isDirectory()) {
       files.push(...sourceFiles(path));
-    } else if (/\.[cm]?tsx?$/.test(path)) {
+    } else if (/\.[cm]?tsx?$/.test(path) && !/\.test\.[cm]?tsx?$/.test(path)) {
       files.push(path);
     }
   }
@@ -157,8 +182,11 @@ describe('current @napplet package graph guard', () => {
       'utf8',
     );
     expect(intentDesign.startsWith('> **Superseded historical design')).toBe(true);
-    expect(intentDesign).toContain('docs/policies/NIP-5D-CONFORMANCE.md');
+    expect(intentDesign).toContain('NIP-5D-CONFORMANCE.md');
     expect(intentDesign).toContain('106-AUTHORITY-REVALIDATION.md');
+    for (const file of activeMigrationTextFiles) {
+      expect(existsSync(join(process.cwd(), file)), `current guidance ${file}`).toBe(true);
+    }
   });
 
   it('records the exact released convention and package authorities in active evidence', () => {
@@ -310,6 +338,28 @@ describe('current @napplet package graph guard', () => {
         const lines = content.split(/\r?\n/);
         for (const [index, line] of lines.entries()) {
           if (pattern.test(line)) violations.push(`${file}:${index + 1}`);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it('rejects each scoped obsolete negotiation and intent shape with exact active file and line evidence', () => {
+    expect(activeMigrationSourceDirs.length).toBeGreaterThan(0);
+    expect(activeMigrationTextFiles.length).toBeGreaterThan(0);
+    expect(Object.keys(obsoleteActivePatterns).length).toBeGreaterThan(0);
+    const violations: string[] = [];
+
+    for (const [patternId, { roots, pattern }] of Object.entries(obsoleteActivePatterns)) {
+      for (const root of roots) {
+        for (const abs of sourceFiles(join(process.cwd(), root))) {
+          const file = relative(process.cwd(), abs);
+          const lines = readFileSync(abs, 'utf8').split(/\r?\n/);
+          for (const [index, line] of lines.entries()) {
+            pattern.lastIndex = 0;
+            if (pattern.test(line)) violations.push(`${patternId}:${file}:${index + 1}`);
+          }
         }
       }
     }
