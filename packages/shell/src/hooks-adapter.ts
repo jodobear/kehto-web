@@ -121,7 +121,7 @@ function createRelayPoolAdapter(
       shellHooks.relayPool.closeScopedRelay(windowId);
     },
 
-    publishToScopedRelay(windowId: string, event: NostrEvent): boolean {
+    publishToScopedRelay(windowId: string, event: NostrEvent): boolean | Promise<boolean> {
       return shellHooks.relayPool.publishToScopedRelay(windowId, event);
     },
 

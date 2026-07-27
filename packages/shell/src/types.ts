@@ -61,8 +61,13 @@ export interface RelayPoolHooks {
   openScopedRelay(windowId: string, relayUrl: string, subId: string, filters: NostrFilter[], sourceWindow: Window): void;
   /** Close a scoped relay connection. */
   closeScopedRelay(windowId: string): void;
-  /** Publish to a scoped relay. Returns false if no active scoped relay. */
-  publishToScopedRelay(windowId: string, event: NostrEvent): boolean;
+  /**
+   * Publish to a scoped relay.
+   *
+   * Async hosts settle the returned promise after transport acceptance.
+   * Returns false if no active scoped relay or publication fails.
+   */
+  publishToScopedRelay(windowId: string, event: NostrEvent): boolean | Promise<boolean>;
   /** Select relay URLs for a given set of filters. */
   selectRelayTier(filters: NostrFilter[]): string[];
 }

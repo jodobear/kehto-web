@@ -63,7 +63,9 @@ available, can connect to a bunker/NIP-46 URI, and only uses the generated local
 development signer when the Dev signer button is selected. Every signing or
 publish operation still uses a browser confirmation prompt. There is no bypass
 list. A denied prompt or a live publish with no accepting relay returns a
-canonical failure and is not added to Paja's in-memory relay view.
+canonical failure and is not added to Paja's in-memory relay view. Paja's
+scoped-relay hook likewise waits for the backend result and returns `false`
+after denial or transport failure.
 
 The static Paja Runtime build is served at `/web/paja/` in the GitHub Pages
 artifact. It uses the same browser host and service adapters, but loads verified

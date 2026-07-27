@@ -8,6 +8,8 @@ import {
   getPajaRelayUrls,
   type PajaRelayBackend,
 } from './browser-relay-runtime.js';
+import { createPajaAdapter } from './browser-adapter.js';
+import type { PajaHostConfig } from './options.js';
 import { normalizePajaSimulation } from './simulation.js';
 
 const TEST_RELAYS = ['wss://relay-one.example', 'wss://relay-two.example'];
@@ -61,6 +63,34 @@ describe('@kehto/paja effective relay URLs', () => {
 });
 
 describe('@kehto/paja relay publish settlement', () => {
+  it('settles scoped relay publication and reports denied publication as false', async () => {
+    const simulation = normalizePajaSimulation({
+      relay: { mode: 'memory', urls: TEST_RELAYS },
+    });
+    const adapter = createPajaAdapter(
+      {
+        window: {
+          id: 'paja-window',
+          dTag: 'paja',
+          aggregateHash: 'aggregate',
+        },
+      } as PajaHostConfig,
+      () => simulation,
+      () => {},
+      () => {},
+      () => false,
+    );
+    const event = testEvent('e'.repeat(64));
+    const publishResult = adapter.relayPool.publishToScopedRelay('paja-window', event);
+
+    expect(publishResult).toBeInstanceOf(Promise);
+    await expect(publishResult).resolves.toBe(false);
+
+    const backend = adapter.relayPool.getRelayPool() as PajaRelayBackend;
+    expect(await backend.query(TEST_RELAYS, [{ ids: [event.id] }])).toEqual([]);
+    backend.close();
+  });
+
   it('returns a canonical failure and retains nothing when confirmation is denied', async () => {
     const simulation = normalizePajaSimulation({
       relay: { mode: 'memory', urls: TEST_RELAYS },

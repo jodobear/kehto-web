@@ -184,6 +184,8 @@ Exported for host-app integration: `ShellAdapter`, `ShellCapabilities`, `Capabil
 `RelayPoolLike.publish()` may return `Promise<void>` when transport acceptance
 is asynchronous. The shell adapter forwards that promise so the runtime does
 not acknowledge or buffer an event before the relay operation settles.
+`RelayPoolHooks.publishToScopedRelay()` may likewise return
+`Promise<boolean>` so asynchronous hosts report the settled outcome.
 
 ### Enforcement re-exports (from @kehto/runtime)
 `createEnforceGate`, `createNapEnforceGate`, `formatDenialReason`, plus `EnforceResult`, `EnforceConfig`, `NapEnforceConfig`, `IdentityResolver`, `AclChecker`, `NapMessage`.

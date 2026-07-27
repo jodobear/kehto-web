@@ -138,6 +138,8 @@ Everything plugs into a single factory, `createRuntime()`, via a `RuntimeAdapter
 promise before reporting publish success, buffers only successful publishes,
 and releases failed replay reservations so a deterministic signed event can be
 retried without allowing concurrent duplicate publication.
+`publishToScopedRelay()` may similarly return `Promise<boolean>` when a host
+needs transport settlement before reporting the scoped publication outcome.
 
 ## Quick Start
 

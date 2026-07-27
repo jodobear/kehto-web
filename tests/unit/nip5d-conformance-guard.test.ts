@@ -136,6 +136,14 @@ const relayPublishRoutingSurfaces = [
     ],
   },
   {
+    file: 'packages/paja/src/browser-adapter.ts',
+    markers: [
+      'publishToScopedRelay: async',
+      'await pool.publish(getPajaRelayUrls(getSimulation()), event);',
+      '} catch {',
+    ],
+  },
+  {
     file: 'packages/runtime/src/dispatch.test.ts',
     markers: ['shell-signs the template and returns the full signed event', 'accepted).toBeUndefined()'],
   },

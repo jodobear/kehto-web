@@ -99,8 +99,13 @@ export interface RelayPoolAdapter {
   /** Close a scoped relay connection. */
   closeScopedRelay(windowId: string): void;
 
-  /** Publish to a scoped relay. Returns false if no active scoped relay. */
-  publishToScopedRelay(windowId: string, event: NostrEvent): boolean;
+  /**
+   * Publish to a scoped relay.
+   *
+   * Async adapters settle the returned promise after transport acceptance.
+   * Returns false if no active scoped relay or publication fails.
+   */
+  publishToScopedRelay(windowId: string, event: NostrEvent): boolean | Promise<boolean>;
 
   /** Whether a relay pool is available. */
   isAvailable(): boolean;

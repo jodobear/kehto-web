@@ -125,10 +125,14 @@ function createRelayHooks(pool: RelayPoolLike, getSimulation: () => PajaSimulati
     },
     openScopedRelay: () => {},
     closeScopedRelay: () => {},
-    publishToScopedRelay: (_windowId, event) => {
+    publishToScopedRelay: async (_windowId, event) => {
       if (getSimulation().relay.mode === 'disabled') return false;
-      pool.publish(getPajaRelayUrls(getSimulation()), event);
-      return true;
+      try {
+        await pool.publish(getPajaRelayUrls(getSimulation()), event);
+        return true;
+      } catch {
+        return false;
+      }
     },
     selectRelayTier: () => getPajaRelayUrls(getSimulation()),
   };
