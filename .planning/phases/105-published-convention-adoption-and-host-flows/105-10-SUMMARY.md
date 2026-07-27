@@ -83,8 +83,8 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1: Guard exact released ownership, lineage, and host shell drift** — `6a5df1f` (RED), `6523d67` (GREEN)
-2. **Task 2: Guard installed catalogs, profile intent, resource cleanup, and live theme** — `0f156a8` (RED), `15bc9e8` (GREEN)
+1. **Task 1: Guard exact released ownership, lineage, and host shell drift** — `020c54b` (RED), `20fbbe5` (GREEN)
+2. **Task 2: Guard installed catalogs, profile intent, resource cleanup, and live theme** — `21781f1` (RED), `c14d6aa` (GREEN)
 
 ## Files Created/Modified
 
@@ -107,7 +107,7 @@ status: complete
 - **Fix:** Excluded generated dependency and build directories before scanning active TypeScript sources.
 - **Files modified:** `tests/unit/sdk-migration-guard.test.ts`
 - **Verification:** Both focused guard commands pass.
-- **Committed in:** `15bc9e8`
+- **Committed in:** `c14d6aa`
 
 **2. [Rule 1 - Bug] Make classification tests verify declarations instead of their own expectation literals**
 - **Found during:** Tasks 1 and 2
@@ -115,7 +115,7 @@ status: complete
 - **Fix:** Constructed the searched declaration markers at runtime, so removing the declarations fails the guard.
 - **Files modified:** `tests/unit/sdk-migration-guard.test.ts`, `tests/unit/playground-gateway-guard.test.ts`
 - **Verification:** Both focused guard commands pass.
-- **Committed in:** `15bc9e8`
+- **Committed in:** `c14d6aa`
 
 **Total deviations:** 2 auto-fixed Rule 1 guard-correctness fixes. No scope expansion.
 
@@ -134,5 +134,5 @@ Phase 105's completed published package and host-flow work now has active, class
 ## Self-Check: PASSED
 
 - All three active guard artifacts and this summary exist.
-- TDD RED and GREEN commits `6a5df1f`, `6523d67`, `0f156a8`, and `15bc9e8` exist.
+- TDD RED and GREEN commits `020c54b`, `20fbbe5`, `21781f1`, and `c14d6aa` exist.
 - Stub scan found only local empty-array accumulators, not rendered placeholders or unwired data.
