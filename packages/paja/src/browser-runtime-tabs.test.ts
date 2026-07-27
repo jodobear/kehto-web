@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createPajaShareUrl,
   parseRuntimeTabsSnapshot,
+  runtimeTabGenerationId,
   snapshotRuntimeTabs,
 } from './browser-runtime-tabs.js';
 
@@ -47,5 +48,10 @@ describe('@kehto/paja runtime tabs', () => {
     expect(parseRuntimeTabsSnapshot('{bad json')).toBeNull();
     expect(parseRuntimeTabsSnapshot(JSON.stringify({ version: 2, pointers: ['naddr1one'] }))).toBeNull();
     expect(parseRuntimeTabsSnapshot(JSON.stringify({ version: 1, pointers: [] }))).toBeNull();
+  });
+
+  it('keys retained readiness to the exact tab generation rather than the pointer descriptor', () => {
+    expect(runtimeTabGenerationId({ id: 'tab-3', generation: 7 })).toBe('tab-3:7');
+    expect(runtimeTabGenerationId({ id: 'tab-3', generation: 8 })).toBe('tab-3:8');
   });
 });

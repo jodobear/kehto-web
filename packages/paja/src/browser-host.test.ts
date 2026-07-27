@@ -183,4 +183,17 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(hostSource).not.toContain("frame?.addEventListener('load'");
     expect(adapterSource).not.toContain('onNip5dIframeCreate:');
   });
+
+  it('uses verified pointer records to retain and source-bind post-acceptance intent delivery', () => {
+    const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const pointerLoad = source.slice(source.indexOf('async function loadRuntimePointer('), source.indexOf('async function restorePersistedRuntimeTabs('));
+    const messageHandler = source.slice(source.indexOf("window.addEventListener('message'"), source.indexOf("frame?.addEventListener('error'"));
+
+    expect(source).toContain("import { BrowserIntentController } from './browser-intent-controller.js';");
+    expect(source).toContain("import { InstalledNappletCatalog } from './installed-napplet-catalog.js';");
+    expect(pointerLoad).toContain('runtime.catalog.install(resolvedTarget);');
+    expect(source).toContain('createPajaIntentTargetOptions');
+    expect(messageHandler).toContain('markRuntimeTabReady');
+    expect(messageHandler).toContain('originRegistry.getWindowId(source)');
+  });
 });
