@@ -9,6 +9,7 @@ import { relaySubscribe } from '@napplet/nap/relay/sdk';
 import { resourceBytes } from '@napplet/nap/resource/sdk';
 import type { IntentDelivery, NostrEvent, Subscription } from '@napplet/core';
 import { createProfileMediaController } from './profile-media.js';
+import { createProfileLoadController } from './profile-load-controller.js';
 
 const REQUIRED_NAPS = ['intent', 'relay', 'resource', 'theme'] as const;
 const CAPABILITY_WAIT_MS = 5_000;
@@ -38,9 +39,7 @@ type ProfileMetadata = {
   lud16?: string;
 };
 
-let profileSub: Subscription | null = null;
 let intentDeliverySub: Subscription | null = null;
-let profileLoadTimer: number | null = null;
 
 function formatError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
@@ -176,17 +175,7 @@ function renderProfile(pubkey: string, profile: ProfileMetadata | null): void {
   setStatus(profile ? 'loaded' : 'not found', profile ? 'green' : 'gray');
 }
 
-function clearProfileLoadTimer(): void {
-  if (profileLoadTimer !== null) {
-    window.clearTimeout(profileLoadTimer);
-    profileLoadTimer = null;
-  }
-}
-
-function clearProfile(): void {
-  profileSub?.close();
-  profileSub = null;
-  clearProfileLoadTimer();
+function clearProfileView(): void {
   profileMedia.clear(pictureEl);
   pictureEl.alt = 'profile';
   pictureEl.style.display = 'none';
@@ -199,36 +188,43 @@ function clearProfile(): void {
   detailEl.replaceChildren();
 }
 
+const profileLoader = createProfileLoadController<NostrEvent>({
+  timeoutMs: PROFILE_LOAD_TIMEOUT_MS,
+  subscribe(pubkey, onEvent, onComplete) {
+    let latest: NostrEvent | null = null;
+    return relaySubscribe(
+      [{ kinds: [0], authors: [pubkey], limit: 1 }],
+      (event) => {
+        if (event.kind !== 0 || event.pubkey !== pubkey) return;
+        if (latest && latest.created_at > event.created_at) return;
+        latest = event;
+        onEvent(event);
+      },
+      onComplete,
+    );
+  },
+  setTimeout: (callback, timeoutMs) => window.setTimeout(callback, timeoutMs),
+  clearTimeout: (timer) => window.clearTimeout(timer),
+  onStart(pubkey) {
+    clearProfileView();
+    pubkeyEl.textContent = pubkey;
+    setStatus('loading', 'gray');
+  },
+  onEvent(pubkey, event) {
+    renderProfile(pubkey, parseProfile(event));
+  },
+  onEmpty(pubkey) {
+    renderProfile(pubkey, null);
+  },
+});
+
+function clearProfile(): void {
+  profileLoader.clear();
+  clearProfileView();
+}
+
 function loadProfile(pubkey: string): void {
-  clearProfile();
-  pubkeyEl.textContent = pubkey;
-  setStatus('loading', 'gray');
-
-  let latest: NostrEvent | null = null;
-  let done = false;
-  let sub: Subscription | null = null;
-  const finish = () => {
-    if (done) return;
-    done = true;
-    clearProfileLoadTimer();
-    if (!latest) renderProfile(pubkey, null);
-    sub?.close();
-    if (profileSub === sub) profileSub = null;
-  };
-
-  profileLoadTimer = window.setTimeout(finish, PROFILE_LOAD_TIMEOUT_MS);
-  sub = relaySubscribe(
-    [{ kinds: [0], authors: [pubkey], limit: 1 }],
-    (event) => {
-      if (done) return;
-      if (event.kind !== 0 || event.pubkey !== pubkey) return;
-      if (latest && latest.created_at > event.created_at) return;
-      latest = event;
-      renderProfile(pubkey, parseProfile(event));
-    },
-    finish,
-  );
-  profileSub = sub;
+  profileLoader.load(pubkey);
 }
 
 function payloadPubkey(payload: unknown): string | null {
@@ -263,8 +259,7 @@ init().catch((err) => {
 });
 
 window.addEventListener('pagehide', () => {
-  clearProfileLoadTimer();
-  profileSub?.close();
+  profileLoader.clear();
   intentDeliverySub?.close();
   profileMedia.destroy();
 });
