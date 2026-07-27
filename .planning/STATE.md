@@ -4,15 +4,15 @@ milestone: v1.29
 milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: Published Convention Adoption and Host Flows
-status: planning
-stopped_at: Completed 104-06-PLAN.md; ready for re-verification
-last_updated: "2026-07-26T15:26:22.728Z"
-last_activity: 2026-07-26
-last_activity_desc: Phase 104 complete, transitioned to Phase 105
+status: executing
+stopped_at: Phase 105 planned and verified; ready for 105-01-PLAN.md
+last_updated: "2026-07-27T08:35:29.360Z"
+last_activity: 2026-07-27
+last_activity_desc: Phase 105 planned and independently verified across 12 plans
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 32
+  total_plans: 44
   completed_plans: 32
   percent: 67
 ---
@@ -24,21 +24,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-23)
 
 **Core value:** Modular, framework-agnostic runtime for hosting napplet applications.
-**Current focus:** Phase 104 — nap-intent-and-manifest-contract-parity
+**Current focus:** Phase 105 — published-convention-adoption-and-host-flows
 
 ## Current Position
 
 Phase: 105 — Published Convention Adoption and Host Flows
-Plan: Not started
-Status: Ready to plan
+Plan: 0 of 12
+Status: Ready to execute
 
-Last activity: 2026-07-26 — Phase 104 complete, transitioned to Phase 105
+Last activity: 2026-07-27 — Phase 105 planned and independently verified across 12 plans
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 30
+- Total plans completed: 32
 - Average duration: ~6m
 - Total execution time: ~6 minutes
 
@@ -53,6 +53,7 @@ Last activity: 2026-07-26 — Phase 104 complete, transitioned to Phase 105
 | 102 | 14 | - | - |
 | 103 | 7 | - | - |
 | 104 | 6 | - | - |
+| 105 | 0/12 | - | - |
 **Per-Plan Metrics:**
 
 | Plan | Duration | Tasks | Files |

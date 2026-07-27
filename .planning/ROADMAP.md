@@ -260,12 +260,53 @@ users rely on.
      their published surfaces, and explicitly preserves the conformant
      host-owned NAP-SHELL binding that the selected core/shim line omits; no
      unpublished API or compatibility overload is guessed.
+
   2. Paja and playground maintain installed verified catalogs separately from live frames and wire real intent service/default/chooser/ready-target delivery rather than hard-coded running candidates.
   3. The live feed invokes `napplet:profile/open?pubkey=...`; the profile target advertises stable metadata and receives one buffered `IntentDelivery` with normalized payload and attested feed dTag after readiness, including cold start/source teardown, with no visible INC envelope.
   4. Playground profile consumers load remote profile media through NAP-RESOURCE into revocable safe object URLs and clean them up rather than assigning remote URLs directly to image elements.
   5. Paja and playground both deliver the current theme to required napplets and bridge one host theme update as one synchronized changed theme with matching stored service state.
 
-**Plans:** TBD
+**Plans:** 0/12 plans complete
+
+**Wave 1**
+
+- [ ] 105-01-PLAN.md — Align published Kehto package ranges, JSR maps, and the first materialized lock checkpoint.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 105-02-PLAN.md — Pin the playground host and bounded application group A to the exact released Napplet line.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 105-03-PLAN.md — Pin application group B and browser fixtures to the exact released Napplet line.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 105-04-PLAN.md — Prove final package/lock lineage and preserve the host-owned NAP-SHELL prelude.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 105-05-PLAN.md — Delete the local intent mirror and consume canonical released intent values.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 105-06-PLAN.md — Replace Paja's development simulator with a verified installed catalog and retained controller.
+- [ ] 105-08-PLAN.md — Build playground's verified installed catalog and retained target controller.
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 105-07-PLAN.md — Wire Paja cold-start delivery, source-bound readiness, teardown, and live theme behavior.
+- [ ] 105-09-PLAN.md — Ship the feed-to-profile intent, safe resource media, migrated browser proofs, and live theme flow.
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 105-10-PLAN.md — Guard every active package, shell, catalog, intent, resource, and theme boundary.
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 105-11-PLAN.md — Synchronize active package/policy docs and add the seven-package release changeset.
+- [ ] 105-12-PLAN.md — Document the complete live Paja and playground host lifecycle.
+
 **UI hint:** yes
 
 ### Phase 106: Active-Surface Conformance and Release
@@ -292,7 +333,7 @@ users rely on.
 | 102. NAP-INC Event and Channel Parity | v1.29 | 14/14 | Complete    | 2026-07-26 |
 | 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete    | 2026-07-23 |
 | 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 6/6 | Complete    | 2026-07-26 |
-| 105. Published Convention Adoption and Host Flows | v1.29 | 0/TBD | Waiting on upstream package publication | - |
+| 105. Published Convention Adoption and Host Flows | v1.29 | 0/12 | Planned | - |
 | 106. Active-Surface Conformance and Release | v1.29 | 0/TBD | Not started | - |
 
 ---
@@ -627,4 +668,4 @@ Phases execute in numeric order: 80 → 81 → 82
 
 ---
 
-*ROADMAP.md last updated: 2026-07-23 - v1.29 Napplet Convention and Runtime Conformance roadmap created (Phases 101-106); Phases 101-103 are independent Kehto work and Phase 104 awaits convention-capable Napplet package publication.*
+*ROADMAP.md last updated: 2026-07-27 - Phase 105 planned against the released convention-capable Napplet package line.*

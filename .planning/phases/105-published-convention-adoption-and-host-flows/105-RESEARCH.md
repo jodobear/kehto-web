@@ -138,6 +138,14 @@ host theme selection -> ThemeService state -> eligible ShellBridge push -> requi
 
 [CITED: `naps@a718915.../NAP-IDENTITY.md`; published core 0.29.0 declaration] For each accepted `http`/`https` profile picture/banner, call `await resource.bytes(url)`, then `URL.createObjectURL(blob)` and assign only that blob URL to the image. Keep one active URL per image; revoke before replacement, on image error, when clearing profile, and on `pagehide`. Do not use a direct remote `src`; do not rely on the current asynchronous `bytesAsObjectURL()` handle for immediate rendering. Expand the host resource origin policy only for deterministic test origins and preserve resource service scheme/origin/size/MIME controls.
 
+**Specification gap (rechecked 2026-07-27):** `napplet/naps` master
+`5ac0490461ca6fec2f0d2e45b4835cf9bc08de24` contains no standalone
+`NAP-RESOURCE.md`. NAP-IDENTITY at that exact ref nevertheless mandates
+`window.napplet.resource.bytes(url)` for profile picture/banner bytes. Phase 105
+therefore follows that explicit delegation plus the published
+`@napplet/core`/`@napplet/nap` 0.29.0 resource contract and Kehto's existing
+resource policy; it does not infer any additional missing wire semantics.
+
 ### Pattern 5: Keep the Phase 103 theme route intact
 
 [VERIFIED: Phase 103 verification; `packages/services/src/theme-service.ts`] Do not add a new theme subscription or raw iframe loop. Paja's `setThemeMode()` and playground preferences continue to call `ThemeService.publishTheme()`, which updates stored state then calls the one bridge fan-out. Test a required-theme frame loaded after the host value is selected (`theme.get` sees it), plus exactly one matching `theme.changed` after an update.
