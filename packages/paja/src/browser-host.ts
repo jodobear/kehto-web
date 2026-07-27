@@ -14,7 +14,7 @@ import {
   type PajaConfirmationRequest,
 } from './browser-adapter.js';
 import { BrowserIntentController } from './browser-intent-controller.js';
-import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
+import { InstalledNappletCatalog, matchesInstalledNappletRecord } from './installed-napplet-catalog.js';
 import { createPajaThemeBroadcastLink } from './theme-broadcast.js';
 import {
   createPajaSignerController,
@@ -329,8 +329,18 @@ function createPajaIntentTargetOptions(
       const record = context.runtime.catalog.installed().find((entry) => entry.dTag === params.handler);
       if (!record || !recordSupportsDelivery(record, params)) return null;
 
+      // A catalog replacement may retain the d-tag while replacing the verified
+      // aggregate. Remove stale tabs before choosing any live delivery target.
+      for (const stale of [...state.tabs]) {
+        if (
+          stale.resolvedTarget.dTag === params.handler
+          && !matchesInstalledNappletRecord(record, stale.resolvedTarget)
+        ) closeRuntimeTab(state, context, stale.id);
+      }
+
       const current = state.tabs.find((tab) =>
-        tab.resolvedTarget.dTag === params.handler && isCurrentRuntimeTabGeneration(state, context, tab),
+        matchesInstalledNappletRecord(record, tab.resolvedTarget)
+        && isCurrentRuntimeTabGeneration(state, context, tab),
       );
       if (current && params.behavior?.reuse !== false) {
         return { id: runtimeTabGenerationId(current) };

@@ -38,6 +38,14 @@ export interface InstalledNappletRecord {
   }[];
 }
 
+/** Return whether a live host identity is exactly the installed verified artifact. */
+export function matchesInstalledNappletRecord(
+  record: Pick<InstalledNappletRecord, 'dTag' | 'aggregateHash'>,
+  target: { readonly dTag?: string; readonly aggregateHash?: string },
+): boolean {
+  return target.dTag === record.dTag && target.aggregateHash === record.aggregateHash;
+}
+
 /** Listener invoked when installed availability changes for an archetype. */
 export type InstalledNappletCatalogListener = (archetype: string) => void;
 

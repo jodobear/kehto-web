@@ -30,6 +30,14 @@ export interface InstalledNappletRecord {
   }[];
 }
 
+/** Return whether a live runtime target is exactly the installed verified artifact. */
+export function matchesInstalledNappletRecord(
+  record: Pick<InstalledNappletRecord, 'dTag' | 'aggregateHash'>,
+  target: Pick<InstalledNappletRecord, 'dTag' | 'aggregateHash'>,
+): boolean {
+  return target.dTag === record.dTag && target.aggregateHash === record.aggregateHash;
+}
+
 /** Listener notified when an installed artifact is inserted or removed. */
 export type InstalledNappletCatalogListener = (dTag: string) => void;
 

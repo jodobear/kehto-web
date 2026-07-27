@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createThemeService } from '@kehto/services';
 
+import { matchesInstalledNappletRecord } from './installed-napplet-catalog.js';
 import { createPajaThemeBroadcastLink } from './theme-broadcast.js';
 
 describe('@kehto/paja browser host runtime source guards', () => {
@@ -190,10 +191,20 @@ describe('@kehto/paja browser host runtime source guards', () => {
     const messageHandler = source.slice(source.indexOf("window.addEventListener('message'"), source.indexOf("frame?.addEventListener('error'"));
 
     expect(source).toContain("import { BrowserIntentController } from './browser-intent-controller.js';");
-    expect(source).toContain("import { InstalledNappletCatalog } from './installed-napplet-catalog.js';");
+    expect(source).toContain("from './installed-napplet-catalog.js';");
     expect(pointerLoad).toContain('runtime.catalog.install(resolvedTarget);');
     expect(source).toContain('createPajaIntentTargetOptions');
     expect(messageHandler).toContain('markRuntimeTabReady');
     expect(messageHandler).toContain('originRegistry.getWindowId(source)');
+  });
+
+  it('does not reuse a same-dTag tab after its installed aggregate is replaced', () => {
+    const installed = { dTag: 'profile-viewer', aggregateHash: 'verified-new' };
+    const staleLiveTab = { dTag: 'profile-viewer', aggregateHash: 'verified-old' };
+    const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+
+    expect(matchesInstalledNappletRecord(installed, staleLiveTab)).toBe(false);
+    expect(source).toContain('closeRuntimeTab(state, context, stale.id)');
+    expect(source).toContain('matchesInstalledNappletRecord(record, tab.resolvedTarget)');
   });
 });

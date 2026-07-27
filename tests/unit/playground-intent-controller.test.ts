@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 import type { IntentRetentionParams } from '@kehto/services';
 import { createCatalogIntentResolver } from '@kehto/services';
 import { PlaygroundIntentController } from '../../apps/playground/src/playground-intent-controller.js';
-import { InstalledNappletCatalog } from '../../apps/playground/src/installed-napplet-catalog.js';
+import {
+  InstalledNappletCatalog,
+  matchesInstalledNappletRecord,
+} from '../../apps/playground/src/installed-napplet-catalog.js';
 
 const delivery = {
   sender: 'social-feed',
@@ -133,5 +136,15 @@ describe('PlaygroundIntentController', () => {
     expect(shellHost).toContain('markIntentTargetReady(windowId, sourceWindow)');
     expect(shellHost).toContain("type: 'intent.deliver'");
     expect(shellHost).not.toContain("type: 'inc.emit'");
+  });
+
+  it('does not reuse a same-dTag frame after its installed aggregate is replaced', () => {
+    const installed = { dTag: 'profile-viewer', aggregateHash: 'verified-new' };
+    const staleLiveFrame = { dTag: 'profile-viewer', aggregateHash: 'verified-old' };
+    const shellHost = readFileSync(new URL('../../apps/playground/src/shell-host.ts', import.meta.url), 'utf8');
+
+    expect(matchesInstalledNappletRecord(installed, staleLiveFrame)).toBe(false);
+    expect(shellHost).toContain('closeNapplet(stale.windowId)');
+    expect(shellHost).toContain('find((info) => matchesInstalledNappletRecord(record, info))');
   });
 });

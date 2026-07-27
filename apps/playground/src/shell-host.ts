@@ -25,7 +25,7 @@ import {
   PLAYGROUND_MANIFEST_AUTHOR,
 } from './napplet-resolver.js';
 import type { PlaygroundNapplet } from './napplet-resolver.js';
-import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
+import { InstalledNappletCatalog, matchesInstalledNappletRecord } from './installed-napplet-catalog.js';
 import type {
   PlaygroundIntentControllerOptions,
   PlaygroundIntentGeneration,
@@ -277,9 +277,23 @@ async function openOrReuseIntentTarget(
   const record = installedNapplets.get(params.handler);
   if (!record || !recordSupportsDelivery(record, params)) return null;
   const current = intentGenerations.get(params.handler);
-  if (current && isCurrentIntentGeneration(current)) return current;
+  const currentInfo = current ? napplets.get(current.windowId) : undefined;
+  if (
+    current
+    && currentInfo
+    && matchesInstalledNappletRecord(record, currentInfo)
+    && isCurrentIntentGeneration(current)
+  ) return current;
 
-  const live = [...napplets.values()].find((info) => info.dTag === params.handler);
+  // A catalog replacement may retain the same d-tag while changing verified bytes.
+  // Never retain a stale artifact as an intent target after that replacement.
+  for (const stale of [...napplets.values()]) {
+    if (stale.dTag === params.handler && !matchesInstalledNappletRecord(record, stale)) {
+      closeNapplet(stale.windowId);
+    }
+  }
+
+  const live = [...napplets.values()].find((info) => matchesInstalledNappletRecord(record, info));
   if (live) return replaceIntentGeneration(live);
 
   const info = await loadNapplet(record.restart.name, record.restart.containerId);
