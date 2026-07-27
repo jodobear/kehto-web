@@ -77,6 +77,7 @@ status: complete
 - Bound readiness and target delivery to the registered `MessageEvent.source`, current window ID, and tab generation; replacement rejects pending readiness before session, origin, and frame teardown.
 - Added deterministic local Relay/Blossom browser coverage for accepted source teardown, cold target resolution, exactly-once delivery, no INC carrier, and forged sibling exclusion.
 - Corrected the independent single-frame reload defect: the firewall's startup burst counter now uses the runtime's host-attested `windowId` lifecycle key, so the canonical reloaded shim can subscribe and receive one current-source `inc.event`; unregistered stale sources remain ignored.
+- Normalized the optional origin-registry lookup to the existing unregistered `null` state before generation readiness validation, preserving rejection of missing, stale, and forged sources while satisfying the Paja TypeScript gate.
 
 ## NAP Authority
 
@@ -92,11 +93,13 @@ status: complete
 3. **Task 2: Prove deterministic cold delivery** — `cbd75d5` (test)
 4. **Regression RED: Cover replacement lifecycle burst isolation** — `2675934` (test)
 5. **Regression GREEN: Scope init bursts to registered realms** — `48422ac` (fix)
+6. **Wave 7 gate: Normalize missing origin IDs** — `bf6e71e` (fix)
 
 ## Verification
 
 - `pnpm exec vitest run packages/paja/src/browser-host.test.ts packages/paja/src/browser-runtime-tabs.test.ts packages/paja/src/browser-intent-controller.test.ts` — passed (20 tests).
 - `pnpm exec vitest run packages/firewall/src/evaluate.test.ts packages/runtime/src/firewall-dispatch.test.ts` — passed (59 tests).
+- `pnpm --filter @kehto/paja type-check` — passed.
 - `pnpm --filter @kehto/firewall build && pnpm --filter @kehto/runtime build && pnpm --filter @kehto/paja build` — passed; existing `@kehto/nip` tsup side-effects warning remains non-fatal.
 - `pnpm exec playwright test tests/e2e/paja-runtime-pointer.spec.ts tests/e2e/paja-single-window.spec.ts --workers=1` — passed (8 tests; 1 opt-in live pointer test skipped).
 - `pnpm test:unit` — passed (123 files, 1529 tests).
@@ -113,6 +116,13 @@ status: complete
 - **Files modified:** `packages/firewall/src/evaluate.ts`, `packages/firewall/src/types.ts`, `packages/runtime/src/runtime.ts`, `packages/runtime/src/firewall-dispatch.test.ts`.
 - **Commits:** `2675934`, `48422ac`.
 
+**2. [Rule 1 - Type safety] Normalized absent origin registry lookups**
+- **Found during:** Wave 7 `pnpm type-check` gate.
+- **Issue:** `originRegistry.getWindowId(source)` returns `undefined` for an unregistered source, while the trusted readiness helper accepts the host's established `string | null` representation.
+- **Fix:** Coalesced only `undefined` to `null` before existing source, registration, and generation checks; no unregistered source can become ready.
+- **Files modified:** `packages/paja/src/browser-host.ts`, `packages/paja/src/browser-host.test.ts`.
+- **Commit:** `bf6e71e`.
+
 ## Broken Windows Resolved
 
 - Ledger items **#23** and duplicate **#25** are marked fixed after the combined pointer and single-window Playwright suite passed.
@@ -120,5 +130,5 @@ status: complete
 ## Self-Check: PASSED
 
 - All modified runtime, firewall, Paja, and browser-test files exist.
-- Commits `f76bdfc`, `e51d7c5`, `cbd75d5`, `2675934`, and `48422ac` exist and contain the required Codex co-author trailer.
+- Commits `f76bdfc`, `e51d7c5`, `cbd75d5`, `2675934`, `48422ac`, and `bf6e71e` exist and contain the required Codex co-author trailer.
 - No known stubs were introduced.
