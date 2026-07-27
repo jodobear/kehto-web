@@ -5,15 +5,15 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
-stopped_at: Phase 105 planned and verified; ready for 105-01-PLAN.md
-last_updated: "2026-07-27T08:39:42.203Z"
+stopped_at: Completed 105-01-PLAN.md
+last_updated: "2026-07-27T08:47:20.312Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 44
-  completed_plans: 32
+  completed_plans: 33
   percent: 67
 ---
 
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 105 (published-convention-adoption-and-host-flows) — EXECUTING
-Plan: 1 of 12
-Status: Executing Phase 105
+Plan: 2 of 12
+Status: Ready to execute
 
 Last activity: 2026-07-27 — Phase 105 execution started
 
@@ -88,6 +88,7 @@ Last activity: 2026-07-27 — Phase 105 execution started
 | Phase 104 P04 | 14 min | 3 tasks | 11 files |
 | Phase 104 P05 | 13 min | 3 tasks | 10 files |
 | Phase 104 P06 | 3 min | 1 tasks | 2 files |
+| Phase 105 P01 | 6m | 1 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -203,8 +204,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-26T15:23:47.075Z
-Stopped at: Completed 104-06-PLAN.md; ready for re-verification
+Last session: 2026-07-27T08:47:20.301Z
+Stopped at: Completed 105-01-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -280,3 +281,5 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: Pinned NAP-IDENTITY, NAP-THEME, and web projection authority to napplet/naps@896c32c92deee68dc4d10fc1132b62df20cccb6f.
 - [Phase ?]: Kehto denied/unavailable theme reads use one complete fixed normal result without error as an explicit upstream-spec-gap reconciliation.
 - [Phase ?]: The unrelated Phase 102 Paja INC-after-reload failure remains out of scope; no protocol workaround was added.
+- [Phase ?]: Published Kehto core/nap peer declarations are bounded to >=0.29.0 <0.30.0; JSR maps retain ^0.29.0 release-line mappings.
+- [Phase ?]: @napplet/shim 0.27.0 remains development-only and non-shell; Kehto retains its host-owned mandatory NAP-SHELL prelude.
