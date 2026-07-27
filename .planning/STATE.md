@@ -5,15 +5,15 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
-stopped_at: Completed 105-07-PLAN.md after repairing Paja reload INC delivery
-last_updated: "2026-07-27T10:26:44.659Z"
+stopped_at: Completed 105-09-PLAN.md
+last_updated: "2026-07-27T10:45:51.736Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 44
-  completed_plans: 40
+  completed_plans: 41
   percent: 67
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 105 (published-convention-adoption-and-host-flows) — EXECUTING
-Plan: 9 of 12
+Plan: 10 of 12
 Status: Ready to execute
 
 Last activity: 2026-07-27 — Phase 105 execution started
@@ -96,6 +96,7 @@ Last activity: 2026-07-27 — Phase 105 execution started
 | Phase 105 P06 | 11min | 2 tasks | 7 files |
 | Phase 105 P08 | 20m | 2 tasks | 12 files |
 | Phase 105 P07 | 24m | 2 tasks | 5 files |
+| Phase 105-published-convention-adoption-and-host-flows P09 | 13m | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -211,8 +212,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T10:26:44.647Z
-Stopped at: Completed 105-07-PLAN.md after repairing Paja reload INC delivery
+Last session: 2026-07-27T10:45:51.724Z
+Stopped at: Completed 105-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -302,3 +303,5 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: Paja installs only resolver-verified manifests; source-bound readiness uses registered MessageEvent.source plus tab generation.
 - [Phase ?]: Paja retains ThemeService as the only state-before-one-push theme route.
 - [Phase ?]: Scope firewall init-burst accounting to host-attested iframe lifecycles while retaining dTag-wide rate limits.
+- [Phase ?]: Playground profile intents advertise the live intent service through the stable adapter and reuse only origin-registered, session-bound ready targets.
+- [Phase ?]: Profile picture and banner media use resourceBytes plus revocable Blob URLs; no standalone NAP-RESOURCE wire semantics were inferred.
