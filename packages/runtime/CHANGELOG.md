@@ -1,5 +1,39 @@
 # @kehto/runtime
 
+## 0.19.0
+
+### Minor Changes
+
+- 7712950: Align runtime INC routing with draft NAP-INC PR #89 (`4593ce9e301ce098fd3dad64206fcd6f144fa7af`) and symmetric-channel PR #92 (`c5cd06f7be6d4690b303949abb26e87ff62f4729`): attest sender dTags, enforce opaque event and channel lifecycle semantics, authorize channel creation at open, and retire generic-service interception of `inc.emit`.
+- a1fa730: Align identity and theme dispatch with NAP-IDENTITY/NAP-THEME and web projection draft `896c32c92deee68dc4d10fc1132b62df20cccb6f`: supported reads now use canonical matching results, unknown actions stay silent, and denied or unavailable theme reads use Kehto's fixed complete non-sensitive normal result without an error field.
+- d8a57e2: Raise the published Napplet compatibility floor to core/nap 0.29.0. This is a
+  breaking 0.x change: all affected packages now require the verified
+  `>=0.29.0 <0.30.0` peer line. Services publish canonical intent ownership and
+  retained acceptance-before-delivery behavior; Paja publishes the corresponding
+  host flow. Shell is included because its published peer manifest changed while
+  Kehto retains the host-owned mandatory NAP-SHELL prelude for the released
+  core/shim omission; this changeset does not publish packages locally.
+  Runtime and services also complete the NAP-RELAY publish boundary: the shell
+  signs event templates, relay backends receive the signed event, and successful
+  results return the full event through canonical `ok` / `event` / `eventId`
+  fields. Async relay settlement now precedes success, rejected publishes never
+  enter host caches, and failed pending replay reservations are released for
+  deterministic retry while concurrent duplicates remain blocked. Paja likewise
+  retains and fans out an event only after user authorization and, in live mode,
+  at least one relay acknowledgement; its scoped-relay hook also preserves the
+  asynchronous result and reports denial or transport failure as false.
+  Shell keeps the merged NAP-INC `IncEvent` callback contract; package-based demo
+  consumers bridge the released 0.29.0 `(payload, NostrEvent)` projection as
+  documented upstream drift.
+
+### Patch Changes
+
+- Updated dependencies [7712950]
+- Updated dependencies [a1fa730]
+- Updated dependencies [d8a57e2]
+  - @kehto/acl@0.16.0
+  - @kehto/firewall@0.4.0
+
 ## 0.18.5
 
 ### Patch Changes
