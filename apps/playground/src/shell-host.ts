@@ -306,6 +306,15 @@ function replaceIntentGeneration(info: NappletInfo): IntentGenerationState | nul
     rejectReady,
   };
   intentGenerations.set(info.dTag, generation);
+  const source = info.iframe.contentWindow;
+  if (
+    source
+    && originRegistry.getWindowId(source) === info.windowId
+    && relay.runtime.sessionRegistry.getEntryByWindowId(info.windowId)
+  ) {
+    generation.source = source;
+    generation.resolveReady();
+  }
   return generation;
 }
 
@@ -589,7 +598,12 @@ export function bootShell(
     onThemeBroadcast: (envelope) => relay.publishTheme(envelope.theme),
   }, initialTheme);
   if (intentService) {
-    hooks.services = { ...hooks.services, intent: intentService };
+    // Keep the adapter object stable: each frame resolves its frozen shell
+    // environment from this instance before srcdoc injection. Replacing the
+    // services map here would register the handler but leave `intent` absent
+    // from the advertised capability snapshot.
+    hooks.services.intent = intentService;
+    hooks.intent = { isAvailable: () => true };
   }
   tap = createInstalledMessageTap();
   installOriginRegistryProxy(tap);

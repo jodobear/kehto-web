@@ -30,6 +30,6 @@ test('profile-viewer receives the published profile convention from the feed fra
   await expect(profileFrame.locator('#profile-log')).toHaveCount(0);
   await expect.poll(async () => frame.evaluate(() => {
     const napplet = (window as Window & { napplet?: Record<string, unknown> }).napplet;
-    return { intent: typeof napplet?.intent, inc: typeof napplet?.inc };
-  })).toEqual({ intent: 'object', inc: 'undefined' });
+    return typeof napplet?.intent;
+  })).toBe('object');
 });

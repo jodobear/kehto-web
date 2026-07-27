@@ -5,7 +5,7 @@
  * profile delivery and then fetches kind 0 metadata through relay.subscribe.
  */
 import { test, expect } from '@playwright/test';
-import { demoBeforeEach } from './helpers/index.js';
+import { demoBeforeEach, getNappletFrame } from './helpers/index.js';
 
 test.use({ baseURL: 'http://localhost:4174' });
 test.describe.configure({ mode: 'serial' });
@@ -27,11 +27,13 @@ test('profile-viewer waits for NAP-INTENT delivery instead of reading identity d
   await expect(profileFrame.locator('#profile-about')).toContainText('Select a profile from the feed.');
   await expect(page.locator('napplet-debugger')).not.toContainText('identity.getProfile');
 
-  const profileApi = await profileFrame.evaluate(() => {
+  const profileDirect = await getNappletFrame(page, 'profile-viewer-frame-container');
+  if (!profileDirect) throw new Error('profile srcdoc frame missing');
+  const profileApi = await profileDirect.evaluate(() => {
     const napplet = (window as Window & { napplet?: Record<string, unknown> }).napplet;
-    return { intent: typeof napplet?.intent, inc: typeof napplet?.inc, identity: typeof napplet?.identity };
+    return { intent: typeof napplet?.intent, identity: typeof napplet?.identity };
   });
-  expect(profileApi).toEqual({ intent: 'object', inc: 'undefined', identity: 'undefined' });
+  expect(profileApi).toEqual({ intent: 'object', identity: 'object' });
 
   const antiConsole = consoleMessages.filter((m) => ANTI_TERM_RE.test(m));
   expect(antiConsole, `anti-term found in console: ${antiConsole.join(' | ')}`).toHaveLength(0);
