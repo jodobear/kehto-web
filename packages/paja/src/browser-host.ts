@@ -355,7 +355,7 @@ export function createPajaIntentTargetOptions(
         || !resolvedSupportsDelivery(resolved, params)
       ) return null;
 
-      const currentRecord = context.runtime.catalog.useIfCurrent(record, resolved);
+      const currentRecord = context.runtime.catalog.validateCurrent(record, resolved);
       if (!currentRecord) return null;
       const tab = addRuntimeTab(state, context, currentRecord.pointer.value, resolved);
       persistRuntimeTabs(state);
@@ -463,7 +463,7 @@ function isCurrentPajaIntentGeneration(
 ): boolean {
   const record = context.runtime.intentRecords.get(generation);
   return record !== undefined
-    && context.runtime.catalog.useIfCurrent(record, tab.resolvedTarget) !== null
+    && context.runtime.catalog.validateCurrent(record, tab.resolvedTarget) !== null
     && isCurrentRuntimeTabGeneration(state, context, tab);
 }
 

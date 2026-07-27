@@ -126,7 +126,7 @@ describe('InstalledNappletCatalog', () => {
         attempts += 1;
         if (attempts !== 1) return null;
         const resolved = await resolution;
-        return catalog.useIfCurrent(selected, resolved) ? { id: 'aggregate-a' } : null;
+        return catalog.validateCurrent(selected, resolved) ? { id: 'aggregate-a' } : null;
       },
       waitForReady: () => undefined,
       isCurrent: () => true,

@@ -201,7 +201,7 @@ describe('PlaygroundIntentController', () => {
         attempts += 1;
         if (attempts !== 1) return null;
         const resolved = await resolution;
-        return catalog.useIfCurrent(selected, resolved) ? { id: 'aggregate-a' } : null;
+        return catalog.validateCurrent(selected, resolved) ? { id: 'aggregate-a' } : null;
       },
       waitForReady: () => undefined,
       isCurrent: () => true,
@@ -223,7 +223,7 @@ describe('PlaygroundIntentController', () => {
 
     const shellHost = readFileSync(new URL('../../apps/playground/src/shell-host.ts', import.meta.url), 'utf8');
     expect(shellHost).toContain('installInCatalog: false');
-    expect(shellHost).toContain('acceptResolved: (identity) => installedNapplets.useIfCurrent(record, identity) !== null');
+    expect(shellHost).toContain('acceptResolved: (identity) => installedNapplets.validateCurrent(record, identity) !== null');
   });
 
   it('rejects unready stale records and delivers only to live B after catalog replacement', async () => {

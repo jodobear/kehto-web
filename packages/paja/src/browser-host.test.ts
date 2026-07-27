@@ -221,7 +221,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
     const coldLoad = source.slice(source.indexOf('async openOrReuse(params)'), source.indexOf('waitForReady(generation)'));
 
-    expect(coldLoad).toContain('context.runtime.catalog.useIfCurrent(record, resolved)');
+    expect(coldLoad).toContain('context.runtime.catalog.validateCurrent(record, resolved)');
     expect(coldLoad).not.toContain('context.runtime.catalog.install(resolved)');
   });
 

@@ -100,7 +100,7 @@ export class InstalledNappletCatalog {
    * selected before an async operation. The record object is the catalog version
    * token, so even a same-identity replacement cannot pass this check.
    */
-  useIfCurrent(
+  validateCurrent(
     selected: InstalledNappletRecord,
     target: Pick<InstalledNappletRecord, 'dTag' | 'aggregateHash'>,
   ): InstalledNappletRecord | null {

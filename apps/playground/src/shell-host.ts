@@ -314,12 +314,12 @@ async function openOrReuseIntentTarget(
   try {
     info = await loadNapplet(record.restart.name, record.restart.containerId, {
       installInCatalog: false,
-      acceptResolved: (identity) => installedNapplets.useIfCurrent(record, identity) !== null,
+      acceptResolved: (identity) => installedNapplets.validateCurrent(record, identity) !== null,
     });
   } catch {
     return null;
   }
-  const currentRecord = installedNapplets.useIfCurrent(record, info);
+  const currentRecord = installedNapplets.validateCurrent(record, info);
   if (!currentRecord || !recordSupportsDelivery(currentRecord, params)) {
     closeNapplet(info.windowId);
     return null;
@@ -375,7 +375,7 @@ function isCurrentIntentGeneration(generation: IntentGenerationState): boolean {
   const info = napplets.get(generation.windowId);
   return intentGenerations.get(generation.dTag)?.id === generation.id
     && info?.dTag === generation.dTag
-    && installedNapplets.useIfCurrent(generation.selectedRecord, info) !== null
+    && installedNapplets.validateCurrent(generation.selectedRecord, info) !== null
     && info.iframe.contentWindow === (generation.source ?? info.iframe.contentWindow);
 }
 
