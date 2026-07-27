@@ -126,3 +126,34 @@ test('clicking host dark button stores then pushes one complete theme through th
   const antiErrors = pageErrors.filter((m) => ANTI_TERM_RE.test(m));
   expect(antiErrors, `anti-term found in page errors: ${antiErrors.join(' | ')}`).toHaveLength(0);
 });
+
+test('a required-theme profile reads current state and receives one matching change', async ({ page }) => {
+  test.setTimeout(120_000);
+  await demoBeforeEach(page);
+
+  const profileFrame = await getNappletFrame(page, 'profile-viewer-frame-container');
+  if (!profileFrame) throw new Error('profile frame not found');
+  const initial = await profileFrame.evaluate(async () => {
+    const theme = (window as Window & {
+      napplet?: { theme?: { get(): Promise<unknown>; onChanged(handler: (value: unknown) => void): { close(): void } } };
+      __profileThemeChanges?: unknown[];
+    });
+    theme.__profileThemeChanges = [];
+    theme.napplet?.theme?.onChanged((value) => theme.__profileThemeChanges?.push(value));
+    return theme.napplet?.theme?.get();
+  });
+  expect(initial).toEqual(expect.objectContaining({ colors: expect.any(Object) }));
+
+  await page.locator('#theme-dark-btn').click();
+  const changedAndCurrent = await expect.poll(async () => profileFrame.evaluate(async () => {
+    const target = window as Window & {
+      napplet?: { theme?: { get(): Promise<unknown> } };
+      __profileThemeChanges?: unknown[];
+    };
+    return { changes: target.__profileThemeChanges ?? [], current: await target.napplet?.theme?.get() };
+  }), { timeout: 15_000 }).toMatchObject({
+    changes: [{ title: 'Dark', colors: { background: DARK_BG_HEX } }],
+    current: { title: 'Dark', colors: { background: DARK_BG_HEX } },
+  });
+  void changedAndCurrent;
+});

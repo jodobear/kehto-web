@@ -1,47 +1,35 @@
 import { test, expect } from '@playwright/test';
-import { demoBeforeEach } from './helpers/index.js';
+import { demoBeforeEach, getNappletFrame } from './helpers/index.js';
 
 test.use({ baseURL: 'http://localhost:4174' });
 test.describe.configure({ mode: 'serial' });
 
 const PROFILE_PUBKEY = 'a'.repeat(64);
 
-test('profile-viewer opens a NAP-01 profile request emitted from the feed frame', async ({ page }) => {
-  test.setTimeout(60_000);
+test('profile-viewer receives the published profile convention from the feed frame', async ({ page }) => {
+  test.setTimeout(120_000);
 
   await demoBeforeEach(page);
 
   const profileFrame = page.frameLocator('#profile-viewer-frame-container iframe');
   await expect(profileFrame.locator('#profile-status')).toContainText('waiting', { timeout: 10_000 });
 
-  // srcdoc iframes have an opaque origin (about:srcdoc) — resolve the feed frame
-  // by its container element, not by URL.
-  await expect.poll(async () => {
-    const handle = await page.locator('#feed-frame-container iframe').elementHandle();
-    const frame = handle ? await handle.contentFrame() : null;
-    if (!frame) return false;
-    return frame.evaluate(() => {
-      const maybeWindow = window as Window & {
-        napplet?: { inc?: { emit?: unknown } };
-      };
-      return typeof maybeWindow.napplet?.inc?.emit === 'function';
-    });
-  }, { timeout: 10_000 }).toBe(true);
-
-  const feedHandle = await page.locator('#feed-frame-container iframe').elementHandle();
-  const frame = feedHandle ? await feedHandle.contentFrame() : null;
-  expect(frame, 'feed srcdoc frame').not.toBeNull();
-  await frame!.evaluate((pubkey) => {
-    const maybeWindow = window as Window & {
-      napplet?: {
-        inc?: { emit?: (topic: string, extraTags?: string[][], content?: string) => void };
-      };
-    };
-    maybeWindow.napplet?.inc?.emit?.('profile:open', [], JSON.stringify({ pubkey }));
+  const frame = await getNappletFrame(page, 'feed-frame-container');
+  if (!frame) throw new Error('feed srcdoc frame missing');
+  const result = await frame.evaluate(async (pubkey) => {
+    const intent = (window as Window & {
+      napplet?: { intent?: { invoke(uri: string): Promise<unknown> } };
+    }).napplet?.intent;
+    if (!intent) throw new Error('published intent API unavailable');
+    return intent.invoke(`napplet:profile/open?pubkey=${encodeURIComponent(pubkey)}`);
   }, PROFILE_PUBKEY);
+  expect(result).toMatchObject({ ok: true, convention: 'napplet:profile/open' });
 
   await expect(profileFrame.locator('#profile-pubkey')).toContainText(PROFILE_PUBKEY, { timeout: 10_000 });
   await expect(profileFrame.locator('#profile-status')).toContainText(/^(loaded|not found)/, { timeout: 15_000 });
   await expect(profileFrame.locator('#profile-log')).toHaveCount(0);
-  await expect(page.locator('napplet-debugger')).toContainText('inc.emit', { timeout: 8_000 });
+  await expect.poll(async () => frame.evaluate(() => {
+    const napplet = (window as Window & { napplet?: Record<string, unknown> }).napplet;
+    return { intent: typeof napplet?.intent, inc: typeof napplet?.inc };
+  })).toEqual({ intent: 'object', inc: 'undefined' });
 });
