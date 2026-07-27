@@ -47,6 +47,9 @@ coverage:
       - kind: other
         ref: "git diff --check"
         status: pass
+      - kind: unit
+        ref: "pnpm test:unit"
+        status: pass
     human_judgment: false
   - id: D2
     description: "Shell development keeps the non-shell shim separate from Kehto's retained mandatory host-owned NAP-SHELL prelude."
@@ -72,7 +75,7 @@ status: complete
 - **Started:** 2026-07-27T08:39:42Z
 - **Completed:** 2026-07-27T08:46:04Z
 - **Tasks:** 1
-- **Files modified:** 14
+- **Files modified:** 15
 
 ## Accomplishments
 
@@ -83,6 +86,7 @@ status: complete
 ## Task Commits
 
 1. **Task 1: Align published Kehto declarations and generate lock checkpoint 1** - `6a502b9` (chore)
+2. **Post-wave Rule 1: Align stale SDK migration range guard** - `ed1506b` (fix)
 
 ## Files Created/Modified
 
@@ -97,11 +101,24 @@ status: complete
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] Updated stale public-package range assertions in the SDK migration guard**
+- **Found during:** Post-wave integration gate after Task 1
+- **Issue:** `tests/unit/sdk-migration-guard.test.ts` still required the retired `>=0.23.0 <=0.28.x` public core/nap range and described the 0.28 line, causing the full unit suite to reject this plan's intentional 0.29 package declarations.
+- **Fix:** Updated only the published-package-line test title and peer/development expectations to `>=0.29.0 <0.30.0`.
+- **Files modified:** `tests/unit/sdk-migration-guard.test.ts`
+- **Verification:** Focused guard passed; `pnpm test:unit` passed (115 files, 1,495 tests); `git diff --check` passed.
+- **Committed in:** `ed1506b` (separate Rule 1 fix commit)
+
+---
+
+**Total deviations:** 1 auto-fixed (Rule 1)
+**Impact on plan:** Necessary regression-guard maintenance only; no app or fixture pins, package declarations beyond Task 1, or later-plan guard work were changed.
 
 ## Issues Encountered
 
-`pnpm` reported existing unrelated peer-dependency warnings and ignored `esbuild` build scripts. The frozen install, generated lock checkpoint, and all six package type-checks still completed successfully; no dependency or configuration changes were made outside the plan.
+`pnpm` reported existing unrelated peer-dependency warnings and ignored `esbuild` build scripts. The frozen install, generated lock checkpoint, all six package type-checks, focused migration guard, and full unit suite still completed successfully; no dependency or configuration changes were made outside the plan.
 
 ## User Setup Required
 
@@ -113,7 +130,7 @@ Plans 02 through 04 can now make their strictly ordered app, fixture, and final 
 
 ## Self-Check
 
-PASSED - all 14 task artifacts and the summary exist, task commit `6a502b9` is present in git history, and `git diff --check` passes.
+PASSED - all 14 planned artifacts plus the Rule 1 guard update and summary exist; commits `6a502b9` and `ed1506b` are present in git history; focused and full unit checks plus `git diff --check` pass.
 
 ---
 *Phase: 105-published-convention-adoption-and-host-flows*
