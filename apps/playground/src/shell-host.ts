@@ -177,6 +177,8 @@ interface IntentGenerationState extends PlaygroundIntentGeneration {
 }
 const intentGenerations = new Map<string, IntentGenerationState>();
 let intentGenerationCounter = 0;
+let stopIntentCatalogChanges: (() => void) | undefined;
+let intentCatalogLifecycleBound = false;
 const demoServiceNames = new Set<string>(DEMO_TOPOLOGY_SERVICE_NAMES);
 let nappletCounter = 0;
 
@@ -380,6 +382,28 @@ function isCurrentIntentGeneration(generation: IntentGenerationState): boolean {
 function invalidatePlaygroundIntentGeneration(generation: IntentGenerationState): void {
   if (napplets.has(generation.windowId)) closeNapplet(generation.windowId);
   else clearPlaygroundIntentGeneration(generation.windowId);
+}
+
+/**
+ * Keep retained readiness waits live across verified catalog replacements.
+ * A catalog listener rejects stale waits immediately, allowing the controller
+ * to retry the newly installed target even when the old frame never becomes
+ * ready.
+ */
+function subscribePlaygroundIntentCatalogChanges(): void {
+  if (stopIntentCatalogChanges) return;
+  stopIntentCatalogChanges = installedNapplets.onChanged(() => {
+    for (const generation of [...intentGenerations.values()]) {
+      if (!isCurrentIntentGeneration(generation)) invalidatePlaygroundIntentGeneration(generation);
+    }
+  });
+  if (intentCatalogLifecycleBound) return;
+  intentCatalogLifecycleBound = true;
+  window.addEventListener('pagehide', () => {
+    stopIntentCatalogChanges?.();
+    stopIntentCatalogChanges = undefined;
+    intentCatalogLifecycleBound = false;
+  }, { once: true });
 }
 
 async function waitForPlaygroundIntentReady(generation: IntentGenerationState): Promise<void> {
@@ -689,6 +713,7 @@ export function bootShell(
   installOriginRegistryProxy(tap);
 
   relay = createShellBridge(hooks);
+  subscribePlaygroundIntentCatalogChanges();
   setDemoSessionRegistryRef(relay.runtime.sessionRegistry);
   populateServiceHandlerStore(hooks.services);
   wrapRuntimeServiceRegistration();

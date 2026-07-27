@@ -477,6 +477,28 @@ function invalidatePajaIntentGeneration(
   for (const waiter of waiters) waiter.reject(new Error('intent target catalog record was replaced'));
 }
 
+/**
+ * Reject retained readiness waits as soon as their selected catalog record is
+ * replaced or removed. Without this subscription, an unready stale frame can
+ * leave a retained delivery pending forever and prevent the controller from
+ * retrying the current installed record.
+ */
+export function subscribePajaIntentCatalogChanges(
+  state: PajaBrowserState,
+  context: PajaBrowserStateContext,
+): () => void {
+  return context.runtime.catalog.onChanged((dTag) => {
+    for (const [generation] of [...context.runtime.readyWaiters]) {
+      const record = context.runtime.intentRecords.get(generation);
+      if (!record || record.dTag !== dTag) continue;
+      const tab = findRuntimeTabGeneration(state, generation);
+      if (!tab || !isCurrentPajaIntentGeneration(generation, state, context, tab)) {
+        invalidatePajaIntentGeneration(generation, context.runtime);
+      }
+    }
+  });
+}
+
 function isCurrentRuntimeTabGeneration(
   state: PajaBrowserState,
   context: PajaBrowserStateContext,
@@ -916,6 +938,9 @@ async function installPajaHost(): Promise<void> {
   contextRef = context;
   const state = createPajaBrowserState(context);
   stateRef = state;
+
+  const stopIntentCatalogChanges = subscribePajaIntentCatalogChanges(state, context);
+  window.addEventListener('pagehide', stopIntentCatalogChanges, { once: true });
 
   window.__KEHTO_PAJA__ = state;
 

@@ -226,7 +226,7 @@ describe('PlaygroundIntentController', () => {
     expect(shellHost).toContain('acceptResolved: (identity) => installedNapplets.useIfCurrent(record, identity) !== null');
   });
 
-  it('rejects ready A and delivers only to live B after catalog replacement', async () => {
+  it('rejects unready stale records and delivers only to live B after catalog replacement', async () => {
     const priorWindow = globalThis.window;
     const addEventListener = vi.fn();
     Object.defineProperty(globalThis, 'window', {
@@ -260,20 +260,24 @@ describe('PlaygroundIntentController', () => {
       installProfile(catalog, dTag, 'aggregate-a');
       const controller = new PlaygroundIntentController({
         ...createPlaygroundIntentTargetOptions(),
-        maxAttempts: 2,
+        maxAttempts: 3,
       });
       const task = controller.retain(params()).start();
       await Promise.resolve();
 
+      // An equal reinstallation changes the record-reference token and must
+      // proactively reject A's readiness promise, even without shell.ready.
+      installProfile(catalog, dTag, 'aggregate-a');
+      for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
       const sourceB = makeLive('intent-b', 'aggregate-b');
       installProfile(catalog, dTag, 'aggregate-b');
-      markIntentTargetReady(sourceA.info.windowId, sourceA.source);
       for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
       markIntentTargetReady(sourceB.info.windowId, sourceB.source);
       await task;
 
       expect(catalog.get(dTag)).toMatchObject({ aggregateHash: 'aggregate-b' });
       expect((sourceA.source as unknown as { postMessage: ReturnType<typeof vi.fn> }).postMessage).not.toHaveBeenCalled();
+      expect((sourceB.source as unknown as { postMessage: ReturnType<typeof vi.fn> }).postMessage).toHaveBeenCalledTimes(1);
       expect((sourceB.source as unknown as { postMessage: ReturnType<typeof vi.fn> }).postMessage)
         .toHaveBeenCalledWith(expect.objectContaining({ type: 'intent.deliver' }), '*', undefined);
     } finally {

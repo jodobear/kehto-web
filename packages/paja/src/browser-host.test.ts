@@ -4,7 +4,11 @@ import { createThemeService } from '@kehto/services';
 import { originRegistry } from '@kehto/shell';
 
 import { BrowserIntentController } from './browser-intent-controller.js';
-import { createPajaIntentTargetOptions, markRuntimeTabReady } from './browser-host.js';
+import {
+  createPajaIntentTargetOptions,
+  markRuntimeTabReady,
+  subscribePajaIntentCatalogChanges,
+} from './browser-host.js';
 import { matchesInstalledNappletRecord } from './installed-napplet-catalog.js';
 import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
 import type { PajaResolvedPointer } from './runtime-resolver.js';
@@ -221,7 +225,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(coldLoad).not.toContain('context.runtime.catalog.install(resolved)');
   });
 
-  it('rejects ready A and delivers only to live B after catalog replacement', async () => {
+  it('rejects unready stale records and delivers only to live B after catalog replacement', async () => {
     const priorDocument = globalThis.document;
     const priorHTMLElement = globalThis.HTMLElement;
     Object.defineProperty(globalThis, 'document', { configurable: true, value: { getElementById: () => null } });
@@ -245,22 +249,28 @@ describe('@kehto/paja browser host runtime source guards', () => {
     const state = { tabs: [tabA.tab], activeTabId: 'tab-b', messageLog: [] } as unknown as import('./browser-host.js').PajaBrowserState;
     const runtime = { catalog, readyWindowIds: new Set<string>(), readyWaiters: new Map(), intentRecords: new WeakMap(), currentWindowId: null };
     const context = { runtime, bridge: { runtime: { destroyWindow: vi.fn(), sessionRegistry: { unregister: vi.fn() } } }, onTabDestroyed: vi.fn(), setStatus: vi.fn(), setPointerStatus: vi.fn() } as unknown as import('./browser-host.js').PajaBrowserStateContext;
+    const stopCatalogChanges = subscribePajaIntentCatalogChanges(state, context);
     try {
       catalog.install(targetA);
-      const controller = new BrowserIntentController({ ...createPajaIntentTargetOptions(() => state, () => context), maxAttempts: 2 });
+      const controller = new BrowserIntentController({ ...createPajaIntentTargetOptions(() => state, () => context), maxAttempts: 3 });
       const task = controller.retain({ handler: 'profile-viewer', delivery: { sender: 'feed', archetype: 'profile', action: 'open', convention: 'napplet:profile/open', payload: {} } }).start();
       await Promise.resolve();
+      // Installing an equal record still replaces the object version token and
+      // must reject A's outstanding readiness wait.
+      catalog.install(targetA);
+      for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
       const tabB = makeTab('tab-b', targetB);
       state.tabs.push(tabB.tab as never);
       catalog.install(targetB);
-      markRuntimeTabReady(state, context, tabA.tab as never, tabA.source, 'tab-a');
       for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
       markRuntimeTabReady(state, context, tabB.tab as never, tabB.source, 'tab-b');
       await task;
       expect((tabA.source as unknown as { postMessage: ReturnType<typeof vi.fn> }).postMessage).not.toHaveBeenCalled();
+      expect((tabB.source as unknown as { postMessage: ReturnType<typeof vi.fn> }).postMessage).toHaveBeenCalledTimes(1);
       expect((tabB.source as unknown as { postMessage: ReturnType<typeof vi.fn> }).postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'intent.deliver' }), '*', undefined);
       expect(catalog.get('profile-viewer')).toMatchObject({ aggregateHash: 'aggregate-b' });
     } finally {
+      stopCatalogChanges();
       originRegistry.clear();
       Object.defineProperty(globalThis, 'document', { configurable: true, value: priorDocument });
       Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: priorHTMLElement });
