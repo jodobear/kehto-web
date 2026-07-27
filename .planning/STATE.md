@@ -5,8 +5,8 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
-stopped_at: Completed 105-07-PLAN.md
-last_updated: "2026-07-27T10:18:12.921Z"
+stopped_at: Completed 105-07-PLAN.md after repairing Paja reload INC delivery
+last_updated: "2026-07-27T10:26:44.659Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
@@ -211,8 +211,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T10:18:12.909Z
-Stopped at: Completed 105-07-PLAN.md
+Last session: 2026-07-27T10:26:44.647Z
+Stopped at: Completed 105-07-PLAN.md after repairing Paja reload INC delivery
 Resume file: None
 
 ## Operator Next Steps
@@ -301,3 +301,4 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: Playground intent delivery waits for the registered current shell.ready source and sends exactly once without INC.
 - [Phase ?]: Paja installs only resolver-verified manifests; source-bound readiness uses registered MessageEvent.source plus tab generation.
 - [Phase ?]: Paja retains ThemeService as the only state-before-one-push theme route.
+- [Phase ?]: Scope firewall init-burst accounting to host-attested iframe lifecycles while retaining dTag-wide rate limits.

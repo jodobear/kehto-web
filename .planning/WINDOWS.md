@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 20
+open_count: 18
 waived_count: 0
-fixed_count: 5
+fixed_count: 7
 total_count: 25
-last_updated: 2026-07-27T10:18:12.404Z
+last_updated: 2026-07-27T10:25:54.201Z
 ---
 
 # Broken Windows Ledger
@@ -37,9 +37,9 @@ last_updated: 2026-07-27T10:18:12.404Z
 | 20 | 102 | unmet-truth | tests/e2e/demo-audit-correctness.spec.ts | 8 | Full Playwright gate routes a hardcoded IPv4 demo URL to the unrelated Fipwave listener, so it cannot validate the Kehto playground preview. | fixed | Added an opt-in KEHTO_PLAYGROUND_BASE_URL and completed a clean full-suite run against an isolated IPv6 Kehto preview without touching the unrelated IPv4 listener. | 2026-07-23T19:19:45.255Z | 2026-07-23T19:38:51.000Z |
 | 21 | 102 | unmet-truth | tests/e2e |  | Full Playwright reached the correct Kehto preview but 7 legacy demo/fixture tests remain red until the concurrent napplet/web chase publishes and Kehto adopts the convention-capable package set in Phase 105. | open |  | 2026-07-23T19:38:51.000Z |  |
 | 22 | 103 | unrun-verify | package.json |  | AI-slop quality gate could not run because the aislop executable is unavailable in the workspace. | open |  | 2026-07-23T21:21:32.351Z |  |
-| 23 | 102 | unmet-truth | tests/e2e/paja-single-window.spec.ts | 488 | Combined Phase 103 browser run still times out delivering the post-reload Phase 102 INC event; identity/theme proofs pass and no Phase 102 workaround was added. | open |  | 2026-07-23T22:02:35.758Z |  |
+| 23 | 102 | unmet-truth | tests/e2e/paja-single-window.spec.ts | 488 | Combined Phase 103 browser run still times out delivering the post-reload Phase 102 INC event; identity/theme proofs pass and no Phase 102 workaround was added. | fixed |  | 2026-07-23T22:02:35.758Z | 2026-07-27T10:25:54.126Z |
 | 24 | 105 | deviation | apps/playground/src/acl-panel.ts |  | Playground TypeScript verification remains blocked by pre-existing capability-map and direct dependency-resolution errors. | fixed |  | 2026-07-27T09:54:38.327Z | 2026-07-27T10:01:33.694Z |
-| 25 | 105 | deviation | tests/e2e/paja-single-window.spec.ts |  | Canonical INC reload assertion fails after target replacement; deferred outside Plan 105-07 pointer lifecycle scope. | open |  | 2026-07-27T10:18:12.404Z |  |
+| 25 | 105 | deviation | tests/e2e/paja-single-window.spec.ts |  | Canonical INC reload assertion fails after target replacement; deferred outside Plan 105-07 pointer lifecycle scope. | fixed |  | 2026-07-27T10:18:12.404Z | 2026-07-27T10:25:54.201Z |
 
 ````json
 [
@@ -314,10 +314,10 @@ last_updated: 2026-07-27T10:18:12.404Z
     "file": "tests/e2e/paja-single-window.spec.ts",
     "line": 488,
     "description": "Combined Phase 103 browser run still times out delivering the post-reload Phase 102 INC event; identity/theme proofs pass and no Phase 102 workaround was added.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-07-23T22:02:35.758Z",
-    "resolved_at": null
+    "resolved_at": "2026-07-27T10:25:54.126Z"
   },
   {
     "id": 24,
@@ -338,10 +338,10 @@ last_updated: 2026-07-27T10:18:12.404Z
     "file": "tests/e2e/paja-single-window.spec.ts",
     "line": null,
     "description": "Canonical INC reload assertion fails after target replacement; deferred outside Plan 105-07 pointer lifecycle scope.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-07-27T10:18:12.404Z",
-    "resolved_at": null
+    "resolved_at": "2026-07-27T10:25:54.201Z"
   }
 ]
 ````
