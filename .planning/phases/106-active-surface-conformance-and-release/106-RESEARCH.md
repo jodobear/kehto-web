@@ -62,21 +62,21 @@ The Phase 105 UI audit is not evidence of a protocol defect: its verifier found 
 | Playwright | `1.54.0` declared | Real Paja/playground browser-path proof. [VERIFIED: codebase grep] | Repository E2E runner and Phase 105 full suite evidence. [VERIFIED: codebase grep] |
 | pnpm | `10.8.0` installed | Workspace install, build, test, changeset, and release commands. [VERIFIED: codebase grep] | `packageManager` pin and CI workflows use pnpm. [VERIFIED: codebase grep] |
 | Changesets | `@changesets/cli ^2.30.0` declared | Version/CHANGELOG generation for changed package output. [VERIFIED: codebase grep] | The repository’s `publish.yml` passes a `version` command to `changesets/action@v1`; the action creates/updates a Version Packages PR. [CITED: https://github.com/changesets/action] |
-| npm + JSR registries | exact existing line below | Revalidate consumable package artifacts independently of workspace sources. [VERIFIED: npm registry] | `release.yml` publishes npm then JSR from a validated tag. [VERIFIED: codebase grep] |
+| npm + JSR registries | exact existing line below | Revalidate consumable package artifacts independently of workspace sources. [VERIFIED: codebase grep] | `release.yml` publishes npm then JSR from a validated tag. [VERIFIED: codebase grep] |
 
 ### Existing published Napplet package line
 
 | Package | Exact version | Registry observation | Release-planning use |
 |---|---|---|---|
-| `@napplet/core` | `0.29.0` | npm registry lists `0.29.0`, published 2026-07-26, and the official `sandwichfarm/napplet` repository. [VERIFIED: npm registry] | Verify its shell-domain omission remains recorded as upstream drift rather than removed locally. [VERIFIED: codebase grep] |
-| `@napplet/nap` | `0.29.0` | npm registry lists `0.29.0`, published 2026-07-26, and the official `sandwichfarm/napplet` repository. [VERIFIED: npm registry] | Validate the installed intent/resource/INC/relay declarations against source and current authorities. [VERIFIED: codebase grep] |
-| `@napplet/shim` | `0.27.0` | npm registry lists `0.27.0`, published 2026-07-26, and the official `sandwichfarm/napplet` repository. [VERIFIED: npm registry] | Retain Kehto’s host-owned mandatory shell prelude. [VERIFIED: codebase grep] |
-| `@napplet/sdk` | `0.25.0` | npm registry lists `0.25.0`, published 2026-07-26, and the official `sandwichfarm/napplet` repository. [VERIFIED: npm registry] | Confirm migrated napplet manifests use released helper surfaces. [VERIFIED: codebase grep] |
-| `@napplet/vite-plugin` | `0.12.0` | npm registry lists `0.12.0`, published 2026-07-26, and the official `sandwichfarm/napplet` repository. [VERIFIED: npm registry] | Confirm convention-archetype output stays aligned with the active manifest guard. [VERIFIED: codebase grep] |
+| `@napplet/core` | `0.29.0` | Existing manifest/lockfile and `npm view` agree on `0.29.0` published 2026-07-26 from `sandwichfarm/napplet`. [VERIFIED: codebase grep] | Verify its shell-domain omission remains recorded as upstream drift rather than removed locally. [VERIFIED: codebase grep] |
+| `@napplet/nap` | `0.29.0` | Existing manifest/lockfile and `npm view` agree on `0.29.0` published 2026-07-26 from `sandwichfarm/napplet`. [VERIFIED: codebase grep] | Validate the installed intent/resource/INC/relay declarations against source and current authorities. [VERIFIED: codebase grep] |
+| `@napplet/shim` | `0.27.0` | Existing manifest/lockfile and `npm view` agree on `0.27.0` published 2026-07-26 from `sandwichfarm/napplet`. [VERIFIED: codebase grep] | Retain Kehto’s host-owned mandatory shell prelude. [VERIFIED: codebase grep] |
+| `@napplet/sdk` | `0.25.0` | Existing manifest/lockfile and `npm view` agree on `0.25.0` published 2026-07-26 from `sandwichfarm/napplet`. [VERIFIED: codebase grep] | Confirm migrated napplet manifests use released helper surfaces. [VERIFIED: codebase grep] |
+| `@napplet/vite-plugin` | `0.12.0` | Existing manifest/lockfile and `npm view` agree on `0.12.0` published 2026-07-26 from `sandwichfarm/napplet`. [VERIFIED: codebase grep] | Confirm convention-archetype output stays aligned with the active manifest guard. [VERIFIED: codebase grep] |
 
 **Installation:** No new package installation belongs in Phase 106. [VERIFIED: codebase grep]
 
-**Package legitimacy:** No external package is introduced, so a Package Legitimacy Audit is not applicable. [VERIFIED: codebase grep]
+**Package legitimacy:** No external package is introduced, so a Package Legitimacy Audit is not applicable. [VERIFIED: codebase grep] A revalidation-only check marked every existing `@napplet/*` package `SUS` for new age/low downloads despite the shared official repository and no postinstall script; do not upgrade or install any package in this phase, and require human confirmation before any future package-line change. [VERIFIED: npm registry]
 
 ## Architecture Patterns
 
