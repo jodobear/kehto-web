@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.29
 milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
-current_phase_name: Published Convention Adoption and Host Flows
+current_phase_name: published-convention-adoption-and-host-flows
 status: executing
 stopped_at: Phase 105 planned and verified; ready for 105-01-PLAN.md
-last_updated: "2026-07-27T08:35:29.360Z"
+last_updated: "2026-07-27T08:39:42.203Z"
 last_activity: 2026-07-27
-last_activity_desc: Phase 105 planned and independently verified across 12 plans
+last_activity_desc: Phase 105 execution started
 progress:
   total_phases: 6
   completed_phases: 4
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 
 ## Current Position
 
-Phase: 105 — Published Convention Adoption and Host Flows
-Plan: 0 of 12
-Status: Ready to execute
+Phase: 105 (published-convention-adoption-and-host-flows) — EXECUTING
+Plan: 1 of 12
+Status: Executing Phase 105
 
-Last activity: 2026-07-27 — Phase 105 planned and independently verified across 12 plans
+Last activity: 2026-07-27 — Phase 105 execution started
 
 ## Performance Metrics
 
