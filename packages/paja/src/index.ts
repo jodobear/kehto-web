@@ -66,6 +66,8 @@ export {
   getMissingServices,
 } from './parity.js';
 export { ReadinessError, waitForTargetUrl } from './readiness.js';
+export { InstalledNappletCatalog } from './installed-napplet-catalog.js';
+export { BrowserIntentController } from './browser-intent-controller.js';
 export { startPajaServer } from './server.js';
 export {
   PAJA_TARGET_CORS_HINT,
@@ -109,3 +111,12 @@ export type {
   PajaTargetCorsFetch,
   PajaTargetCorsStatus,
 } from './target-cors.js';
+export type {
+  InstalledNappletCatalogListener,
+  InstalledNappletRecord,
+} from './installed-napplet-catalog.js';
+export type {
+  BrowserIntentControllerOptions,
+  BrowserIntentGeneration,
+  BrowserIntentTerminalReason,
+} from './browser-intent-controller.js';

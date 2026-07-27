@@ -11,6 +11,7 @@ import {
   createBleService,
   createCommonService,
   createConfigService,
+  createCatalogIntentResolver,
   createCountService,
   createCvmService,
   createIdentityService,
@@ -32,9 +33,8 @@ import {
   createWebrtcService,
   type CvmServer,
   type CvmTransport,
-  type IntentAvailability,
+  type IntentCandidate,
   type IntentRequest,
-  type IntentResolverOutcome,
   type McpMessage,
   type Uploader,
   type UploadRequest,
@@ -54,6 +54,8 @@ import {
 import type { PajaHostConfig } from './options.js';
 import type { PajaSignerMethod } from './browser-signers.js';
 import type { PajaSimulation } from './simulation.js';
+import { BrowserIntentController } from './browser-intent-controller.js';
+import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
 import { createPajaUploadRuntime, type PajaUploadRuntime } from './browser-upload.js';
 import {
   PAJA_LIVE_QUERY_WAIT_MS,
@@ -98,9 +100,6 @@ export interface PajaSignerProvider {
 /** Identity provider for Paja's simulated target identity. */
 export type PajaIdentityProvider = () => Pick<SessionEntry, 'dTag' | 'aggregateHash'>;
 
-const DEV_INTENT_ARCHETYPE = 'paja-target';
-const DEV_INTENT_CONVENTION = 'napplet:paja-target/open';
-const DEV_INTENT_HANDLER = 'dev-target';
 const DEV_COMMON_PUBKEY = '1'.repeat(64);
 const DEV_COMMON_EVENT_ID = '2'.repeat(64);
 const DEV_SIGNER_SECRET_KEY = generateSecretKey();
@@ -186,29 +185,32 @@ function createDevUploader(getSimulation: () => PajaSimulation): Uploader {
   };
 }
 
-function createDevIntentAvailability(
-  archetype = DEV_INTENT_ARCHETYPE,
-): IntentAvailability {
-  if (archetype !== DEV_INTENT_ARCHETYPE) {
-    return {
-      archetype,
-      available: false,
-      hasDefault: false,
-      candidates: [],
-    };
-  }
+interface PajaIntentHost {
+  readonly catalog: InstalledNappletCatalog;
+  readonly controller: BrowserIntentController;
+  getDefaultHandler?(archetype: string): string | undefined;
+  chooseHandler?(
+    archetype: string,
+    candidates: IntentCandidate[],
+    sender: string,
+  ): string | undefined | Promise<string | undefined>;
+  authorizeExplicitHandler?(
+    sender: string,
+    handler: string,
+    request: IntentRequest,
+    candidate: IntentCandidate,
+  ): boolean | Promise<boolean>;
+}
+
+function createDefaultIntentHost(): PajaIntentHost {
   return {
-    archetype,
-    available: true,
-    hasDefault: true,
-    candidates: [{
-      dTag: DEV_INTENT_HANDLER,
-      title: 'Dev runtime target',
-      actions: ['open'],
-      conventions: [DEV_INTENT_CONVENTION],
-      contracts: [{ convention: DEV_INTENT_CONVENTION }],
-      isDefault: true,
-    }],
+    catalog: new InstalledNappletCatalog(),
+    controller: new BrowserIntentController({
+      openOrReuse: () => null,
+      waitForReady: () => undefined,
+      isCurrent: () => false,
+      send: () => undefined,
+    }),
   };
 }
 
@@ -340,6 +342,7 @@ function createDevServices(
   confirmRequest: (request: PajaConfirmationRequest) => boolean,
   uploadRuntime?: PajaUploadRuntime,
   signerProvider?: PajaSignerProvider,
+  intentHost: PajaIntentHost = createDefaultIntentHost(),
 ): Record<string, ServiceHandler> {
   const notification = createNotificationService({ maxPerWindow: 50 });
   const theme = createThemeService({
@@ -426,38 +429,15 @@ function createDevServices(
     });
   }
   if (getSimulation().intent.enabled) {
-    // Development-only exact-contract simulator. Phase 105 replaces this with
-    // a persistent installed-manifest catalog and real retained target policy.
+    const resolver = createCatalogIntentResolver({
+      loadCatalog: () => intentHost.catalog.intentCatalog(),
+      targets: intentHost.controller,
+      getDefaultHandler: intentHost.getDefaultHandler,
+      chooseHandler: intentHost.chooseHandler,
+      authorizeExplicitHandler: intentHost.authorizeExplicitHandler,
+    });
     services.intent = createIntentService({
-      resolver: {
-        invoke(request: IntentRequest): IntentResolverOutcome {
-          if (
-            request.archetype !== DEV_INTENT_ARCHETYPE
-            || request.action !== 'open'
-            || request.convention !== DEV_INTENT_CONVENTION
-          ) {
-            return {
-              result: { ok: false, error: 'unsupported convention' },
-            };
-          }
-          return {
-            result: {
-              ok: true,
-              archetype: request.archetype,
-              action: request.action,
-              convention: request.convention,
-              handler: DEV_INTENT_HANDLER,
-            },
-            retained: {
-              start() {
-                // No-op until Phase 105 installs real target lifecycle wiring.
-              },
-            },
-          };
-        },
-        available: (archetype) => createDevIntentAvailability(archetype),
-        handlers: () => [createDevIntentAvailability()],
-      },
+      resolver,
     });
   }
   if (getSimulation().capabilities.domains.link) {
@@ -512,6 +492,7 @@ function createDevServices(
  * @param signerProvider - Optional external signer provider.
  * @param getIdentity - Optional simulated target identity provider.
  * @param onEnvironmentChanged - Invoked when asynchronous host wiring changes.
+ * @param intentHost - Installed catalog, target controller, and user policy.
  * @returns Shell adapter for `createShellBridge`.
  */
 export function createPajaAdapter(
@@ -523,6 +504,7 @@ export function createPajaAdapter(
   signerProvider?: PajaSignerProvider,
   getIdentity?: PajaIdentityProvider,
   onEnvironmentChanged?: () => void,
+  intentHost?: PajaIntentHost,
 ): ShellAdapter {
   const relayBackend = createPajaRelayBackend(getSimulation, confirmRequest);
   const uploadRuntime = getSimulation().upload.mode === 'blossom'
@@ -545,6 +527,7 @@ export function createPajaAdapter(
     void uploadRuntime?.refreshIdentity().finally(() => onEnvironmentChanged?.());
   });
   const workerRelayEvents: NostrEvent[] = [];
+  const resolvedIntentHost = intentHost ?? createDefaultIntentHost();
   return {
     relayPool: createRelayHooks(relayBackend, getSimulation),
     relayConfig: {
@@ -561,7 +544,16 @@ export function createPajaAdapter(
       getUserPubkey: () => getRuntimePubkey(getSimulation, signerProvider),
       getSigner: () => createRuntimeSigner(getSimulation, confirmRequest, signerProvider),
     },
-    services: createDevServices(relayBackend, getSimulation, onThemeService, onThemeBroadcast, confirmRequest, uploadRuntime, signerProvider),
+    services: createDevServices(
+      relayBackend,
+      getSimulation,
+      onThemeService,
+      onThemeBroadcast,
+      confirmRequest,
+      uploadRuntime,
+      signerProvider,
+      resolvedIntentHost,
+    ),
     get capabilities() {
       return { disabledDomains: getSimulation().capabilities.disabledDomains };
     },
