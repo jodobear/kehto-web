@@ -87,7 +87,7 @@ final host integration wait for mutually compatible convention-capable
 - [x] **Phase 102: NAP-INC Event and Channel Parity** - napplets exchange exact convention events and authorized channels using dTag identities. (completed 2026-07-26)
 - [x] **Phase 103: Identity and Theme Wire Parity** - identity and theme services use only contract-shaped result and change behavior.
 - [x] **Phase 104: NAP-INTENT and Manifest Contract Parity** - resolve authoritative convention URIs through verified contracts and retain carrier-neutral delivery independently of source lifetime. (completed 2026-07-26)
-- [ ] **Phase 105: Published Convention Adoption and Host Flows** - consume released Napplet contracts and prove intent, profile, resource, and theme behavior in Paja and playground.
+- [x] **Phase 105: Published Convention Adoption and Host Flows** - consume released Napplet contracts and prove intent, profile, resource, and theme behavior in Paja and playground. (completed 2026-07-27)
 - [ ] **Phase 106: Active-Surface Conformance and Release** - prove the complete migration, regression health, and release readiness.
 
 ## Phase Details
@@ -266,7 +266,7 @@ users rely on.
   4. Playground profile consumers load remote profile media through NAP-RESOURCE into revocable safe object URLs and clean them up rather than assigning remote URLs directly to image elements.
   5. Paja and playground both deliver the current theme to required napplets and bridge one host theme update as one synchronized changed theme with matching stored service state.
 
-**Plans:** 12/12 plans executed
+**Plans:** 12/12 plans complete
 
 **Wave 1**
 
@@ -333,7 +333,7 @@ users rely on.
 | 102. NAP-INC Event and Channel Parity | v1.29 | 14/14 | Complete    | 2026-07-26 |
 | 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete    | 2026-07-23 |
 | 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 6/6 | Complete    | 2026-07-26 |
-| 105. Published Convention Adoption and Host Flows | v1.29 | 12/12 | In Progress|  |
+| 105. Published Convention Adoption and Host Flows | v1.29 | 12/12 | Complete    | 2026-07-27 |
 | 106. Active-Surface Conformance and Release | v1.29 | 0/TBD | Not started | - |
 
 ---
