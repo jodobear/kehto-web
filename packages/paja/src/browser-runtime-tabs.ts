@@ -75,6 +75,8 @@ export interface PajaRuntimeTabContext {
   renderTargetErrorHtml(error: unknown): string;
   setPointerStatus(state: PajaRuntimeTabState, message: string): void;
   setStatus(state: PajaRuntimeTabState, status: PajaRuntimeStatus): void;
+  /** Clear host-owned retained-delivery state before session and frame teardown. */
+  onTabDestroyed?(tab: PajaRuntimeTab): void;
 }
 
 export type PajaDuplicateChoice = 'load-again' | 'open-tab' | 'cancel';
@@ -86,6 +88,11 @@ export function resolvedTargetKey(target: PajaResolvedPointer): string {
     target.dTag,
     target.aggregateHash,
   ].join(':');
+}
+
+/** Return the opaque identity of one live runtime-tab generation. */
+export function runtimeTabGenerationId(tab: Pick<PajaRuntimeTab, 'id' | 'generation'>): string {
+  return `${tab.id}:${tab.generation}`;
 }
 
 export function getActiveTab(state: PajaRuntimeTabState): PajaRuntimeTab | null {
@@ -387,11 +394,13 @@ function resolvedTargetTitle(target: PajaResolvedPointer): string {
 }
 
 function destroyRuntimeTab(tab: PajaRuntimeTab, context: PajaRuntimeTabContext): void {
+  context.onTabDestroyed?.(tab);
   if (tab.windowId) {
     context.bridge.runtime.destroyWindow(tab.windowId);
     context.bridge.runtime.sessionRegistry.unregister(tab.windowId);
     originRegistry.unregister(tab.windowId);
     context.runtime.readyWindowIds.delete(tab.windowId);
+    if (context.runtime.currentWindowId === tab.windowId) context.runtime.currentWindowId = null;
   }
   tab.frame.remove();
 }
