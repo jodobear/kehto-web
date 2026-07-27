@@ -101,10 +101,44 @@ const obsoleteActivePatterns = {
   'query-bearing-stable-identity': { roots: activeMigrationSourceDirs, pattern: /(?:convention|identity|route)\s*(?:=|:)\s*['"`][^'"`\n]*\?/ },
   'prefix-or-query-matching': { roots: activeMigrationSourceDirs, pattern: /\b(?:topic|convention)\.(?:startsWith|includes)\(\s*[^'"`]/ },
   'caller-supplied-sender': { roots: ['packages/runtime/src'], pattern: /(?:m|message)\.sender\b/ },
-  'intent-completion-fields': { roots: ['packages/services/src', 'packages/paja/src', 'apps/playground/src'], pattern: /intent\.(?:invoke|deliver)(?:\.result)?[^\n]{0,120}\b(?:handled|windowId|newWindow)\s*:/ },
-  'inc-coupled-intent': { roots: ['packages/services/src', 'packages/paja/src', 'apps/playground/src'], pattern: /(?:inc\.(?:emit|subscribe)[^\n]*intent\.|intent\.[^\n]*inc\.(?:emit|subscribe))/ },
+  'intent-completion-fields': { roots: ['packages/services/src', 'packages/paja/src', 'apps/playground/src'], pattern: /\btype\s*:\s*['"`]intent\.(?:invoke|deliver)(?:\.result)?['"`][\s\S]{0,120}\b(?:handled|windowId|newWindow)\s*:/ },
+  'inc-coupled-intent': { roots: ['packages/services/src', 'packages/paja/src', 'apps/playground/src'], pattern: /(?:\btype\s*:\s*['"`]inc\.(?:emit|subscribe)['"`][^}]{0,160}['"`]intent\.|\btype\s*:\s*['"`]intent\.(?:invoke|deliver)(?:\.result)?['"`][^}]{0,160}['"`]inc\.(?:emit|subscribe)['"`])/ },
   'intent-lifecycle-result-fields': { roots: ['packages/services/src', 'packages/paja/src', 'apps/playground/src'], pattern: /intent\.(?:deliver\.result|accepted)\b/ },
   'intent-delivery-identifiers': { roots: ['packages/services/src', 'packages/paja/src', 'apps/playground/src'], pattern: /\b(?:intentId|deliveryId)\b/ },
+} as const;
+
+// Documentation has a different grammar from executable TypeScript. Keep its
+// narrow forbidden set separate so current prose can explain the active intent
+// boundary without being mistaken for a deprecated object literal.
+const obsoleteGuidancePatterns = {
+  'numbered-negotiation': /\bnap-(?:110|117|98)\b/i,
+  'query-bearing-stable-identity': /(?:convention|identity|route)\s*(?:=|:)\s*['"`][^'"`\n]*\?/,
+  'intent-completion-fields': /\btype\s*:\s*['"`]intent\.(?:invoke|deliver)(?:\.result)?['"`][\s\S]{0,120}\b(?:handled|windowId|newWindow)\s*:/,
+  'intent-lifecycle-result-fields': /intent\.(?:deliver\.result|accepted)\b/,
+  'intent-delivery-identifiers': /\b(?:intentId|deliveryId)\b/,
+} as const;
+
+const currentGuidanceAuthorities = {
+  'docs/policies/NIP-5D-CONFORMANCE.md': [
+    'NAP-INTENT:',
+    'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+  ],
+  'packages/nip/README.md': [
+    'NAP-INTENT PR #91',
+    'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+  ],
+  'packages/runtime/README.md': [
+    'NAP-INTENT PR #91',
+    'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+  ],
+  'packages/services/README.md': [
+    'NAP-INTENT PR #91',
+    'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+  ],
+  'packages/shell/README.md': [
+    'NAP-INTENT PR #91',
+    'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+  ],
 } as const;
 
 const bannedSdkImportPattern = /from\s+['"]@napplet\/sdk['"]/;
@@ -134,7 +168,10 @@ function expectExactProtocolLine(
 }
 
 function sourceFiles(root: string): string[] {
-  if (!existsSync(root)) return [];
+  expect(
+    existsSync(root),
+    `active migration root is missing: ${relative(process.cwd(), root)}`,
+  ).toBe(true);
   const entries = readdirSync(root);
   const files: string[] = [];
   for (const entry of entries) {
@@ -148,6 +185,28 @@ function sourceFiles(root: string): string[] {
     }
   }
   return files;
+}
+
+function matchingLines(text: string, pattern: RegExp): number[] {
+  const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+  const globalPattern = new RegExp(pattern.source, flags);
+  return Array.from(text.matchAll(globalPattern), (match) =>
+    text.slice(0, match.index).split(/\r?\n/).length,
+  );
+}
+
+function patternViolations(
+  file: string,
+  text: string,
+  patterns: Record<string, RegExp>,
+): string[] {
+  const violations: string[] = [];
+  for (const [patternId, pattern] of Object.entries(patterns)) {
+    for (const line of matchingLines(text, pattern)) {
+      violations.push(`${patternId}:${file}:${line}`);
+    }
+  }
+  return violations;
 }
 
 describe('current @napplet package graph guard', () => {
@@ -177,15 +236,24 @@ describe('current @napplet package graph guard', () => {
     expect(activeMigrationTextFiles).toContain('docs/superpowers/specs/2026-06-15-nap-intent-design.md');
     expect(Object.keys(obsoleteActivePatterns)).not.toEqual([]);
 
-    const intentDesign = readFileSync(
-      join(process.cwd(), 'docs/superpowers/specs/2026-06-15-nap-intent-design.md'),
-      'utf8',
-    );
-    expect(intentDesign.startsWith('> **Superseded historical design')).toBe(true);
-    expect(intentDesign).toContain('NIP-5D-CONFORMANCE.md');
-    expect(intentDesign).toContain('106-AUTHORITY-REVALIDATION.md');
     for (const file of activeMigrationTextFiles) {
       expect(existsSync(join(process.cwd(), file)), `current guidance ${file}`).toBe(true);
+      const text = readFileSync(join(process.cwd(), file), 'utf8');
+      if (file === 'docs/superpowers/specs/2026-06-15-nap-intent-design.md') {
+        expect(text.startsWith('> **Superseded historical design')).toBe(true);
+        expect(text).toContain('NIP-5D-CONFORMANCE.md');
+        expect(text).toContain('106-AUTHORITY-REVALIDATION.md');
+        continue;
+      }
+
+      expect(patternViolations(file, text, obsoleteGuidancePatterns)).toEqual([]);
+    }
+
+    for (const [file, requiredAuthorityText] of Object.entries(currentGuidanceAuthorities)) {
+      const text = readFileSync(join(process.cwd(), file), 'utf8');
+      for (const authorityText of requiredAuthorityText) {
+        expect(text, `${file} current authority ${authorityText}`).toContain(authorityText);
+      }
     }
   });
 
@@ -345,6 +413,26 @@ describe('current @napplet package graph guard', () => {
     expect(violations).toEqual([]);
   });
 
+  it('fails closed when a configured active source root is missing', () => {
+    expect(() => sourceFiles(join(process.cwd(), '.missing-active-migration-root'))).toThrow(
+      'active migration root is missing',
+    );
+  });
+
+  it('matches multiline obsolete intent object shapes before reporting the match line', () => {
+    const completion = [
+      "type: 'intent.invoke.result',",
+      'handled: true,',
+    ].join('\n');
+    const incCoupling = [
+      "type: 'intent.invoke',",
+      "transport: 'inc.emit',",
+    ].join('\n');
+
+    expect(matchingLines(completion, obsoleteActivePatterns['intent-completion-fields'].pattern)).toEqual([1]);
+    expect(matchingLines(incCoupling, obsoleteActivePatterns['inc-coupled-intent'].pattern)).toEqual([1]);
+  });
+
   it('rejects each scoped obsolete negotiation and intent shape with exact active file and line evidence', () => {
     expect(activeMigrationSourceDirs.length).toBeGreaterThan(0);
     expect(activeMigrationTextFiles.length).toBeGreaterThan(0);
@@ -355,10 +443,9 @@ describe('current @napplet package graph guard', () => {
       for (const root of roots) {
         for (const abs of sourceFiles(join(process.cwd(), root))) {
           const file = relative(process.cwd(), abs);
-          const lines = readFileSync(abs, 'utf8').split(/\r?\n/);
-          for (const [index, line] of lines.entries()) {
-            pattern.lastIndex = 0;
-            if (pattern.test(line)) violations.push(`${patternId}:${file}:${index + 1}`);
+          const text = readFileSync(abs, 'utf8');
+          for (const line of matchingLines(text, pattern)) {
+            violations.push(`${patternId}:${file}:${line}`);
           }
         }
       }
