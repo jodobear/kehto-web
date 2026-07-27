@@ -308,6 +308,7 @@ describe('playground gateway artifact guard', () => {
   it('loads napplets by content-addressed resolution into opaque-origin srcdoc iframes', () => {
     const frameLoader = readRepoFile('apps/playground/src/playground-frame-loader.ts');
     const shellHost = readRepoFile('apps/playground/src/shell-host.ts');
+    const gatewayAudit = readRepoFile('scripts/audit-gateway-artifacts.mjs');
     const indexHtml = readRepoFile('apps/playground/index.html');
     const main = readRepoFile('apps/playground/src/main.ts');
     const preferences = readRepoFile('apps/playground/src/main-preferences.ts');
@@ -340,6 +341,21 @@ describe('playground gateway artifact guard', () => {
     expect(frameLoader).not.toContain('iframe.src = metadata.htmlUrl');
     expect(frameLoader).not.toContain('fetchGatewayMetadata');
     expect(frameLoader).not.toContain('napplet-gateway');
+
+    // The executable Pages gate must follow loader ownership when the host is
+    // decomposed, rather than scanning the exported shell-host wrapper.
+    expect(gatewayAudit).toContain(
+      "const frameLoader = read(join(repoRoot, 'apps', 'playground', 'src', 'playground-frame-loader.ts'));",
+    );
+    expect(gatewayAudit).toContain("!frameLoader.includes('iframe.srcdoc =')");
+    expect(gatewayAudit).toContain(
+      "frameLoader.includes('const identity = Object.freeze({ dTag, aggregateHash });')",
+    );
+    expect(gatewayAudit).toContain(
+      "frameLoader.includes('originRegistry.register(iframe.contentWindow, windowId, identity);')",
+    );
+    expect(gatewayAudit).toContain("!frameLoader.includes(\"iframe.sandbox.add('allow-scripts')\")");
+    expect(gatewayAudit).not.toContain("!shellHost.includes('iframe.srcdoc =')");
 
     expect(indexHtml).toContain('id="static-demo-banner"');
     expect(preferences).toContain("export const STATIC_PAGES_BASE_PATH = '/web/playground/';");

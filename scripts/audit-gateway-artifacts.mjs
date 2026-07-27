@@ -4,7 +4,7 @@
  *
  * Enforces the playground's NIP-5D content-addressed srcdoc invariant: each
  * built demo napplet must emit exactly one self-contained /index.html (plus its
- * signed NIP-5A manifest) with no external assets, and the shell loader must
+ * signed NIP-5A manifest) with no external assets, and the frame loader must
  * resolve + verify the bytes and inject them via iframe.srcdoc on an opaque
  * origin — never the retired gateway htmlUrl/metadata navigation.
  */
@@ -34,16 +34,20 @@ function read(path) {
 }
 
 function assertSourceInvariants() {
+  const frameLoader = read(join(repoRoot, 'apps', 'playground', 'src', 'playground-frame-loader.ts'));
   const shellHost = read(join(repoRoot, 'apps', 'playground', 'src', 'shell-host.ts'));
   // NIP-5D content-addressed srcdoc loading (v1.20): the runtime resolves a
   // signed manifest, verifies the bytes, computes identity, and injects the
   // verified bytes via iframe.srcdoc. The gateway htmlUrl/metadata navigation
   // model is retired and the gateway is never trusted.
-  if (!shellHost.includes('iframe.srcdoc =') || !shellHost.includes('injectCspMeta(')) {
-    fail('shell-host.ts does not inject verified bytes via iframe.srcdoc');
+  if (!frameLoader.includes('iframe.srcdoc =') || !frameLoader.includes('injectCspMeta(')) {
+    fail('playground-frame-loader.ts does not inject verified bytes via iframe.srcdoc');
   }
-  if (!shellHost.includes('originRegistry.register(iframe.contentWindow, windowId, { dTag, aggregateHash });')) {
-    fail('shell-host.ts does not register creation-time computed identity');
+  if (
+    !frameLoader.includes('const identity = Object.freeze({ dTag, aggregateHash });')
+    || !frameLoader.includes('originRegistry.register(iframe.contentWindow, windowId, identity);')
+  ) {
+    fail('playground-frame-loader.ts does not register creation-time computed identity');
   }
   if (
     !shellHost.includes("(event.data as NappletMessage).type === 'shell.ready'")
@@ -51,17 +55,20 @@ function assertSourceInvariants() {
   ) {
     fail('shell-host.ts does not bind computed identity after shell.ready');
   }
-  if (shellHost.includes('iframe.src = metadata.htmlUrl') || shellHost.includes('/napplet-gateway/')) {
-    fail('shell-host.ts still uses the retired gateway htmlUrl/metadata navigation');
+  if (
+    frameLoader.includes('iframe.src = metadata.htmlUrl')
+    || frameLoader.includes('/napplet-gateway/')
+  ) {
+    fail('playground-frame-loader.ts still uses the retired gateway htmlUrl/metadata navigation');
   }
-  if (!shellHost.includes("iframe.sandbox.add('allow-scripts')")) {
-    fail("shell-host.ts does not explicitly add sandbox allow-scripts");
+  if (!frameLoader.includes("iframe.sandbox.add('allow-scripts')")) {
+    fail("playground-frame-loader.ts does not explicitly add sandbox allow-scripts");
   }
-  if (shellHost.includes('allow-same-origin')) {
-    fail('shell-host.ts contains allow-same-origin; napplets must stay opaque-origin');
+  if (frameLoader.includes('allow-same-origin')) {
+    fail('playground-frame-loader.ts contains allow-same-origin; napplets must stay opaque-origin');
   }
-  if (shellHost.includes('`/napplets/${name}/index.html`')) {
-    fail('shell-host.ts contains the legacy active /napplets iframe URL');
+  if (frameLoader.includes('`/napplets/${name}/index.html`')) {
+    fail('playground-frame-loader.ts contains the legacy active /napplets iframe URL');
   }
 }
 
