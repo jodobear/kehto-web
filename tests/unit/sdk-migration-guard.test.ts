@@ -108,6 +108,17 @@ function sourceFiles(root: string): string[] {
 }
 
 describe('current @napplet package graph guard', () => {
+  it('keeps this guard scoped to classified live migration sources rather than repository history', () => {
+    const guard = readFileSync(
+      join(process.cwd(), 'tests/unit/sdk-migration-guard.test.ts'),
+      'utf8',
+    );
+
+    expect(guard).toContain('const activeMigrationSourceDirs');
+    expect(guard).toContain('const historicalMigrationExclusions');
+    expect(guard).not.toContain("execFileSync('git', ['ls-files', '-z']");
+  });
+
   it('resolves active protocol packages from published registry artifacts', () => {
     const rootPackageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as {
       pnpm?: { overrides?: Record<string, string> };
