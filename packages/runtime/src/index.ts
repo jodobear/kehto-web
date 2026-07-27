@@ -29,6 +29,7 @@ export type {
   FirewallPersistence,
   FirewallEvent,
   ServiceHandler,
+  ServiceRuntimeContext,
   ServiceRegistry,
   CompatibilityReport,
   ServiceInfo,
@@ -47,7 +48,7 @@ export { createSessionRegistry, createNappKeyRegistry } from './session-registry
 export type { SessionRegistry, NappKeyRegistry } from './session-registry.js';
 
 export { createAclState } from './acl-state.js';
-export type { AclStateContainer } from './acl-state.js';
+export type { AclMutation, AclMutationObserver, AclStateContainer } from './acl-state.js';
 
 export { createFirewallState } from './firewall-state.js';
 export type { FirewallStateContainer } from './firewall-state.js';

@@ -16,6 +16,7 @@ export type { SessionEntry, NappKeyEntry } from '@kehto/runtime';
 // Import Capability type locally for use in this file's shell-specific types
 import type { NostrEvent, NostrFilter, NappletMessage } from '@napplet/core';
 import type { Capability, RuntimeConfigOverrides, ServiceHandler, ServiceRegistry } from '@kehto/runtime';
+import type { OriginIdentity } from './origin-registry.js';
 
 // Re-export service types so shell consumers can still import from @kehto/shell
 // (ServiceDescriptor already re-exported above from @kehto/runtime).
@@ -60,8 +61,13 @@ export interface RelayPoolHooks {
   openScopedRelay(windowId: string, relayUrl: string, subId: string, filters: NostrFilter[], sourceWindow: Window): void;
   /** Close a scoped relay connection. */
   closeScopedRelay(windowId: string): void;
-  /** Publish to a scoped relay. Returns false if no active scoped relay. */
-  publishToScopedRelay(windowId: string, event: NostrEvent): boolean;
+  /**
+   * Publish to a scoped relay.
+   *
+   * Async hosts settle the returned promise after transport acceptance.
+   * Returns false if no active scoped relay or publication fails.
+   */
+  publishToScopedRelay(windowId: string, event: NostrEvent): boolean | Promise<boolean>;
   /** Select relay URLs for a given set of filters. */
   selectRelayTier(filters: NostrFilter[]): string[];
 }
@@ -71,7 +77,7 @@ export interface RelayPoolLike {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   subscription(relayUrls: string[], filters: any): { subscribe(observer: (item: unknown) => void): { unsubscribe(): void } };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  publish(relayUrls: string[], event: any): void;
+  publish(relayUrls: string[], event: any): void | Promise<void>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   request(relayUrls: string[], filters: any): { subscribe(observer: { next: (event: unknown) => void; complete: () => void; error: () => void }): { unsubscribe(): void } };
   /** Optional exact/approximate count support that does not return event payloads. */
@@ -226,8 +232,29 @@ export interface WebrtcHooks {
  * environments while still using the production shell-ready path.
  */
 export interface CapabilityHooks {
-  /** Bare capability domains to remove from domains, naps, and protocols. */
+  /** Bare capability domains to remove from the delivered environment. */
   readonly disabledDomains?: readonly string[];
+  /**
+   * Narrow the live environment for one trusted creation-time identity.
+   *
+   * The shell supplies copied, frozen live domains and named services. Returned
+   * names are intersected with that exact availability set, so this hook cannot
+   * add aliases, disabled entries, or unwired capabilities.
+   *
+   * @param identity - Identity assigned by the host when the iframe was created.
+   * @param available - Immutable live domains and services before host policy.
+   * @returns The requested subset for this identity.
+   */
+  readonly resolveEnvironment?: (
+    identity: OriginIdentity,
+    available: Readonly<{
+      domains: readonly string[];
+      services: readonly string[];
+    }>,
+  ) => Readonly<{
+    domains: readonly string[];
+    services: readonly string[];
+  }>;
 }
 
 /**
@@ -286,67 +313,18 @@ export interface UnroutedMessageInfo {
  * authored code, while mandatory NAP-SHELL caches this environment for local
  * capability queries.
  *
- * Current availability is the injected `window.napplet.<domain>` namespace.
- * NAP-SHELL supports() treats only NAP domains and protocols as advertised
- * capabilities:
- *
- *   - Bare names for NAP-capability lookups, resolved against the `naps`
- *     array — e.g. `supports('relay')`, `supports('identity')`.
- *
- * The sandbox array remains for older payload readers, but Kehto emits it empty.
- * NIP-5D no longer blesses additional browser sandbox tokens as interoperability
- * requirements or napplet-visible capabilities.
- *
- * ## NAP-SHELL shape
- *
- * The shell shim reads the structured
- * `capabilities.{ domains: string[], protocols: Record<string, string[]> }`
- * alongside the flat `naps` array:
- *
- *   - `supports('relay')`       → true iff `'relay' ∈ capabilities.domains`
- *   - `supports('inc','NAP-01')`→ true iff `capabilities.protocols['inc']`
- *                                  includes `'NAP-01'`
- *
- * `domains` and `protocols` are emitted as a superset alongside the
- * `naps`/`sandbox` fields for back-compat.
+ * NAP-SHELL needs only a truthful set of bare domain names. The shim answers
+ * `shell.supports(domain)` locally from this snapshot after `shell.init`.
  */
 export interface ShellCapabilities {
-  /**
-   * NAP-SHELL domain list.
-   * Bare NAP domain names the shell offers — `'identity'`, `'storage'`,
-   * `'inc'`, `'theme'`, etc. — with the same conditional entries as `naps`
-   * (`relay`/`outbox` when a relay pool is wired, `upload`/`intent` under their
-   * hooks). Carries NO `inc:NAP-NN` protocol strings (those live in
-   * `protocols`).
-   */
-  domains: string[];
-  /**
-   * NAP-SHELL per-domain numbered protocols. Maps a domain to the NAP-NN protocol IDs it
-   * speaks — `{ inc: ['NAP-01','NAP-02','NAP-03','NAP-04','NAP-05','NAP-06'] }`
-   * (derived from `NAP_INC_PROTOCOLS` by stripping the `inc:` prefix).
-   *
-   * Local supports helpers resolve `supports('<domain>','NAP-NN')` against this map.
-   */
-  protocols: Record<string, string[]>;
-  /**
-   * NAP-vocabulary domain entries the shell handles (PRIMARY — consumed by
-   * `@napplet/shim >=0.9.0`). Bare domain `inc` (the NAP rename of `inc`)
-   * plus protocol IDs `inc:NAP-01..inc:NAP-06`. Conditional entries:
-   * `relay`, `outbox` prepended when a relay pool is wired; `upload` appended
-   * when an upload backend is wired; `intent` appended when an intent
-   * dispatcher is available.
-   *
-   * Contains NO `NAP-NN` protocol strings (those live in `protocols`).
-   */
-  naps: string[];
-  /**
-   * Empty compatibility field for older `shell.init` payload consumers.
-   *
-   * Current NIP-5D keeps the web sandbox baseline narrow: hosted napplet iframes
-   * use `allow-scripts`, never `allow-same-origin`, and do not receive optional
-   * browser sandbox relaxations as advertised capabilities.
-   */
-  sandbox: string[];
+  /** Immutable bare domain names the shell offers to this napplet. */
+  readonly domains: readonly string[];
+}
+
+/** Immutable NAP-SHELL environment delivered to one trusted iframe session. */
+export interface ShellEnvironment {
+  readonly capabilities: ShellCapabilities;
+  readonly services: readonly string[];
 }
 
 /**

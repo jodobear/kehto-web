@@ -1,16 +1,10 @@
 <!--
-  Source: https://github.com/napplet/napplet/blob/main/specs/SHELL-RESOURCE-POLICY.md
-  Source commit SHA: 27e1624
-  Copy date: 2026-04-24
-  Kehto file: docs/policies/SHELL-RESOURCE-POLICY.md (v1.7 Phase 40 Plan 40-03 / RESOURCE-05)
+  Kehto file: docs/policies/SHELL-RESOURCE-POLICY.md
 
-  This is a verbatim mirror of the canonical napplet SHELL-RESOURCE-POLICY.md
-  with a Kehto-specific cross-reference appendix. Update both the source SHA
-  header and the kehto cross-refs when upstream revises the canonical doc.
-
-  Sync policy: Re-copy from canonical at each kehto milestone boundary where
-               NAP-RESOURCE semantics change. Do not edit the canonical text
-               in-place — edit upstream, then re-sync.
+  Status corrected in Phase 105: this is Kehto's non-normative host hardening
+  policy, not a mirror of a NAP-RESOURCE specification. napplet/naps master at
+  5ac0490461ca6fec2f0d2e45b4835cf9bc08de24 has no standalone NAP-RESOURCE.md.
+  Do not infer a resource wire extension from this document.
 
   Kehto file:line cross-references (RESOURCE-05):
     - createResourceService factory:       packages/services/src/resource-service.ts (export function createResourceService)
@@ -36,10 +30,8 @@
     - Oversize response limits (stream-abort; recommended 10 MiB default per fetch)
     - Scheme allowlist (https:, data:, blossom:sha256:, nostr:<bech32>; block file:, gopher:, ftp:, etc.)
 
-  The NAP-RESOURCE wire protocol is READ-ONLY (no upload / POST body), ATOMIC
-  (no streaming / chunked response), and PASS-THROUGH (no shell-side caching
-  — host app may layer caching via the supplied fetch option). Any feature
-  outside this contract is a host-app extension, not NAP-RESOURCE.
+  Kehto's resource implementation is read-only host policy. It does not define
+  a standalone NAP wire shape, capability advertisement, or result fields.
 
   Note on Kehto demo-mode relaxations (not production-conformant):
     The apps/playground hostFetch does NOT enforce the private-IP block list (demo runs
@@ -50,18 +42,33 @@
 
 # Shell Resource Policy Checklist
 
-> Shell-implementer guide for v0.28.0+ napplet hosts implementing the resource NAP.
-> Normative wire shape and MUST/SHOULD language live in [NAP-RESOURCE](https://github.com/napplet/naps); this document is a deployment checklist.
+> Kehto host-hardening guide for core/nap 0.29.0 consumers using profile-media
+> `resource.bytes` delegation.
+> This is not a standalone NAP-RESOURCE specification and does not define wire
+> messages, fields, or capability strings.
 
 ## Status
 
-This is a non-normative implementer's guide. The normative spec is **NAP-RESOURCE** in the `napplet/naps` repo. Shell hosts MUST implement the MUSTs in NAP-RESOURCE; this document enumerates the concrete defaults and decisions a deployer needs to make.
+`napplet/naps` master at `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24` has no
+standalone `NAP-RESOURCE.md`. For profile picture and banner bytes, authority is
+NAP-IDENTITY's explicit `resource.bytes` delegation plus the published
+`@napplet/core` / `@napplet/nap` 0.29.0 declarations. This document is a
+non-normative Kehto deployment checklist; its MUST/SHOULD labels are local
+hardening requirements, not protocol language. It does not infer any missing
+resource wire semantics.
 
 ## Why this exists
 
-The resource NAP makes the host shell the sole network-fetch path on behalf of every sandboxed napplet. The shell-as-fetch-proxy model is an irreducible attack surface: a naively-implemented shell becomes an SSRF gadget that can probe internal addresses, exfiltrate cloud-metadata credentials, or scan the deployer's intranet on behalf of an attacker-supplied URL. NAP-RESOURCE locks the protocol-level MUSTs needed to neutralize this; this checklist makes the operator-visible decisions explicit.
+Profile-media byte retrieval makes the host shell a network-fetch path on behalf
+of sandboxed napplets. The shell-as-fetch-proxy model is an irreducible attack
+surface: a naively-implemented shell becomes an SSRF gadget that can probe
+internal addresses, exfiltrate cloud-metadata credentials, or scan the deployer's
+intranet on behalf of an attacker-supplied URL. This checklist makes Kehto's
+operator-visible hardening decisions explicit.
 
-Shells that violate any of the MUSTs below are non-conformant and SHOULD NOT be deployed in adversarial contexts.
+Shells that do not meet the local hardening requirements below SHOULD NOT be
+deployed in adversarial contexts. They are not classified here as NAP-RESOURCE
+protocol non-conformance.
 
 
 ## Private-IP Block List (MUST, at DNS-resolution time)
@@ -92,11 +99,10 @@ URL-parse-time checks (looking at the literal hostname) are NOT sufficient — a
 
 ## Sidecar Pre-Resolution (default OFF)
 
-Read-style NAP surfaces return `RelayEventResult` records: `{ event, sidecar? }`.
-When the shell pre-fetches resources referenced by an event, it MAY attach those
-bytes at `sidecar.resources?: ResourceSidecarEntry[]`. The napplet's subsequent
-`resource.bytes(url)` calls resolve from cache without a postMessage round-trip
-when the URL matches a sidecar entry.
+Where a Kehto host elects to pre-fetch resources referenced by an event, it may
+maintain a host-local sidecar cache. That cache is not a NAP wire field or
+published resource contract; profile media remains constrained to the explicit
+NAP-IDENTITY `resource.bytes(url)` delegation.
 
 ### Privacy rationale (why default OFF)
 
@@ -216,13 +222,16 @@ Only the canonical schemes plus shell-administrator opt-ins are dispatched. Smug
 Unknown schemes emit `code: "unsupported-scheme"`.
 
 
-## Capability Advertisement
+## Capability Advertisement Boundary
 
-Shells advertise resource-NAP conformance via the standard capability query API:
+No standalone NAP-RESOURCE document authorizes resource-specific capability
+advertisement. Do not infer `nap:resource` or `resource:scheme:*` support
+strings from this policy. Hosts may continue to expose independently documented
+Kehto policy capabilities, but they must not present them as NAP authority.
 
-- [ ] `shell.supports('nap:resource')` returns `true`
-- [ ] `shell.supports('resource:scheme:<name>')` returns `true` for each supported scheme (e.g., `resource:scheme:blossom`)
-- [ ] `shell.supports('perm:strict-csp')` returns `true` if the shell enforces strict CSP on napplet iframes (orthogonal to `nap:resource` — a permissive dev shell can implement the resource NAP without enforcing strict CSP)
+- [ ] Do not advertise `nap:resource` or `resource:scheme:*` as a published NAP contract.
+- [ ] If a host advertises `perm:strict-csp`, document that it is a Kehto host
+  policy and independently verify the enforced iframe CSP.
 
 
 ## Audit Checklist (one-page summary)
@@ -238,12 +247,18 @@ Use this as a deployment sign-off:
 - [ ] Sidecar bytes obey the same MIME/SVG/size policy as direct calls
 - [ ] Single-flight cache scoped per `(dTag, aggregateHash)`
 - [ ] Scheme dispatch is a whitelist; smuggling-prone schemes blocked
-- [ ] Capability advertisement (`nap:resource`, `resource:scheme:*`, optionally `perm:strict-csp`) wired through `shell.supports()`
+- [ ] No resource capability advertisement is represented as standalone NAP authority
 - [ ] Resource bytes treated as observable (cleartext over postMessage); deployers document this in user-facing notice if relevant
 
 
 ## References
 
-- [NAP-RESOURCE](https://github.com/napplet/naps) — normative spec for the resource NAP (wire shape, MUST/SHOULD/MAY contract)
+- [NAP-IDENTITY](https://github.com/napplet/naps) at
+  `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24` — profile-media
+  `resource.bytes` delegation; `napplet/naps` has no standalone
+  `NAP-RESOURCE.md` at this ref
+- Published `@napplet/core` / `@napplet/nap` 0.29.0 declarations — released
+  implementation contract, source `dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b`,
+  release `60889f1c2476e063500c7ab6624af6abe0dbcbe5`
 - [NIP-5D Conformance](./NIP-5D-CONFORMANCE.md) — napplet-shell protocol alignment; Security Considerations subsection covers strict-CSP posture and `sandbox="allow-scripts"` reaffirmation
 - [WHATWG MIME Sniffing Standard](https://mimesniff.spec.whatwg.org/) — recommended byte-sniffing reference

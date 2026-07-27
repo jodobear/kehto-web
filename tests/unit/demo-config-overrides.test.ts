@@ -436,6 +436,28 @@ describe('createReplayDetector with lazy getReplayWindow getter', () => {
     expect(result).toContain('duplicate');
   });
 
+  it('blocks a concurrent duplicate while reserved and accepts it after release', () => {
+    const detector = createReplayDetector();
+    const now = Math.floor(Date.now() / 1000);
+    const reserved = makeEvent('reserved-id', now);
+
+    expect(detector.reserve(reserved)).toBeNull();
+    expect(detector.reserve(reserved)).toContain('duplicate');
+    detector.release(reserved.id);
+    expect(detector.reserve(reserved)).toBeNull();
+  });
+
+  it('keeps a committed reservation duplicate even if release is called later', () => {
+    const detector = createReplayDetector();
+    const now = Math.floor(Date.now() / 1000);
+    const committed = makeEvent('committed-id', now);
+
+    expect(detector.reserve(committed)).toBeNull();
+    detector.commit(committed.id);
+    detector.release(committed.id);
+    expect(detector.check(committed)).toContain('duplicate');
+  });
+
   it('rejects events with timestamps too far in the future', () => {
     const detector = createReplayDetector();
     const future = Math.floor(Date.now() / 1000) + 999;

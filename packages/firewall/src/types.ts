@@ -21,6 +21,10 @@
  * @param size    - Payload byte size. Present when known (e.g. relay:write).
  * @param initElapsedMs - Milliseconds since this napplet window initialized.
  *                        Used by the init-burst guard (BURST-01).
+ * @param initKey - Host-attested identifier for this initialization lifecycle.
+ *                  When present, the init-burst budget is scoped to this
+ *                  source-bound lifecycle rather than shared with another
+ *                  concurrently or subsequently registered window.
  * @param focused - Whether this napplet is the currently focused window.
  *                  Shell-owned and forge-proof; never self-reported.
  * @param msSinceFocusGain - Milliseconds since this napplet last gained focus.
@@ -34,6 +38,7 @@ export interface Observation {
   readonly kind?: number;
   readonly size?: number;
   readonly initElapsedMs?: number;
+  readonly initKey?: string;
   readonly focused: boolean;
   readonly msSinceFocusGain?: number;
   readonly now: number;
@@ -175,11 +180,12 @@ export interface Bucket {
 }
 
 /**
- * Init-burst operation counter for a single napplet.
+ * Init-burst operation counter for one initialization lifecycle.
  *
- * Stored in FirewallState.bursts keyed by napplet dTag. The counter is scoped
- * to ONE burst window: evaluate() discards it once `now - windowStart >=
- * burstGuard.windowMs`, so a napplet that re-initializes later starts fresh.
+ * Stored in FirewallState.bursts keyed by a host-attested initKey when one is
+ * supplied, otherwise by napplet dTag for backwards-compatible pure callers.
+ * The counter is scoped to ONE burst window: evaluate() discards it once
+ * `now - windowStart >= burstGuard.windowMs`.
  *
  * @param count       - Number of operations observed within the current burst window.
  * @param windowStart - Timestamp (Unix ms) when the current burst window began.
@@ -198,7 +204,7 @@ export interface BurstCounter {
  * Mirrors AclState's Readonly<Record<string, AclEntry>> map shape.
  *
  * @param buckets - Token-bucket counters keyed as `napplet:opClass`.
- * @param bursts  - Init-burst counters keyed by napplet dTag.
+ * @param bursts  - Init-burst counters keyed by lifecycle key (or dTag when absent).
  */
 export interface FirewallState {
   readonly buckets: Readonly<Record<string, Bucket>>;

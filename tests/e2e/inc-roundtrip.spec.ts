@@ -5,10 +5,10 @@
  * @napplet/nap and emit the modern `inc.*` wire (incEmit/incOn). The chat→bot→chat
  * envelope round trip now flows:
  *   1. User types "hello" in chat and clicks send.
- *   2. Chat napplet calls incEmit('chat:message', [], JSON.stringify({text, timestamp})).
+ *   2. Chat napplet calls incEmit('chat:message', { text, timestamp }).
  *   3. Shell routes the inc envelope to bot's incOn('chat:message', handler).
  *   4. Bot's findResponse("hello") returns "hey there!".
- *   5. Bot calls incEmit('bot:response', [], JSON.stringify({text: "hey there!", timestamp})).
+ *   5. Bot calls incEmit('bot:response', { text: "hey there!", timestamp }).
  *   6. Shell routes the envelope back to chat's incOn('bot:response', handler).
  *   7. Chat renders "[bot] hey there!" into #messages.
  *

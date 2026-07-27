@@ -1,15 +1,19 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.22
-milestone_name: Single-Window Development Runtime
-status: complete
-last_updated: "2026-07-26T11:42:38+01:00"
-last_activity: 2026-07-26
+milestone: v1.29
+milestone_name: Napplet Convention and Runtime Conformance
+current_phase: 106
+current_phase_name: Active-Surface Conformance and Release
+status: verifying
+stopped_at: Completed 106-03-PLAN.md
+last_updated: "2026-07-27T16:22:48.906Z"
+last_activity: 2026-07-27
+last_activity_desc: Phase 106 execution started
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 5
-  completed_plans: 5
+  total_phases: 6
+  completed_phases: 6
+  total_plans: 47
+  completed_plans: 47
   percent: 100
 ---
 
@@ -17,24 +21,24 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-21)
+See: .planning/PROJECT.md (updated 2026-07-23)
 
 **Core value:** Modular, framework-agnostic runtime for hosting napplet applications.
-**Current focus:** v1.22 planning — single-window development runtime for napplet authors with full current NAP/service parity, HMR via target URL, minimal two-bar chrome, and environment simulation controls.
+**Current focus:** Phase 106 — Active-Surface Conformance and Release
 
 ## Current Position
 
-Phase: 94 — Coverage, Docs, Release Readiness, and PR
-Plan: 94-01 — complete
-Status: v1.22 complete; branch pushed and PR #64 opened
+Phase: 106 (Active-Surface Conformance and Release) — EXECUTING
+Plan: 3 of 3
+Status: Phase complete — ready for verification
 
-Last activity: 2026-07-26 — Completed quick task 260726-g8r: Update AGENTS.md to require Kehto worktrees under ~/.worktrees/kehto.
+Last activity: 2026-07-27 — Phase 106 execution started
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 1
+- Total plans completed: 42
 - Average duration: ~6m
 - Total execution time: ~6 minutes
 
@@ -46,10 +50,73 @@ Last activity: 2026-07-26 — Completed quick task 260726-g8r: Update AGENTS.md 
 | 87 | TBD | - | - |
 | 88 | 1 | ~18m | ~18m |
 | 89 | 1 | ~45m | ~45m |
+| 102 | 14 | - | - |
+| 103 | 7 | - | - |
+| 104 | 6 | - | - |
+| 105 | 12 | - | - |
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 101 P01 | 5min | 2 tasks | 4 files |
+| Phase 101 P02 | 8min | 2 tasks | 11 files |
+| Phase 101 P03 | 7 min | 2 tasks | 7 files |
+| Phase 101 P04 | 9min | 2 tasks | 8 files |
+| Phase 101 P05 | 7min | 2 tasks | 6 files |
+| Phase 102-nap-inc-event-channel-parity P01 | 4min | 1 tasks | 4 files |
+| Phase 102-nap-inc-event-channel-parity P02 | 6min | 2 tasks | 4 files |
+| Phase 102-nap-inc-event-channel-parity P04 | 7min | 2 tasks | 2 files |
+| Phase 102-nap-inc-event-channel-parity P09 | 5min | 1 tasks | 2 files |
+| Phase 102-nap-inc-event-channel-parity P10 | 173s | 2 tasks | 8 files |
+| Phase 102-nap-inc-event-channel-parity P03 | 7min | 2 tasks | 7 files |
+| Phase 102-nap-inc-event-channel-parity P11 | 4m | 1 tasks | 6 files |
+| Phase 102-nap-inc-event-channel-parity P12 | 9m | 1 tasks | 6 files |
+| Phase 102 P05 | 16min | 2 tasks | 2 files |
+| Phase 102-nap-inc-event-channel-parity P06 | 4min | 2 tasks | 2 files |
+| Phase 102-nap-inc-event-channel-parity P07 | 4min | 1 tasks | 5 files |
+| Phase 102 P08 | 6m 26s | 1 tasks | 8 files |
+| Phase 103 P01 | 7m | 2 tasks | 5 files |
+| Phase 103 P02 | 6m | 3 tasks | 4 files |
+| Phase 103 P04 | 3m | 2 tasks | 2 files |
+| Phase 103 P03 | 4m | 2 tasks | 4 files |
+| Phase 103 P05 | 5m | 2 tasks | 5 files |
+| Phase 103 P06 | 13m | 2 tasks | 8 files |
+| Phase 103 P07 | 8m | 3 tasks | 12 files |
+| Phase 104 P01 | 7 min | 3 tasks | 5 files |
+| Phase 104 P02 | 7 min | 3 tasks | 11 files |
+| Phase 104 P03 | 11 min | 2 tasks | 4 files |
+| Phase 104 P04 | 14 min | 3 tasks | 11 files |
+| Phase 104 P05 | 13 min | 3 tasks | 10 files |
+| Phase 104 P06 | 3 min | 1 tasks | 2 files |
+| Phase 105 P01 | 6m | 1 tasks | 14 files |
+| Phase 105-published-convention-adoption-and-host-flows P02 | 10m | 1 tasks | 11 files |
+| Phase 105 P03 | 10m | 1 tasks | 14 files |
+| Phase 105 P04 | 6m | 2 tasks | 3 files |
+| Phase 105 P05 | 6m | 2 tasks | 11 files |
+| Phase 105 P06 | 11min | 2 tasks | 7 files |
+| Phase 105 P08 | 20m | 2 tasks | 12 files |
+| Phase 105 P07 | 24m | 2 tasks | 5 files |
+| Phase 105-published-convention-adoption-and-host-flows P09 | 13m | 2 tasks | 14 files |
+| Phase 105-published-convention-adoption-and-host-flows P10 | 5m | 2 tasks | 3 files |
+| Phase 105-published-convention-adoption-and-host-flows P11 | 20m | 2 tasks | 14 files |
+| Phase 105-published-convention-adoption-and-host-flows P12 | 10 min | 1 tasks | 6 files |
+| Phase 106 P01 | 10m | 3 tasks | 6 files |
+| Phase 106 P02 | 5m | 2 tasks | 1 files |
+| Phase 106 P03 | 18m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
 Full decision log lives in `.planning/PROJECT.md` Key Decisions table.
+
+### Key Context for v1.29
+
+Baseline contract: `napplet/naps@6461e4b37c29dc09a20dff35d9515889c4433874`. Proposed authority additionally includes the exact draft heads of NAP-INC #89 `4593ce9e301ce098fd3dad64206fcd6f144fa7af`, governance/web projection #90 `896c32c92deee68dc4d10fc1132b62df20cccb6f`, NAP-INTENT #91 `a718915ddefa2f03a0126579601f59d8bd86f7c4`, and symmetric channels #92 `c5cd06f7be6d4690b303949abb26e87ff62f4729`. Complete baseline delta: `.planning/NAP-CONVENTIONS-6461E4B-DELTA-AUDIT.md`.
+
+- Numbered cross-napplet protocols are gone; conventions use `napplet:<archetype>/<intent>[...?params]`.
+- Full conformance also requires active SHELL, INTENT, INC, IDENTITY, and THEME corrections.
+- `kehto/web#203` tracks implementation against the proposed resolutions: exact queryless identity and binding-owned query transposition from #89/#90, plus the #92 symmetric-channel reply. The issue remains open until Kehto implementation and positive/negative tests satisfy its close criteria.
+- Merged `napplet/naps@5ac0490461ca6fec2f0d2e45b4835cf9bc08de24/naps/NAP-INC.md` resolves Phase 102's repeated unopened-handle conflict: retain every trusted-parent handle in the binding and enforce the permitted per-napplet concurrent-channel maximum at authenticated runtime admission. Plan 102-14 owns the correction.
+- Final package adoption is gated on the concurrent `napplet/web` chase publishing convention-capable core/nap/shim/sdk/vite-plugin releases.
 
 ### Key Context for v1.21 (Phases 86–89)
 
@@ -72,6 +139,7 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 ### Blockers/Concerns
 
 - **9 pre-existing stale guard-test failures** (`tests/unit/sdk-migration-guard.test.ts`, `playground-gateway-guard.test.ts`, `nip5d-conformance-guard.test.ts`) assert the pre-modernization 0.5.0/`@napplet/nub`/`ifc` graph that phases 86–88 already replaced with 0.12/0.13/`@napplet/nap`/`inc`. Out of phase-89 (docs) scope; logged to `.planning/phases/89-spec-doc-refresh-conformance-sweep/deferred-items.md`. Needs a test-owning follow-up to realign the guards before tagging v1.21.
+- The isolated-host full E2E run reaches Kehto and completes with 69 passed, 1 skipped, and 7 failed. Phase 102's symmetric-channel proof passes; remaining legacy demo/fixture failures wait on Phase 105 adoption of the convention-capable packages from the concurrent `napplet/web` chase.
 
 ### Quick Tasks Completed
 
@@ -150,8 +218,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-06-17T06:58:00.000Z
-Stopped at: Phase 89 complete — v1.21 NIP-5D #2303 + NAP-SHELL/INTENT conformance done (docs + changesets)
+Last session: 2026-07-27T16:22:48.893Z
+Stopped at: Completed 106-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -175,3 +243,88 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - Keep visible UI minimal by default: top bar + bottom bar only.
 - Fill Kehto package gaps where needed; do not hide missing NAP support behind dev-runtime-only shims.
 - Publishing remains GitHub Actions / tag-driven; no local package publishing.
+
+## Decisions
+
+- [Phase ?]: Runtime ingress drops every valid capability envelope until SessionRegistry has a source-bound NAP-SHELL session.
+- [Phase ?]: shell.init is withheld without trusted creation-time identity; ready payload claims are ignored and registration IDs preserve reload semantics.
+- [Phase ?]: ShellCapabilities now delivers only frozen bare domains; numbered protocols, naps, and sandbox payload fields are removed.
+- [Phase ?]: Host grants are per trusted creation identity and can only narrow exact live, non-disabled domains and services.
+- [Phase ?]: Injected shell supports(domain) is unary exact membership over the first valid frozen parent init.
+- [Phase ?]: resolveShellEnvironment remains a host-only package export and is absent from injected and shim-facing APIs.
+- [Phase ?]: Paja resolves bootstrap and shell.init from the same trusted OriginIdentity with equal content and isolated frozen snapshots.
+- [Phase ?]: Paja shell.ready identity now comes only from pre-srcdoc origin-registry registration, never mutable browser state.
+- [Phase ?]: Playground prelude membership is resolved from trusted OriginIdentity and live disabled-aware wiring, never manifest requirements or gateway data.
+- [Phase ?]: Existing playground frames retain frozen first-init snapshots; only a new registration reflects later disabled-service wiring.
+- [Phase ?]: Convention query transposition is serialized in the injected web prelude and never performed by the runtime router.
+- [Phase ?]: inc.event sender is derived solely from the authenticated source session dTag.
+- [Phase ?]: Unique live dTag resolution fails closed on duplicate owners.
+- [Phase ?]: INC channels expose dTags and opaque IDs; teardown is shared across close, destroy, and revocation.
+- [Phase ?]: INC binding uses the #89/#90/#92 exact-head contract with a projection-side reusable normalizer.
+- [Phase ?]: INC assignment preserves extension fields but restores canonical convention operations and symmetric channel handles.
+- [Phase ?]: Generic service dispatch reserves exact inc.emit messages for IncRuntime; topic text cannot select a handler.
+- [Phase ?]: Direct canonical service routing remains keyed by the wire message.type domain.
+- [Phase ?]: Notification services ignore every inc.emit input; only direct notify.* envelopes can trigger service behavior.
+- [Phase ?]: The legacy audio topic service and its public types are removed; canonical media behavior remains direct-domain based.
+- [Phase ?]: INC channel ACL is checked only at inc.channel.open; established routes are authorized by opaque membership.
+- [Phase ?]: Only block and relay:read revoke events invalidate matching live dTag and aggregateHash channel routes.
+- [Phase ?]: Keep direct notify.* notification examples isolated from opaque INC transport.
+- [Phase ?]: Bot and chat keep core INC chat flows without notification-service side effects.
+- [Phase ?]: Direct services route only from the exact wire message.type domain; INC topics never choose a service.
+- [Phase ?]: Only the authenticated runtime attaches INC sender identity and produces delivery envelopes.
+- [Phase ?]: Paja INC proof uses the installed shim bundle through real opaque-origin srcdoc and verifies Kehto-owned operations are restored after namespace assignment.
+- [Phase ?]: The Paja reload fixture consumes shell.init via protected shell.onReady to avoid raw-listener timing races.
+- [Phase ?]: NAP-INC #89/#90/#92 exact heads govern the playground public-API event and symmetric-channel browser proof.
+- [Phase ?]: Focused playground INC proof uses an opt-in IPv6 base URL to avoid an unrelated IPv4 listener on port 4174.
+- [Phase ?]: Pinned active INC guidance to draft heads #89/#90/#92 and linked living PRs instead of copying protocol text.
+- [Phase ?]: Kept query-to-text payload transposition in the binding while runtime routing remains exact and queryless.
+- [Phase ?]: Reserved NAP-INTENT lifecycle changes for Phase 104 and released package adoption for Phase 105.
+- [Phase ?]: Phase 102 release metadata uses separate minor changesets for runtime, shell, ACL, and services; intent lifecycle and published package adoption remain Phase 104 and 105.
+- [Phase ?]: Full Playwright supports an isolated IPv6 Kehto preview; 69 tests pass, the Phase 102 channel proof is green, and 7 legacy demo/fixture failures remain at the Phase 105 published-package adoption boundary.
+- [Phase ?]: Runtime identity/theme denials use exact same-domain safe results; unsupported messages are silent.
+- [Phase ?]: Identity public-key failures resolve once as a correlated empty-pubkey result; provider errors remain stable and non-sensitive.
+- [Phase ?]: Theme service normalizes incomplete values to the fixed complete fallback before its sole changed callback.
+- [Phase ?]: Injected identity and theme operations are stable frozen objects preserved across direct-domain and whole-namespace assignment.
+- [Phase ?]: Only trusted-parent MessageEvents may settle identity/theme requests or invoke automatic change callbacks.
+- [Phase ?]: Identity and theme host pushes require a shell.ready session, its frozen domain environment, and a current recipient ACL grant per window.
+- [Phase ?]: Identity change pushes are sender-null and recipient identity:read; concurrent empty-pubkey sessions are evaluated independently.
+- [Phase ?]: Paja forwards retained ThemeService callbacks through one attached eligible-session ShellBridge path; controller code never directly fans out theme changes.
+- [Phase ?]: Paja's opaque-origin theme proof uses automatic protected onChanged delivery and an immediate theme.get, with no subscribe or unsubscribe traffic.
+- [Phase ?]: Playground theme delivery now flows only through ThemeService state then the eligible ShellBridge push.
+- [Phase ?]: Connecting and initial disconnected signer snapshots do not publish identity.changed; connected and sign-out transitions do.
+- [Phase ?]: Pinned NAP-IDENTITY, NAP-THEME, and web projection authority to napplet/naps@896c32c92deee68dc4d10fc1132b62df20cccb6f.
+- [Phase ?]: Kehto denied/unavailable theme reads use one complete fixed normal result without error as an explicit upstream-spec-gap reconciliation.
+- [Phase ?]: The unrelated Phase 102 Paja INC-after-reload failure remains out of scope; no protocol workaround was added.
+- [Phase ?]: Published Kehto core/nap peer declarations are bounded to >=0.29.0 <0.30.0; JSR maps retain ^0.29.0 release-line mappings.
+- [Phase ?]: @napplet/shim 0.27.0 remains development-only and non-shell; Kehto retains its host-owned mandatory NAP-SHELL prelude.
+- [Phase ?]: During Phase 105's ordered app migration, package graph guards accept only a complete 0.28 or 0.29 line per manifest while lock snapshots require the published 0.29 line.
+- [Phase ?]: Remaining playground apps and browser fixtures use exact published 0.29.0/0.27.0/0.25.0/0.12.0 pins with a generated third lock checkpoint.
+- [Phase ?]: Package-line guards dynamically inspect active manifests, JSR maps, final lock snapshots, and frozen installed metadata.
+- [Phase ?]: Keep the Kehto-owned mandatory NAP-SHELL prelude because published core/shim 0.29.0/0.27.0 omit the generic shell API.
+- [Phase ?]: NAP-INTENT values now come from released @napplet/core 0.29.0 while Kehto retains resolver and delivery policy.
+- [Phase ?]: Paja retains serializable verified manifest and pointer facts independently from browser frames.
+- [Phase ?]: Paja intent selection revalidates exact installed contracts and sender-aware explicit authorization before acceptance.
+- [Phase ?]: Playground intent availability comes only from a persistent resolver-verified catalog, never the live frame map.
+- [Phase ?]: Playground intent delivery waits for the registered current shell.ready source and sends exactly once without INC.
+- [Phase ?]: Paja installs only resolver-verified manifests; source-bound readiness uses registered MessageEvent.source plus tab generation.
+- [Phase ?]: Paja retains ThemeService as the only state-before-one-push theme route.
+- [Phase ?]: Scope firewall init-burst accounting to host-attested iframe lifecycles while retaining dTag-wide rate limits.
+- [Phase ?]: Playground profile intents advertise the live intent service through the stable adapter and reuse only origin-registered, session-bound ready targets.
+- [Phase ?]: Profile picture and banner media use resourceBytes plus revocable Blob URLs; no standalone NAP-RESOURCE wire semantics were inferred.
+- [Phase ?]: Profile cold-start verification closes live frames without revoking their verified catalog records, then proves one intent delivery without INC.
+- [Phase ?]: The active playground gateway guard mirrors published intent/resource manifests and forbids legacy profile INC imports or carriers.
+- [Phase ?]: Classify static migration evidence to explicit live sources while excluding history and intentional fixtures.
+- [Phase ?]: Retain the Kehto-owned mandatory NAP-SHELL prelude as positive proof of the published core/shim shell omission exception.
+- [Phase ?]: Treat the core/nap 0.29.0 peer-floor increase as breaking 0.x work and classify every affected published package as minor.
+- [Phase ?]: Retain Kehto host-owned NAP-SHELL prelude because published core 0.29.0 and shim 0.27.0 omit generic shell.
+- [Phase ?]: Treat resource hardening as non-normative Kehto policy because pinned master has no standalone NAP-RESOURCE.md.
+- [Phase ?]: Installed resolver-verified manifests remain distinct from live frames/controllers for availability and selection.
+- [Phase ?]: Kehto retains its host-owned mandatory shell prelude because published shim 0.27.0 is non-shell.
+- [Phase ?]: Profile media follows NAP-IDENTITY resource.bytes delegation without inferring standalone NAP-RESOURCE wire semantics.
+- [Phase ?]: PR #89 semantic delta is conformant: symmetric INC channel obligations already exist in runtime and prelude.
+- [Phase ?]: Phase 106 active scans explicitly separate current guidance from historical records.
+- [Phase ?]: Focused browser evidence records all five real-shell protocol flow classes; mandatory skips or failures block release readiness.
+- [Phase ?]: Phase 105's 12/24 desktop/mobile UI audit remains visible non-blocking protocol-release debt owned by Kehto maintainers.
+- [Phase ?]: Plan 106-02 ends at PR #204 readiness evidence; merge, versioning, exact-main CI, tag, and publishing remain unexecuted release-process steps.
+- [Phase ?]: Phase 106 release readiness requires local gates plus exact-SHA CI before PR #204 can be called merge-ready.
+- [Phase ?]: Phase 105 UI audit remains explicit non-blocking Kehto-maintainer follow-up debt, not a visual pass.

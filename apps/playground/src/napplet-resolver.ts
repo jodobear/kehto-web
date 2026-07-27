@@ -83,11 +83,11 @@ export interface PlaygroundNapplet {
   /** Short NAP capability names the manifest requires. */
   requires: string[];
   /**
-   * Archetype slugs this napplet fulfills, from the verified manifest's
-   * `archetype` tags; the optional `nap` is the recommended default wire protocol.
-   * Always present (empty when the manifest declares none).
+   * Ordered convention contracts this napplet fulfills, from the verified
+   * manifest's `archetype` tags. Always present (empty when the manifest
+   * declares none).
    */
-  archetypes: Array<{ slug: string; nap?: string }>;
+  archetypes: Array<{ slug: string; convention: string; eventKinds?: number[] }>;
   /** Optional human title from the verified manifest. */
   title?: string;
   /** Verified `/index.html` text (no CSP yet — inject with {@link injectCspMeta}). */

@@ -177,3 +177,23 @@ export function createMessageTap(resolveWindowId?: (source: MessageEventSource |
     },
   };
 }
+
+let installedMessageTap: MessageTap | null = null;
+
+/**
+ * Retain the tap installed by the playground shell bootstrap.
+ *
+ * @param tap - Installed message tap.
+ */
+export function setMessageTap(tap: MessageTap): void {
+  installedMessageTap = tap;
+}
+
+/**
+ * Return the installed playground message tap.
+ *
+ * @returns The tap, or null before shell bootstrap.
+ */
+export function getMessageTap(): MessageTap | null {
+  return installedMessageTap;
+}

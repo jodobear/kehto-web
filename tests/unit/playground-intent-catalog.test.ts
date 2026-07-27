@@ -12,15 +12,34 @@ import { buildPlaygroundIntentCatalog } from '../../apps/playground/src/playgrou
 describe('buildPlaygroundIntentCatalog', () => {
   it('maps a resolved napplet through the adapter into an IntentCatalogEntry', () => {
     const catalog = buildPlaygroundIntentCatalog([
-      { dTag: 'profile-viewer', title: 'Profile', archetypes: [{ slug: 'profile', nap: 'NAP-1' }] },
+      {
+        dTag: 'profile-viewer',
+        title: 'Profile',
+        archetypes: [
+          { slug: 'profile', convention: 'napplet:profile/open', eventKinds: [0] },
+          { slug: 'profile', convention: 'napplet:profile/edit', eventKinds: [0, 10002] },
+        ],
+      },
     ]);
     expect(catalog).toEqual([
       {
         dTag: 'profile-viewer',
         title: 'Profile',
-        archetypes: { profile: { actions: ['open'], protocols: ['NAP-1'] } },
+        archetypes: {
+          profile: {
+            actions: ['open', 'edit'],
+            conventions: ['napplet:profile/open', 'napplet:profile/edit'],
+            contracts: [
+              { convention: 'napplet:profile/open', eventKinds: [0] },
+              { convention: 'napplet:profile/edit', eventKinds: [0, 10002] },
+            ],
+          },
+        },
       },
     ]);
+    expect(JSON.stringify(catalog)).not.toMatch(
+      /"protocols?"|"handled"|"windowId"|"newWindow"|"nap":"NAP-/,
+    );
   });
 
   it('includes a napplet with no archetypes as an entry with archetypes:{}', () => {
@@ -33,10 +52,20 @@ describe('buildPlaygroundIntentCatalog', () => {
 
   it('builds an entry per resolved napplet', () => {
     const catalog = buildPlaygroundIntentCatalog([
-      { dTag: 'profile-viewer', archetypes: [{ slug: 'profile', nap: 'NAP-1' }] },
-      { dTag: 'feed', archetypes: [{ slug: 'feed' }] },
+      {
+        dTag: 'profile-viewer',
+        archetypes: [{ slug: 'profile', convention: 'napplet:profile/open' }],
+      },
+      {
+        dTag: 'feed',
+        archetypes: [{ slug: 'feed', convention: 'napplet:feed/read' }],
+      },
     ]);
     expect(catalog.map((e) => e.dTag)).toEqual(['profile-viewer', 'feed']);
-    expect(catalog[1].archetypes.feed).toEqual({ actions: ['open'], protocols: [] });
+    expect(catalog[1].archetypes.feed).toEqual({
+      actions: ['read'],
+      conventions: ['napplet:feed/read'],
+      contracts: [{ convention: 'napplet:feed/read' }],
+    });
   });
 });

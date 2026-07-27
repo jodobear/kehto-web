@@ -87,6 +87,12 @@ function countMap(_action: string): CapabilityResolution {
  *   `identity:read`, recipient `null`.
  */
 function identityMap(action: string): CapabilityResolution {
+  // NAP-IDENTITY's shell-originated change notification is recipient-gated:
+  // no napplet sends it, and only a napplet currently allowed to read identity
+  // data may receive it.
+  if (action === 'changed') {
+    return { senderCap: null, recipientCap: 'identity:read' };
+  }
   if (action === 'getPublicKey' || action === 'getRelays') {
     return { senderCap: null, recipientCap: null };
   }
@@ -142,19 +148,27 @@ function storageMap(action: string): CapabilityResolution {
 /**
  * `inc.*` — topic + channel sub-protocol.
  *
- * - Write actions (`emit`, `channel.emit`, `channel.broadcast`) → sender
- *   `relay:write`, recipient `relay:read`. Semantically equivalent to relay
- *   publish: point-to-point or fan-out writes gate on relay-write at wire
- *   level even though channel membership ACL is enforced at `channel.open`.
- * - Read / control actions (`subscribe`, `unsubscribe`, `channel.open`,
- *   `channel.list`, `channel.close`)                             → sender
- *   `relay:read`, recipient `null`. Channel open-time ACL semantics: the
- *   caller must already hold `relay:read`, and channel membership is
- *   recorded by the inc handler.
+ * - Topic actions retain their existing policy: `emit` requires sender
+ *   `relay:write` and recipient `relay:read`; `subscribe` and `unsubscribe`
+ *   require sender `relay:read`.
+ * - `channel.open` requires sender `relay:read` once, before the inc handler
+ *   records the opaque membership route.
+ * - Established channel actions (`channel.emit`, `channel.broadcast`,
+ *   `channel.list`, `channel.close`) resolve to `null`/`null`: membership is
+ *   the only authorization after open, so application payloads are never
+ *   reinterpreted by the global ACL gate.
  */
 function incMap(action: string): CapabilityResolution {
-  if (action === 'emit' || action === 'channel.emit' || action === 'channel.broadcast') {
+  if (action === 'emit') {
     return { senderCap: 'relay:write', recipientCap: 'relay:read' };
+  }
+  if (
+    action === 'channel.emit' ||
+    action === 'channel.broadcast' ||
+    action === 'channel.list' ||
+    action === 'channel.close'
+  ) {
+    return { senderCap: null, recipientCap: null };
   }
   return { senderCap: 'relay:read', recipientCap: null };
 }
@@ -302,25 +316,31 @@ function uploadMap(action: string): CapabilityResolution {
  * cannot dispatch (mirrors `outbox` / `relay`, where the write op is the
  * sensitive one — here `invoke` is a focus-stealing cross-napplet navigation):
  *
- * - `invoke` (napplet → shell)                          → sender `intent:write`,
- *   recipient `null`. The shell resolves the archetype to a handler, creates or
- *   focuses its window, and delivers the payload.
- * - `available` / `handlers` (and any other napplet-originated request)  →
+ * - `invoke` (napplet → runtime)                        → sender `intent:write`,
+ *   recipient `null`. The runtime resolves and retains delivery responsibility.
+ * - `available` / `handlers` (napplet → runtime)        →
  *   sender `intent:read`, recipient `null`. Read-side catalog introspection.
- * - `changed` / `*.result` / `*.error` (shell → napplet pushes)         →
+ * - `changed` / `deliver` / sanctioned `*.result` (runtime → napplet)   →
  *   sender `null`, recipient `intent:read`. The push is gated against the
  *   receiving napplet's cap so a napplet without `intent:read` never sees
- *   availability updates or invoke results.
+ *   availability updates, delivery, or results.
+ * - every other action → no capability mapping in either direction.
  */
 function intentMap(action: string): CapabilityResolution {
-  // Shell-originated pushes: recipient gate (napplet must hold intent:read to see them).
-  if (action === 'changed' || action.endsWith('.result') || action.endsWith('.error')) {
+  if (
+    action === 'changed'
+    || action === 'deliver'
+    || action === 'invoke.result'
+    || action === 'available.result'
+    || action === 'handlers.result'
+  ) {
     return { senderCap: null, recipientCap: 'intent:read' };
   }
-  // Invoke is the write op (cross-napplet dispatch / focus-steal).
   if (action === 'invoke') return { senderCap: 'intent:write', recipientCap: null };
-  // Napplet-originated reads: available, handlers, unknown.
-  return { senderCap: 'intent:read', recipientCap: null };
+  if (action === 'available' || action === 'handlers') {
+    return { senderCap: 'intent:read', recipientCap: null };
+  }
+  return { senderCap: null, recipientCap: null };
 }
 
 /**
@@ -377,6 +397,7 @@ function themeMap(action: string): CapabilityResolution {
  * | `count`    | `count`, `count.result`                                      | `relay:read`    | `null`        |
  * | `identity` | `getPublicKey`, `getRelays`                                 | `null`          | `null`        |
  * | `identity` | `getProfile/getFollows/getList/getZaps/getMutes/...`        | `identity:read` | `null`        |
+ * | `identity` | `changed` (shell → napplet push)                            | `null`          | `identity:read` |
  * | `keys`     | `forward`, `action`                                         | `keys:forward`  | `null`        |
  * | `keys`     | `registerAction`, `unregisterAction`, `bindings`            | `keys:bind`     | `null`        |
  * | `media`    | any                                                         | `media:control` | `null`        |
@@ -395,7 +416,7 @@ function themeMap(action: string): CapabilityResolution {
  * | `resource` | `bytes*.result`, `bytes*.error` (shell → napplet pushes)   | `null`          | `resource:fetch` |
  * | `intent`   | `invoke` (napplet → shell)                                  | `intent:write`  | `null`        |
  * | `intent`   | `available`, `handlers` (napplet → shell)                   | `intent:read`   | `null`        |
- * | `intent`   | `changed`, `*.result`, `*.error` (shell → napplet pushes)   | `null`          | `intent:read` |
+ * | `intent`   | `changed`, `deliver`, sanctioned `*.result` (runtime pushes) | `null`         | `intent:read` |
  * | unknown    | any                                                         | `null`          | `null`        |
  *
  * The `signer` domain is REMOVED — signer messages fall through to the

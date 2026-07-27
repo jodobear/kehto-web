@@ -12,6 +12,13 @@ Browser-agnostic protocol engine for the napplet protocol.
 pnpm add @kehto/runtime
 ```
 
+## Published Napplet Compatibility
+
+`@kehto/runtime` publishes against `@napplet/core` and `@napplet/nap`
+`>=0.29.0 <0.30.0`. The exact installed convention contracts are core/nap
+0.29.0 from source `dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b` and release
+`60889f1c2476e063500c7ab6624af6abe0dbcbe5`.
+
 ## Overview
 
 `@kehto/runtime` is Kehto's NIP-5D protocol engine. It owns every incoming napplet message, gates it through the ACL enforcement layer, routes it to the correct NAP handler, and emits the corresponding reply envelope.
@@ -26,11 +33,113 @@ The runtime is built around the current draft dispatch contract from `@napplet/c
 - **relay** — `relay.publish`, `relay.publishEncrypted`, `relay.subscribe`
 - **dm** — `dm.status`, `dm.conversations`, `dm.messages`, `dm.send`, runtime service dispatch
 - **storage** — `storage.get/set/remove/keys` with quota enforcement
-- **theme** — `theme.get`, `theme.changed` fan-out
+- **theme** — `theme.get` and automatic recipient-authorized `theme.changed`
 
 Signing is shell-mediated inside `relay.publish` / `relay.publishEncrypted` (NIP-44 default, NIP-04 opt-in). The legacy signer domain is dissolved — napplets never see a host-injected nostr object and cannot call signer-sign RPCs directly.
 
+### NAP-RELAY publish boundary
+
+The publish path follows draft [NAP-RELAY PR #2 at
+`0be8abce18beb46ca37bd4ddd042f58d30b4eedc`](https://github.com/napplet/naps/pull/2).
+A napplet submits an `EventTemplate`; the runtime obtains the active
+shell-owned signer, signs once, and gives only the resulting `NostrEvent` to
+the relay backend. Success returns exactly one correlated
+`relay.publish.result` with `ok: true`, the full signed `event`, and `eventId`.
+Signing, replay, relay, and service failures return `ok: false` plus `error`
+and are never buffered as successful local publications.
+
+The released `@napplet/nap@0.29.0` SDK accepts `EventTemplate`, while its
+`RelayPublishMessage.event` declaration still says `NostrEvent`; Kehto records
+that mismatch as upstream package drift and follows the NAP wire direction.
+
+## Identity and theme result policy
+
+This runtime follows NAP-IDENTITY and NAP-THEME at `napplet/naps` master
+`5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`.
+
+- `identity.getPublicKey` always yields exactly one correlated
+  `identity.getPublicKey.result`; no signer or a signer failure is
+  `pubkey: ""`. Other supported readonly identity operations yield their
+  matching result shapes with safe defaults, while unsupported identity actions
+  are silently ignored.
+- `theme.get` uses a complete three-color result. For denied or unavailable
+  reads, Kehto's explicit policy is one fixed non-sensitive normal result with
+  no `error` field. This reconciles the draft's error-only example without
+  emitting `theme.*.error` or inventing a mixed theme/error payload.
+- The runtime neither accepts nor creates identity/theme subscription messages.
+  Change delivery is host-owned and recipient-gated by the shell bridge; it is
+  not routed through NAP-INC or NAP-INTENT.
+
+Phase 105 adopts the published `@napplet/*` convention package line; archived
+phase records remain history rather than active compatibility guidance.
+
+## NAP-INTENT runtime boundary
+
+Phase 104 implements the draft [NAP-INTENT PR #91 at
+`a718915ddefa2f03a0126579601f59d8bd86f7c4`](https://github.com/napplet/naps/pull/91).
+The runtime accepts only source-side `intent.invoke`, `intent.available`, and
+`intent.handlers` requests. It validates the exact queryless
+`napplet:<archetype>/<action>` identity, derives the sender dTag from the live
+authenticated session, and shapes policy denials as sanctioned result
+envelopes without exposing ACL or firewall details.
+
+Registered services receive a frozen `ServiceRuntimeContext`: current dTag
+resolution, a frozen live-window snapshot, and recipient-policy-aware sends.
+An `intent.invoke.result` with `ok: true` means only that a host controller has
+already retained delivery responsibility. The service sends that result before
+starting the retained task; target startup, readiness, reuse, replacement,
+retry, and terminal failure remain private host policy. A ready target receives
+one no-ID `intent.deliver` with the runtime-attested sender, never a visible INC
+carrier or window/lifecycle fields.
+
+The canonical public `Intent*` contracts are the released `@napplet/core` /
+`@napplet/nap` declarations; Kehto retains no local type mirror. An accepted
+result transfers delivery responsibility before a retained task starts, and a
+post-acceptance outcome never creates a second source result.
+
+Phase 105 completed released package adoption and persistent installed-manifest
+controllers for the live Paja and playground hosts.
+
+## NAP-INC Contract
+
+The active INC boundary follows merged
+[`naps/NAP-INC.md`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-INC.md)
+on `napplet/naps` master
+`6461e4b37c29dc09a20dff35d9515889c4433874`. The document remains marked
+draft, but the merged path is the protocol authority.
+
+The released projection binding converts a convention query to a text payload
+map before sending `inc.emit`. Runtime `inc-handler` routing then uses an exact
+queryless topic identity, with no query-bearing normalized wire/discovery
+identity, prefix/wildcard/query-aware matching, generic or service-over-INC
+prefix dispatch, or runtime payload-kind inference. The runtime derives the
+**runtime-attested dTag** from the registered source; callers never supply a
+sender, topic delivery excludes its source, and IDs/payloads are opaque.
+
+Channels apply **open-time authorization** only: ACL and target liveness are
+checked at `inc.channel.open`, never per later message. The target receives
+`inc.channel.opened` before the opener result and both sides get symmetric
+handles with `onOpened`, `on`, and `onClosed`; early events and terminal closure
+are retained in order, bounded overflow closes the channel, and close or endpoint
+destruction tears it down deterministically. `channel.list` is informational
+only. Track draft follow-up through
+[`kehto/web#203`](https://github.com/kehto/web/issues/203) and [its upstream
+resolution reply](https://github.com/kehto/web/issues/203#issuecomment-5060904495),
+not the obsolete opener-only model.
+
+This is INC documentation only. **Phase 104** owns every public #91 NAP-INTENT
+binding/resolution/delivery change; **Phase 105** records the completed released
+package adoption. Historical changelogs and archived planning are preserved
+records, not targets for active-surface edits.
+
 Everything plugs into a single factory, `createRuntime()`, via a `RuntimeAdapter` hook bag — persistence, relay pool, auth, services, and so on. No DOM, no postMessage, no localStorage: those live in `@kehto/shell`.
+
+`RelayPoolAdapter.publish()` may return a promise. The runtime waits for that
+promise before reporting publish success, buffers only successful publishes,
+and releases failed replay reservations so a deterministic signed event can be
+retried without allowing concurrent duplicate publication.
+`publishToScopedRelay()` may similarly return `Promise<boolean>` when a host
+needs transport settlement before reporting the scoped publication outcome.
 
 ## Quick Start
 

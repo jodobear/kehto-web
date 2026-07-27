@@ -1,27 +1,22 @@
-/**
- * shell-host.ts -- Demo shell host.
- *
- * Boots @napplet/shell with mock hooks, installs message tap,
- * loads demo napplet iframes, and exposes control APIs for the UI.
- */
-
 import {
   createShellBridge,
-  injectNappletNamespacePrelude,
   originRegistry,
   type ShellBridge,
   type ServiceHandler,
   type Capability,
   type NappletMessage,
-  type AclCheckEvent,
   type SessionEntry,
+  type ShellEnvironment,
 } from '@kehto/shell';
-import type { Notification } from '@kehto/services';
-import {
-  resolvePlaygroundNapplet,
-  injectCspMeta,
-  PLAYGROUND_MANIFEST_AUTHOR,
-} from './napplet-resolver.js';
+import type { IntentRetentionParams, Notification } from '@kehto/services';
+import type { Theme } from '@napplet/nap/theme/types';
+import type { PlaygroundNapplet } from './napplet-resolver.js';
+import { InstalledNappletCatalog, matchesInstalledNappletRecord } from './installed-napplet-catalog.js';
+import type { InstalledNappletRecord } from './installed-napplet-catalog.js';
+import type {
+  PlaygroundIntentControllerOptions,
+  PlaygroundIntentGeneration,
+} from './playground-intent-controller.js';
 import { getSignerConnectionState } from './signer-connection.js';
 import { pushAclEvent } from './acl-history.js';
 import {
@@ -31,20 +26,18 @@ import {
 } from './demo-definitions.js';
 import {
   createDemoHooks,
-  getMissingRequiredNaps,
   setDemoSessionRegistryRef,
 } from './demo-hooks.js';
-import { createMessageTap, type MessageTap } from './message-tap.js';
-import { RESOURCE_DEMO_REMOTE_IMAGE_ORIGIN } from './main-preferences.js';
-
-/**
- * Static per-dTag origin allowlist for the `connect-src` CSP injected into
- * srcdoc iframes (Task 4 static-allowlist). Only resource-demo needs a
- * non-empty allowlist; all other napplets get `connect-src 'none'`.
- */
-const STATIC_ORIGIN_ALLOWLIST: ReadonlyMap<string, readonly string[]> = new Map([
-  ['resource-demo', [RESOURCE_DEMO_REMOTE_IMAGE_ORIGIN]],
-]);
+import {
+  createMessageTap,
+  setMessageTap,
+  type MessageTap,
+} from './message-tap.js';
+import {
+  loadPlaygroundNapplet,
+  type LoadNappletOptions,
+} from './playground-frame-loader.js';
+import { PlaygroundAccessControls, type DemoAclAdapter } from './playground-access-controls.js';
 
 // Static ephemeral host identity for shell node display (separate from signer identity)
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
@@ -65,6 +58,7 @@ export {
   type DemoSignerMode,
 } from './demo-definitions.js';
 export type { MessageTap, TappedMessage } from './message-tap.js';
+export { getMessageTap, setMessageTap } from './message-tap.js';
 export {
   getConfigServiceBundle,
   getIdentityServiceHandler,
@@ -76,6 +70,8 @@ export {
   getThemeServiceBundle,
   setDemoConfigValue,
 } from './demo-hooks.js';
+export type { LoadedNappletIdentity, LoadNappletOptions } from './playground-frame-loader.js';
+export type { DemoAclAdapter } from './playground-access-controls.js';
 
 // Inline a simplified message tap since we can't import from tests/helpers in apps/
 // (they are not a published package)
@@ -83,7 +79,12 @@ export {
 const proxyToReal = new WeakMap<object, Window>();
 const realToProxy = new WeakMap<Window, Window>();
 
-function createPostMessageProxy(realWin: Window, messageTap: MessageTap, windowId?: string): Window {
+/**
+ * Wrap a trusted iframe window to record host-to-napplet traffic.
+ *
+ * @internal Exported for host-proxy regression coverage.
+ */
+export function createPostMessageProxy(realWin: Window, messageTap: MessageTap, windowId?: string): Window {
   const existing = realToProxy.get(realWin);
   if (existing) return existing;
   const proxy = new Proxy(realWin, {
@@ -121,36 +122,292 @@ export interface NappletInfo {
   pubkey?: string;
   dTag?: string;
   aggregateHash?: string;
+  /** Immutable environment captured before the iframe's srcdoc is injected. */
+  environment: ShellEnvironment;
   identityBound: boolean;
 }
 
-export interface LoadedNappletIdentity {
-  dTag: string;
-  aggregateHash: string;
-}
-
-export interface LoadNappletOptions {
-  /**
-   * Hook invoked after the napplet is resolved and verified but before the
-   * verified bytes are injected into the iframe. Receives the computed identity
-   * for any pre-render setup the host requires.
-   */
-  beforeRender?: (identity: LoadedNappletIdentity) => void | Promise<void>;
-}
-
 const napplets = new Map<string, NappletInfo>();
+const installedNapplets = new InstalledNappletCatalog();
+interface IntentGenerationState extends PlaygroundIntentGeneration {
+  readonly dTag: string;
+  readonly windowId: string;
+  /** Exact catalog record selected before this target generation began. */
+  readonly selectedRecord: InstalledNappletRecord;
+  readonly ready: Promise<void>;
+  readonly resolveReady: () => void;
+  readonly rejectReady: (reason: Error) => void;
+  source?: Window;
+}
+const intentGenerations = new Map<string, IntentGenerationState>();
+const readyIntentSources = new Map<string, Window>();
+let intentGenerationCounter = 0;
+let stopIntentCatalogChanges: (() => void) | undefined;
+let intentCatalogLifecycleBound = false;
 const demoServiceNames = new Set<string>(DEMO_TOPOLOGY_SERVICE_NAMES);
-let nappletCounter = 0;
-
-const serviceHandlerStore = new Map<string, ServiceHandler>();
-const disabledServices = new Set<string>();
-const SERVICE_STATE_STORAGE_KEY = 'kehto.playground.disabledServices.v1';
 
 export let tap: MessageTap;
 export let relay: ShellBridge;
+const accessControls = new PlaygroundAccessControls({
+  getRelay: () => relay,
+  getNapplets: () => napplets,
+  registerDemoServiceName: (name) => demoServiceNames.add(name),
+});
 
 export function getNapplets(): Map<string, NappletInfo> { return napplets; }
 export function getNapplet(windowId: string): NappletInfo | undefined { return napplets.get(windowId); }
+
+/** Return the resolver-verified installed catalog, separate from live frames. */
+export function getInstalledNappletCatalog(): InstalledNappletCatalog {
+  return installedNapplets;
+}
+
+/** Explicitly uninstall an artifact; frame lifecycle never removes catalog authority. */
+export function uninstallNapplet(dTag: string): boolean {
+  const generation = intentGenerations.get(dTag);
+  if (generation) clearPlaygroundIntentGeneration(generation.windowId);
+  return installedNapplets.remove(dTag);
+}
+
+/**
+ * Close a live frame while retaining its resolver-verified catalog authority.
+ *
+ * A later intent may reopen the handler only through the installed record,
+ * which keeps frame lifecycle separate from NIP-5D artifact authority.
+ */
+export function closeNapplet(windowId: string): boolean {
+  const info = napplets.get(windowId);
+  if (!info) return false;
+  resetPlaygroundIntentWindow(windowId);
+  originRegistry.unregister(windowId);
+  relay.runtime.sessionRegistry.unregister(windowId);
+  napplets.delete(windowId);
+  info.iframe.remove();
+  return true;
+}
+
+/**
+ * Record an artifact immediately after `resolvePlaygroundNapplet` succeeds.
+ *
+ * This narrow host seam makes resolver verification the only production route
+ * to installed-handler authority; it intentionally has no iframe dependency.
+ */
+export function installVerifiedNapplet(
+  resolved: PlaygroundNapplet,
+  restart: { name: string; containerId: string },
+) {
+  return installedNapplets.install(resolved, restart);
+}
+
+/**
+ * Create shell-host callbacks for retained, source-bound intent delivery.
+ *
+ * Callers create the controller before booting the shell, but these callbacks
+ * only open targets or send once the shell has registered a current source.
+ */
+export function createPlaygroundIntentTargetOptions(): PlaygroundIntentControllerOptions {
+  return {
+    openOrReuse: openOrReuseIntentTarget,
+    waitForReady: (generation) => waitForPlaygroundIntentReady(intentGeneration(generation)),
+    isCurrent: (generation) => isCurrentPlaygroundIntentGeneration(intentGeneration(generation)),
+    send: sendIntentDelivery,
+  };
+}
+
+/** Clear live generation/session state when a target frame is closed or replaced. */
+export function clearPlaygroundIntentGeneration(windowId: string): void {
+  const info = napplets.get(windowId);
+  if (!info?.dTag) return;
+  const generation = intentGenerations.get(info.dTag);
+  if (!generation || generation.windowId !== windowId) return;
+  intentGenerations.delete(info.dTag);
+  generation.rejectReady(new Error('intent target generation replaced'));
+}
+
+function resetPlaygroundIntentWindow(windowId: string): void {
+  readyIntentSources.delete(windowId);
+  clearPlaygroundIntentGeneration(windowId);
+}
+
+function intentGeneration(generation: PlaygroundIntentGeneration): IntentGenerationState {
+  for (const state of intentGenerations.values()) {
+    if (state.id === generation.id) return state;
+  }
+  throw new Error('intent target generation is no longer available');
+}
+
+async function openOrReuseIntentTarget(
+  params: IntentRetentionParams,
+  _attempt: number,
+): Promise<PlaygroundIntentGeneration | null> {
+  const record = installedNapplets.get(params.handler);
+  if (!record || !recordSupportsDelivery(record, params)) return null;
+  const current = intentGenerations.get(params.handler);
+  const currentInfo = current ? napplets.get(current.windowId) : undefined;
+  if (
+    current
+    && currentInfo
+    && current.selectedRecord === record
+    && matchesInstalledNappletRecord(record, currentInfo)
+    && isCurrentIntentGeneration(current)
+  ) return current;
+
+  // A catalog replacement may retain the same d-tag while changing verified bytes.
+  // Never retain a stale artifact as an intent target after that replacement.
+  for (const stale of Array.from(napplets.values())) {
+    if (stale.dTag === params.handler && !matchesInstalledNappletRecord(record, stale)) {
+      closeNapplet(stale.windowId);
+    }
+  }
+
+  const live = [...napplets.values()].find((info) => matchesInstalledNappletRecord(record, info));
+  if (live) return replaceIntentGeneration(live, record);
+
+  let info: NappletInfo;
+  try {
+    info = await loadNapplet(record.restart.name, record.restart.containerId, {
+      installInCatalog: false,
+      acceptResolved: (identity) => installedNapplets.validateCurrent(record, identity) !== null,
+    });
+  } catch {
+    return null;
+  }
+  const currentRecord = installedNapplets.validateCurrent(record, info);
+  if (!currentRecord || !recordSupportsDelivery(currentRecord, params)) {
+    closeNapplet(info.windowId);
+    return null;
+  }
+  return replaceIntentGeneration(info, currentRecord);
+}
+
+function recordSupportsDelivery(
+  record: ReturnType<InstalledNappletCatalog['get']>,
+  params: IntentRetentionParams,
+): boolean {
+  return record?.archetypes.some((archetype) =>
+    archetype.slug === params.delivery.archetype
+    && archetype.convention === params.delivery.convention,
+  ) ?? false;
+}
+
+function replaceIntentGeneration(
+  info: NappletInfo,
+  selectedRecord: InstalledNappletRecord,
+): IntentGenerationState | null {
+  if (!info.dTag) return null;
+  clearPlaygroundIntentGeneration(info.windowId);
+  let resolveReady!: () => void;
+  let rejectReady!: (reason: Error) => void;
+  const ready = new Promise<void>((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
+  const generation: IntentGenerationState = {
+    id: `playground-intent-${++intentGenerationCounter}`,
+    dTag: info.dTag,
+    windowId: info.windowId,
+    selectedRecord,
+    ready,
+    resolveReady,
+    rejectReady,
+  };
+  intentGenerations.set(info.dTag, generation);
+  const source = info.iframe.contentWindow;
+  if (
+    source
+    && originRegistry.getWindowId(source) === info.windowId
+    && (
+      readyIntentSources.get(info.windowId) === source
+      || relay.runtime.sessionRegistry.getEntryByWindowId(info.windowId)
+    )
+  ) {
+    generation.source = source;
+    generation.resolveReady();
+  }
+  return generation;
+}
+
+function isCurrentIntentGeneration(generation: IntentGenerationState): boolean {
+  const info = napplets.get(generation.windowId);
+  return intentGenerations.get(generation.dTag)?.id === generation.id
+    && info?.dTag === generation.dTag
+    && installedNapplets.validateCurrent(generation.selectedRecord, info) !== null
+    && info.iframe.contentWindow === (generation.source ?? info.iframe.contentWindow);
+}
+
+function invalidatePlaygroundIntentGeneration(generation: IntentGenerationState): void {
+  if (napplets.has(generation.windowId)) closeNapplet(generation.windowId);
+  else clearPlaygroundIntentGeneration(generation.windowId);
+}
+
+/**
+ * Keep retained readiness waits live across verified catalog replacements.
+ * A catalog listener rejects stale waits immediately, allowing the controller
+ * to retry the newly installed target even when the old frame never becomes
+ * ready.
+ */
+function subscribePlaygroundIntentCatalogChanges(): void {
+  if (stopIntentCatalogChanges) return;
+  stopIntentCatalogChanges = installedNapplets.onChanged(() => {
+    for (const generation of Array.from(intentGenerations.values())) {
+      if (!isCurrentIntentGeneration(generation)) invalidatePlaygroundIntentGeneration(generation);
+    }
+  });
+  if (intentCatalogLifecycleBound) return;
+  intentCatalogLifecycleBound = true;
+  window.addEventListener('pagehide', () => {
+    stopIntentCatalogChanges?.();
+    stopIntentCatalogChanges = undefined;
+    intentCatalogLifecycleBound = false;
+  }, { once: true });
+}
+
+async function waitForPlaygroundIntentReady(generation: IntentGenerationState): Promise<void> {
+  if (!isCurrentIntentGeneration(generation)) {
+    invalidatePlaygroundIntentGeneration(generation);
+    throw new Error('intent target catalog record was replaced');
+  }
+  await generation.ready;
+  if (!isCurrentIntentGeneration(generation)) {
+    invalidatePlaygroundIntentGeneration(generation);
+    throw new Error('intent target catalog record was replaced');
+  }
+}
+
+function isCurrentPlaygroundIntentGeneration(generation: IntentGenerationState): boolean {
+  if (isCurrentIntentGeneration(generation)) return true;
+  invalidatePlaygroundIntentGeneration(generation);
+  return false;
+}
+
+export function markIntentTargetReady(windowId: string, source: Window): void {
+  const info = napplets.get(windowId);
+  if (!info?.dTag || info.iframe.contentWindow !== source) return;
+  if (originRegistry.getWindowId(source) !== windowId) return;
+  readyIntentSources.set(windowId, source);
+  const generation = intentGenerations.get(info.dTag);
+  if (!generation || generation.windowId !== windowId || generation.source) return;
+  if (!isCurrentIntentGeneration(generation)) {
+    invalidatePlaygroundIntentGeneration(generation);
+    return;
+  }
+  generation.source = source;
+  generation.resolveReady();
+}
+
+function sendIntentDelivery(
+  generation: PlaygroundIntentGeneration,
+  delivery: IntentRetentionParams['delivery'],
+): void {
+  const state = intentGeneration(generation);
+  if (!state.source || !isCurrentPlaygroundIntentGeneration(state)) {
+    throw new Error('intent target generation is not current and ready');
+  }
+  createPostMessageProxy(state.source, tap, state.windowId).postMessage({
+    type: 'intent.deliver',
+    delivery,
+  }, '*');
+}
 
 /**
  * Look up the windowId for a napplet by its dTag (DEMO_NAPPLETS entry `name`).
@@ -190,31 +447,6 @@ export function getDemoHostPubkey(): string {
   return _hostPubkey;
 }
 
-function getCurrentUserIdentityPubkey(): string {
-  const state = getSignerConnectionState();
-  if (state.method === 'none' || state.isConnecting || state.error) return '';
-  return state.pubkey ?? '';
-}
-
-function publishCurrentUserIdentityToNapplet(info: NappletInfo): void {
-  const targetWindow = info.iframe.contentWindow;
-  if (!targetWindow) return;
-  targetWindow.postMessage(
-    { type: 'identity.changed', pubkey: getCurrentUserIdentityPubkey() } as NappletMessage,
-    '*',
-  );
-}
-
-function publishCurrentUserIdentityToWindowId(windowId: string): void {
-  const info = napplets.get(windowId);
-  if (info) publishCurrentUserIdentityToNapplet(info);
-}
-
-function scheduleCurrentUserIdentitySync(info: NappletInfo): void {
-  window.setTimeout(() => publishCurrentUserIdentityToNapplet(info), 0);
-  window.setTimeout(() => publishCurrentUserIdentityToNapplet(info), 100);
-}
-
 function createInstalledMessageTap(): MessageTap {
   const messageTap = createMessageTap((source) => {
     for (const [windowId, info] of napplets) {
@@ -226,7 +458,12 @@ function createInstalledMessageTap(): MessageTap {
   return messageTap;
 }
 
-function installOriginRegistryProxy(messageTap: MessageTap): void {
+/**
+ * Add playground logging-proxy support to the shell's source registry.
+ *
+ * @internal Exported for host-proxy regression coverage.
+ */
+export function installOriginRegistryProxy(messageTap: MessageTap): void {
   const originalGetIframeWindow = originRegistry.getIframeWindow.bind(originRegistry);
   originRegistry.getIframeWindow = (windowId: string) => {
     const win = originalGetIframeWindow(windowId);
@@ -251,6 +488,7 @@ function installOriginRegistryProxy(messageTap: MessageTap): void {
           dTag: info.dTag ?? '',
           aggregateHash: info.aggregateHash ?? '',
         });
+        originRegistry.setEnvironment(target, info.environment);
         return windowId;
       }
     }
@@ -264,54 +502,10 @@ function installOriginRegistryProxy(messageTap: MessageTap): void {
   const originalGetRegistrationId = originRegistry.getRegistrationId.bind(originRegistry);
   originRegistry.getRegistrationId = (win: Window) =>
     originalGetRegistrationId(win) ?? originalGetRegistrationId(proxyToReal.get(win) ?? win);
-}
 
-function populateServiceHandlerStore(services: Record<string, ServiceHandler> | undefined): void {
-  if (!services) return;
-  for (const [name, handler] of Object.entries(services)) {
-    serviceHandlerStore.set(name, handler);
-  }
-}
-
-function wrapRuntimeServiceRegistration(): void {
-  const originalRegisterService = relay.runtime.registerService.bind(relay.runtime);
-  relay.runtime.registerService = (name, handler) => {
-    demoServiceNames.add(name);
-    serviceHandlerStore.set(name, handler);
-    originalRegisterService(name, handler);
-  };
-  const originalUnregisterService = relay.runtime.unregisterService.bind(relay.runtime);
-  relay.runtime.unregisterService = (name) => {
-    originalUnregisterService(name);
-  };
-}
-
-function readPersistedDisabledServices(): string[] {
-  try {
-    const raw = localStorage.getItem(SERVICE_STATE_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((name): name is string => typeof name === 'string' && name.length > 0);
-  } catch {
-    return [];
-  }
-}
-
-function persistDisabledServices(): void {
-  try {
-    localStorage.setItem(SERVICE_STATE_STORAGE_KEY, JSON.stringify([...disabledServices].sort()));
-  } catch {
-    // Storage can be unavailable; service toggles still apply for this session.
-  }
-}
-
-function applyPersistedServiceState(): void {
-  for (const name of readPersistedDisabledServices()) {
-    if (!serviceHandlerStore.has(name)) continue;
-    disabledServices.add(name);
-    relay.runtime.unregisterService(name);
-  }
+  const originalGetEnvironment = originRegistry.getEnvironment.bind(originRegistry);
+  originRegistry.getEnvironment = (win: Window) =>
+    originalGetEnvironment(win) ?? originalGetEnvironment(proxyToReal.get(win) ?? win);
 }
 
 function wrapRelayHandleMessage(messageTap: MessageTap): void {
@@ -346,20 +540,18 @@ function wrapRelayHandleMessage(messageTap: MessageTap): void {
       && (event.data as NappletMessage).type === 'shell.ready'
     ) {
       markEnvelopeIdentityBinding(windowId);
+      markIntentTargetReady(windowId, sourceWindow);
     }
   };
 }
 
-function bindTapIdentityUpdates(messageTap: MessageTap): void {
+function bindTapIdentityBindings(messageTap: MessageTap): void {
   messageTap.onMessage((msg) => {
     if (msg.verb === 'OK' && msg.parsed.success === true && msg.direction === 'shell->napplet') {
       markLegacyIdentityBindings();
     }
     if (msg.verb === 'ENVELOPE' && msg.direction === 'napplet->shell' && msg.windowId) {
       markEnvelopeIdentityBinding(msg.windowId);
-      if (msg.envelopeType === 'identity.getPublicKey') {
-        publishCurrentUserIdentityToWindowId(msg.windowId);
-      }
     }
   });
 }
@@ -386,7 +578,6 @@ function markEnvelopeIdentityBinding(windowId: string): void {
       aggregateHash: entry.aggregateHash,
     },
   }));
-  scheduleCurrentUserIdentitySync(info);
 }
 
 function markNappletIdentityBound(info: NappletInfo, entry: SessionEntry): void {
@@ -402,26 +593,42 @@ function markNappletIdentityBound(info: NappletInfo, entry: SessionEntry): void 
  * @param notificationOnChange - Called when the notification service state changes.
  *   Used by the demo notification controller to update host-side toast/summary UX.
  */
-export function bootShell(notificationOnChange?: (notifications: readonly Notification[]) => void): { tap: MessageTap; relay: ShellBridge } {
+export function bootShell(
+  notificationOnChange?: (notifications: readonly Notification[]) => void,
+  initialTheme?: Theme,
+  intentService?: ServiceHandler,
+): { tap: MessageTap; relay: ShellBridge } {
   const hooks = createDemoHooks(notificationOnChange, {
+    getDisabledDomains: () => accessControls.getDisabledDomains(),
     getNappletEntries: () => napplets.entries(),
     onResolvedAclCheck: (event, windowId, nappletName) => {
       pushAclEvent(event, windowId, nappletName);
-      _notifyAclCheckListeners(event, windowId, nappletName);
+      accessControls.notifyAclCheckListeners(event, windowId, nappletName);
     },
-  });
+    onThemeBroadcast: (envelope) => relay.publishTheme(envelope.theme),
+  }, initialTheme);
+  if (intentService) {
+    // Keep the adapter object stable: each frame resolves its frozen shell
+    // environment from this instance before srcdoc injection. Replacing the
+    // services map here would register the handler but leave `intent` absent
+    // from the advertised capability snapshot.
+    const services = hooks.services ?? (hooks.services = {});
+    services.intent = intentService;
+    hooks.intent = { isAvailable: () => true };
+  }
   tap = createInstalledMessageTap();
   installOriginRegistryProxy(tap);
 
   relay = createShellBridge(hooks);
+  subscribePlaygroundIntentCatalogChanges();
   setDemoSessionRegistryRef(relay.runtime.sessionRegistry);
-  populateServiceHandlerStore(hooks.services);
-  wrapRuntimeServiceRegistration();
-  applyPersistedServiceState();
+  accessControls.populateServiceHandlerStore(hooks.services);
+  accessControls.wrapRuntimeServiceRegistration();
+  accessControls.applyPersistedServiceState();
   wrapRelayHandleMessage(tap);
 
   window.addEventListener("message", relay.handleMessage);
-  bindTapIdentityUpdates(tap);
+  bindTapIdentityBindings(tap);
   setMessageTap(tap);
 
   return { tap, relay };
@@ -429,108 +636,33 @@ export function bootShell(notificationOnChange?: (notifications: readonly Notifi
 
 /**
  * Load a demo napplet into a container element.
+ *
+ * @param name - Napplet d-tag to resolve.
+ * @param containerId - DOM container that receives the iframe.
+ * @param options - Admission and pre-render hooks.
+ * @returns The live napplet frame record.
  */
 export async function loadNapplet(
   name: string,
   containerId: string,
   options: LoadNappletOptions = {},
 ): Promise<NappletInfo> {
-  // Resolve + verify content-addressed bytes: relays (NIP-65 outbox) → Blossom →
-  // verify signature + aggregate + every blob. The gateway is never in the trust
-  // path; identity (dTag, aggregateHash) is COMPUTED from the verified bytes.
-  // Any verification failure throws here — no iframe is ever shown unverified.
-  const resolved = await resolvePlaygroundNapplet({
-    dTag: name,
-    author: PLAYGROUND_MANIFEST_AUTHOR,
-    relayDiscoveryUrl: playgroundPath('/napplet-relay/relay-list'),
-    blossomServers: [playgroundPath('/napplet-blossom')],
-  });
-
-  const missingRequiredNaps = getMissingRequiredNaps(resolved.requires);
-  if (missingRequiredNaps.length > 0) {
-    throw new Error(
-      `[demo] ${resolved.dTag} requires unsupported NAP capabilities: ${missingRequiredNaps.join(', ')}`,
-    );
-  }
-
-  const { dTag, aggregateHash } = resolved;
-  const windowId = `demo-${name}-${++nappletCounter}`;
-
-  const iframe = document.createElement('iframe');
-  iframe.id = windowId;
-  iframe.className = 'w-full h-full border-0';
-  iframe.sandbox.add('allow-scripts'); // scripts only — keep the iframe origin opaque
-
-  const container = document.getElementById(containerId);
-  if (container) container.appendChild(iframe);
-
-  const info: NappletInfo = {
-    windowId,
-    name,
-    iframe,
-    dTag,
-    aggregateHash,
-    identityBound: false,
-  };
-  napplets.set(windowId, info);
-
-  // Register origin immediately — contentWindow is available after appendChild.
-  // shell.ready establishes the runtime session from this creation-time identity.
-  if (iframe.contentWindow) {
-    originRegistry.register(iframe.contentWindow, windowId, { dTag, aggregateHash });
-  }
-
-  iframe.addEventListener('load', () => {
-    if (
-      iframe.contentWindow
-      && originRegistry.getWindowId(iframe.contentWindow) !== windowId
-    ) {
-      // srcdoc may replace contentWindow; bind any replacement for its handshake.
-      originRegistry.register(iframe.contentWindow, windowId, { dTag, aggregateHash });
-    }
-  });
-
-  // Optional pre-render hook runs against the computed identity before
-  // the verified bytes are injected via srcdoc. The connect-src CSP <meta>
-  // is built from the static per-dTag allowlist — the CSP travels inside
-  // the document because srcdoc iframes have an opaque origin and no HTTP response.
-  await options.beforeRender?.({ dTag, aggregateHash });
-  const origins = STATIC_ORIGIN_ALLOWLIST.get(dTag) ?? [];
-  iframe.srcdoc = injectNappletNamespacePrelude(
-    injectCspMeta(resolved.indexHtml, origins),
-    { domains: ['shell', ...resolved.requires] },
-  );
-
-  return info;
-}
-
-function playgroundPath(pathname: string): string {
-  const cleanPath = pathname.replace(/^\/+/, '');
-  const basePath = (import.meta.env.BASE_URL ?? '/').trim() || '/';
-  if (basePath === './') return cleanPath;
-  const normalizedBase = basePath.endsWith('/') ? basePath : `${basePath}/`;
-  return `${normalizedBase}${cleanPath}`;
+  return loadPlaygroundNapplet({
+    napplets,
+    clearIntentGeneration: resetPlaygroundIntentWindow,
+    installVerifiedNapplet,
+  }, name, containerId, options);
 }
 
 /**
  * Grant or revoke a capability on a napplet.
+ *
+ * @param windowId - Live napplet window ID.
+ * @param capability - Capability to mutate.
+ * @param enabled - Whether the capability should be granted.
  */
 export function toggleCapability(windowId: string, capability: Capability, enabled: boolean): void {
-  const info = napplets.get(windowId);
-  if (!info) { console.warn('[acl] toggleCapability: no info for', windowId); return; }
-  if (!info.identityBound) {
-    console.warn('[acl] toggleCapability: napplet not yet identity-bound', windowId);
-    return;
-  }
-  const pubkey = info.pubkey ?? '';  // '' for NIP-5D, real pubkey for legacy
-  const dTag = info.dTag || '';
-  const hash = info.aggregateHash || '';
-  if (enabled) {
-    relay.runtime.aclState.grant(pubkey, dTag, hash, capability);
-  } else {
-    relay.runtime.aclState.revoke(pubkey, dTag, hash, capability);
-  }
-  relay.runtime.aclState.persist();
+  accessControls.toggleCapability(windowId, capability, enabled);
 }
 
 /**
@@ -539,144 +671,22 @@ export function toggleCapability(windowId: string, capability: Capability, enabl
  * reference is re-registered. Changes take effect on the very next message.
  */
 export function toggleService(name: string, enabled: boolean): void {
-  if (enabled) {
-    const handler = serviceHandlerStore.get(name);
-    if (!handler) {
-      console.warn('[service] toggleService: no stored handler for', name);
-      return;
-    }
-    disabledServices.delete(name);
-    relay.runtime.registerService(name, handler);
-  } else {
-    disabledServices.add(name);
-    relay.runtime.unregisterService(name);
-  }
-  persistDisabledServices();
+  accessControls.toggleService(name, enabled);
 }
 
 /**
  * Check if a service is currently enabled (registered with the runtime).
  */
 export function isServiceEnabled(name: string): boolean {
-  return !disabledServices.has(name);
+  return accessControls.isServiceEnabled(name);
 }
 
 /**
  * Block or unblock a napplet entirely.
  */
 export function toggleBlock(windowId: string, blocked: boolean): void {
-  const info = napplets.get(windowId);
-  if (!info?.identityBound) return;
-  // NIP-5D napplets have pubkey='' — ACL is keyed on dTag:hash; pass pubkey as-is.
-  if (blocked) {
-    relay.runtime.aclState.block(info.pubkey ?? '', info.dTag || '', info.aggregateHash || '');
-  } else {
-    relay.runtime.aclState.unblock(info.pubkey ?? '', info.dTag || '', info.aggregateHash || '');
-  }
-  relay.runtime.aclState.persist();
+  accessControls.toggleBlock(windowId, blocked);
 }
-
-export interface DemoAclAdapter {
-  /** Grant a capability on a napplet by windowId. */
-  grant(windowId: string, capability: Capability): void;
-  /** Revoke a capability on a napplet by windowId. */
-  revoke(windowId: string, capability: Capability): void;
-  /** Block a napplet by windowId. */
-  block(windowId: string): void;
-  /** Unblock a napplet by windowId. */
-  unblock(windowId: string): void;
-  /** Snapshot of all ACL entries for napplets currently identity-bound. */
-  snapshot(): Array<{
-    windowId: string;
-    name: string;
-    pubkey: string;
-    dTag: string;
-    aggregateHash: string;
-    blocked: boolean;
-    capabilities: Record<Capability, boolean>;
-  }>;
-  /** Synchronous capability check (delegates to aclState.check). */
-  check(windowId: string, capability: Capability): boolean;
-  /** Subscribe to ACL audit events (pushed via onAclCheck). */
-  onCheck(listener: (event: AclCheckEvent, windowId: string, nappletName: string) => void): () => void;
-}
-
-const _aclCheckListeners: Array<(event: AclCheckEvent, wid: string, name: string) => void> = [];
-
-function _notifyAclCheckListeners(event: AclCheckEvent, windowId: string, name: string): void {
-  for (const cb of _aclCheckListeners) {
-    try { cb(event, windowId, name); } catch { /* ignore listener error */ }
-  }
-}
-
-const aclAdapter: DemoAclAdapter = {
-  grant(windowId, capability) { toggleCapability(windowId, capability, true); },
-  revoke(windowId, capability) { toggleCapability(windowId, capability, false); },
-  block(windowId) { toggleBlock(windowId, true); },
-  unblock(windowId) { toggleBlock(windowId, false); },
-  snapshot() {
-    const out: ReturnType<DemoAclAdapter['snapshot']> = [];
-    for (const [windowId, info] of napplets) {
-      // Accept both Path A (NIP-01, pubkey populated) and Path B (NIP-5D,
-      // identity-bound via dTag with empty pubkey). aclState.check() handles
-      // the empty-pubkey + dTag-keyed lookup path correctly (v1.2 canonical),
-      // so no changes are required to the check calls below.
-      if (!info.identityBound) continue;
-      const pk = info.pubkey ?? '';
-      const dTag = info.dTag ?? '';
-      const hash = info.aggregateHash ?? '';
-      const entry = relay.runtime.aclState.getEntry(pk, dTag, hash);
-      const hasCapability = (capability: Capability): boolean =>
-        entry ? entry.capabilities.includes(capability) : relay.runtime.aclState.check(pk, dTag, hash, capability);
-      const caps: Record<Capability, boolean> = {
-        'relay:read': hasCapability('relay:read'),
-        'relay:write': hasCapability('relay:write'),
-        'cache:read': hasCapability('cache:read'),
-        'cache:write': hasCapability('cache:write'),
-        'hotkey:forward': hasCapability('hotkey:forward'),
-        'state:read': hasCapability('state:read'),
-        'state:write': hasCapability('state:write'),
-        'identity:read': hasCapability('identity:read'),
-        'config:read': hasCapability('config:read'),
-        'resource:fetch': hasCapability('resource:fetch'),
-        'cvm:call': hasCapability('cvm:call'),
-        'keys:bind': hasCapability('keys:bind'),
-        'keys:forward': hasCapability('keys:forward'),
-        'media:control': hasCapability('media:control'),
-        'notify:send': hasCapability('notify:send'),
-        'notify:channel': hasCapability('notify:channel'),
-        'theme:read': hasCapability('theme:read'),
-        'outbox:read': hasCapability('outbox:read'),
-        'outbox:write': hasCapability('outbox:write'),
-        'upload:write': hasCapability('upload:write'),
-        'intent:read': hasCapability('intent:read'),
-        'intent:write': hasCapability('intent:write'),
-      };
-      out.push({
-        windowId,
-        name: info.name,
-        pubkey: pk,
-        dTag,
-        aggregateHash: hash,
-        blocked: entry?.blocked ?? false,
-        capabilities: caps,
-      });
-    }
-    return out;
-  },
-  check(windowId, capability) {
-    const info = napplets.get(windowId);
-    if (!info?.identityBound) return false;
-    return relay.runtime.aclState.check(info.pubkey ?? '', info.dTag ?? '', info.aggregateHash ?? '', capability);
-  },
-  onCheck(listener) {
-    _aclCheckListeners.push(listener);
-    return () => {
-      const i = _aclCheckListeners.indexOf(listener);
-      if (i !== -1) _aclCheckListeners.splice(i, 1);
-    };
-  },
-};
 
 /**
  * Get the demo ACL adapter — the single seam for all grant/revoke/block/unblock
@@ -685,27 +695,5 @@ const aclAdapter: DemoAclAdapter = {
  * @returns DemoAclAdapter instance
  */
 export function getAclAdapter(): DemoAclAdapter {
-  return aclAdapter;
-}
-
-let _messageTapRef: MessageTap | null = null;
-
-/**
- * Set the message tap reference. Called from the bootstrap site so
- * host-originated dispatchers (e.g., notification-demo.ts) can record
- * their envelopes through the same tap that iframe postMessage traffic uses.
- *
- * @param tap - The installed message tap
- */
-export function setMessageTap(tapRef: MessageTap): void {
-  _messageTapRef = tapRef;
-}
-
-/**
- * Get the demo message tap. Returns null before bootShell() has run.
- *
- * @returns MessageTap or null
- */
-export function getMessageTap(): MessageTap | null {
-  return _messageTapRef;
+  return accessControls.getAclAdapter();
 }

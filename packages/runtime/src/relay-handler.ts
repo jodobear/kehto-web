@@ -1,4 +1,4 @@
-import type { NappletMessage, NostrEvent, NostrFilter } from '@napplet/core';
+import type { EventTemplate, NappletMessage, NostrEvent, NostrFilter } from '@napplet/core';
 import type { RelayMessage } from '@napplet/nap/relay/types';
 
 import { matchesAnyFilter, type EventBuffer, type SubscriptionEntry } from './event-buffer.js';
@@ -17,7 +17,7 @@ declare function clearTimeout(id: unknown): void;
 type RuntimeRelayMessage = RelayMessage & {
   subId?: string;
   filters?: NostrFilter[];
-  event?: NostrEvent;
+  event?: EventTemplate | NostrEvent;
   result?: RelayEventResult;
   id?: string;
   relay?: string;
@@ -47,7 +47,7 @@ export function createRelayHandler(context: RelayHandlerContext): RelayHandler {
         handleRelayClose(context, windowId, msg, m);
         return;
       case 'publish':
-        handleRelayPublish(context, windowId, msg, m);
+        handleRelayPublish(context, windowId, m);
         return;
       case 'publishEncrypted':
         handleRelayPublishEncrypted(context, windowId, msg);
@@ -209,34 +209,134 @@ function handleRelayClose(
 function handleRelayPublish(
   context: RelayHandlerContext,
   windowId: string,
-  msg: NappletMessage,
   m: RuntimeRelayMessage,
 ): void {
-  const { eventBuffer, hooks, replayDetector } = context;
-  const event = m.event;
+  const { hooks, replayDetector } = context;
+  const eventTemplate = m.event;
   const id = m.id ?? '';
-  if (!event || typeof event !== 'object') {
-    hooks.sendToNapplet(windowId, { type: 'relay.publish.error', id, error: 'invalid event' } as NappletMessage);
+  if (!eventTemplate || typeof eventTemplate !== 'object') {
+    sendRelayPublishResult(hooks, windowId, id, false, undefined, 'invalid event template');
     return;
   }
 
-  const replayResult = replayDetector.check(event);
-  if (replayResult !== null) {
-    hooks.sendToNapplet(windowId, { type: 'relay.publish.result', id, accepted: false, message: replayResult } as NappletMessage);
+  const signer = hooks.auth.getSigner();
+  const signEvent = signer?.signEvent?.bind(signer);
+  if (!signEvent) {
+    sendRelayPublishResult(hooks, windowId, id, false, undefined, 'no signer configured');
     return;
   }
+
+  void (async (): Promise<void> => {
+    try {
+      const signed = await signEvent(eventTemplate);
+      if (!signed) {
+        sendRelayPublishResult(hooks, windowId, id, false, undefined, 'signEvent returned no event');
+        return;
+      }
+      const replayResult = replayDetector.reserve(signed);
+      if (replayResult !== null) {
+        sendRelayPublishResult(hooks, windowId, id, false, undefined, replayResult);
+        return;
+      }
+      publishSignedRelayEvent(context, windowId, id, signed, (ok, error) => {
+        if (ok) replayDetector.commit(signed.id);
+        else replayDetector.release(signed.id);
+        sendRelayPublishResult(hooks, windowId, id, ok, ok ? signed : undefined, error);
+      });
+    } catch (error) {
+      sendRelayPublishResult(
+        hooks,
+        windowId,
+        id,
+        false,
+        undefined,
+        error instanceof Error && error.message ? error.message : 'event signing failed',
+      );
+    }
+  })();
+}
+
+function sendRelayPublishResult(
+  hooks: RuntimeAdapter,
+  windowId: string,
+  id: string,
+  ok: boolean,
+  event?: NostrEvent,
+  error?: string,
+): void {
+  const result = ok && event
+    ? { type: 'relay.publish.result', id, ok: true, event, eventId: event.id }
+    : { type: 'relay.publish.result', id, ok: false, error: error ?? 'publish failed' };
+  hooks.sendToNapplet(windowId, result as NappletMessage);
+}
+
+function publishSignedRelayEvent(
+  context: RelayHandlerContext,
+  windowId: string,
+  id: string,
+  signed: NostrEvent,
+  reply: (ok: boolean, error?: string) => void,
+): void {
+  const { eventBuffer, hooks } = context;
+  let settled = false;
+  const settle = (ok: boolean, error?: string): void => {
+    if (settled) return;
+    settled = true;
+    if (ok) {
+      try { eventBuffer.bufferAndDeliver(signed, windowId); } catch { /* local delivery is best-effort */ }
+    }
+    reply(ok, error);
+  };
 
   const relayService = relayServiceFrom(context);
   if (relayService) {
-    relayService.handleMessage(windowId, msg, (resp: NappletMessage) => hooks.sendToNapplet(windowId, resp));
-  } else if (hooks.relayPool?.isAvailable()) {
-    hooks.relayPool.publish(event);
-    hooks.sendToNapplet(windowId, { type: 'relay.publish.result', id, accepted: true } as NappletMessage);
-  } else {
-    hooks.sendToNapplet(windowId, { type: 'relay.publish.result', id, accepted: false, message: 'no relay pool available' } as NappletMessage);
+    const publishMessage = { type: 'relay.publish', id, event: signed } as NappletMessage;
+    try {
+      relayService.handleMessage(windowId, publishMessage, (response: NappletMessage) => {
+        if (
+          response.type !== 'relay.publish.result'
+          && response.type !== 'relay.publish.error'
+        ) {
+          return;
+        }
+        const result = response as NappletMessage & {
+          ok?: boolean;
+          accepted?: boolean;
+          error?: string;
+          message?: string;
+        };
+        const ok = response.type === 'relay.publish.result'
+          && (result.ok ?? result.accepted ?? false);
+        settle(ok, ok ? undefined : result.error ?? result.message ?? 'publish failed');
+      });
+    } catch (error) {
+      settle(
+        false,
+        error instanceof Error && error.message ? error.message : 'relay service failed',
+      );
+    }
+    return;
   }
 
-  eventBuffer.bufferAndDeliver(event, windowId);
+  if (!hooks.relayPool?.isAvailable()) {
+    settle(false, 'no relay pool available');
+    return;
+  }
+  try {
+    const publishResult = hooks.relayPool.publish(signed);
+    void Promise.resolve(publishResult).then(
+      () => settle(true),
+      (error: unknown) => settle(
+        false,
+        error instanceof Error && error.message ? error.message : 'publish failed',
+      ),
+    );
+  } catch (error) {
+    settle(
+      false,
+      error instanceof Error && error.message ? error.message : 'publish failed',
+    );
+  }
 }
 
 function handleRelayPublishEncrypted(
@@ -276,10 +376,10 @@ function publishEncrypted(
   id: string,
   recipient: string,
   encryption: 'nip04' | 'nip44' | string,
-  eventTemplate: NostrEvent,
+  eventTemplate: EventTemplate,
   replyPe: (ok: boolean, extra?: Record<string, unknown>) => void,
 ): void {
-  const { eventBuffer, hooks } = context;
+  const { hooks } = context;
   const peSigner = hooks.auth.getSigner();
   if (!peSigner) return;
 
@@ -289,61 +389,19 @@ function publishEncrypted(
       const ciphertext: string = encryption === 'nip44'
         ? (await peSigner.nip44?.encrypt(recipient, plaintext)) ?? ''
         : (await peSigner.nip04?.encrypt(recipient, plaintext)) ?? '';
-      const eventWithCiphertext = { ...(eventTemplate as object), content: ciphertext } as NostrEvent;
+      const eventWithCiphertext = { ...eventTemplate, content: ciphertext };
       const signed = await peSigner.signEvent?.(eventWithCiphertext);
       if (!signed) { replyPe(false, { error: 'signEvent returned null' }); return; }
 
-      publishSignedEncrypted(context, windowId, id, signed, replyPe);
-      try { eventBuffer.bufferAndDeliver(signed, windowId); } catch { return; }
+      publishSignedRelayEvent(context, windowId, id, signed, (ok, error) => {
+        replyPe(ok, ok
+          ? { event: signed, eventId: signed.id }
+          : { error: error ?? 'publish failed' });
+      });
     } catch (err) {
       replyPe(false, { error: (err as Error)?.message ?? 'encryption failed' });
     }
   })();
-}
-
-function publishSignedEncrypted(
-  context: RelayHandlerContext,
-  windowId: string,
-  id: string,
-  signed: NostrEvent,
-  replyPe: (ok: boolean, extra?: Record<string, unknown>) => void,
-): void {
-  const { hooks } = context;
-  const relayService = relayServiceFrom(context);
-  if (!relayService) {
-    if (hooks.relayPool?.isAvailable()) {
-      hooks.relayPool.publish(signed);
-      replyPe(true, { event: signed, eventId: signed.id });
-    } else {
-      replyPe(false, { error: 'no relay pool available' });
-    }
-    return;
-  }
-
-  const publishMsg = { type: 'relay.publish', id, event: signed } as NappletMessage;
-  let replied = false;
-  relayService.handleMessage(windowId, publishMsg, (resp: NappletMessage) => {
-    if (replied) return;
-    const r = resp as NappletMessage & {
-      ok?: boolean; accepted?: boolean; eventId?: string;
-      message?: string; error?: string;
-    };
-    if (typeof r.type !== 'string' || !r.type.startsWith('relay.publish')) return;
-    const okVal = r.ok ?? r.accepted ?? false;
-    replied = true;
-    const publishResult = { event: signed, eventId: signed.id } as {
-      event: NostrEvent;
-      eventId: string;
-      error?: string;
-    };
-    if (!okVal) publishResult.error = r.error ?? r.message ?? 'publish failed';
-    replyPe(okVal, publishResult);
-  });
-
-  if (!replied) {
-    replied = true;
-    replyPe(true, { event: signed, eventId: signed.id });
-  }
 }
 
 function handleRelayQuery(

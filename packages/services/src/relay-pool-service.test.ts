@@ -3,6 +3,16 @@ import type { NappletMessage, NostrEvent, NostrFilter } from '@napplet/core';
 import { createRelayPoolService } from './relay-pool-service.js';
 
 describe('createRelayPoolService', () => {
+  const event: NostrEvent = {
+    id: 'a'.repeat(64),
+    pubkey: 'b'.repeat(64),
+    created_at: 1_800_000_000,
+    kind: 1,
+    tags: [],
+    content: 'relay pool publish',
+    sig: 'c'.repeat(128),
+  };
+
   it('honors canonical relay.subscribe relay hint without falling back to relay selection', () => {
     const subscribe = vi.fn((
       _filters: NostrFilter[],
@@ -40,5 +50,58 @@ describe('createRelayPoolService', () => {
       ['wss://explicit.test'],
     );
     expect(sent).toContainEqual({ type: 'relay.eose', subId: 'sub-relay-hint' });
+  });
+
+  it('returns the canonical signed event after relay.publish succeeds', async () => {
+    const publish = vi.fn();
+    const service = createRelayPoolService({
+      subscribe: vi.fn(() => ({ unsubscribe() { /* no-op */ } })),
+      publish,
+      selectRelayTier: vi.fn(() => []),
+      isAvailable: () => true,
+    });
+    const sent: NappletMessage[] = [];
+
+    service.handleMessage(
+      'window-a',
+      { type: 'relay.publish', id: 'publish-ok', event } as NappletMessage,
+      (message) => sent.push(message),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(publish).toHaveBeenCalledWith(event);
+    expect(sent).toEqual([{
+      type: 'relay.publish.result',
+      id: 'publish-ok',
+      ok: true,
+      event,
+      eventId: event.id,
+    }]);
+  });
+
+  it('returns a canonical failure without publishing when the pool is unavailable', () => {
+    const publish = vi.fn();
+    const service = createRelayPoolService({
+      subscribe: vi.fn(() => ({ unsubscribe() { /* no-op */ } })),
+      publish,
+      selectRelayTier: vi.fn(() => []),
+      isAvailable: () => false,
+    });
+    const sent: NappletMessage[] = [];
+
+    service.handleMessage(
+      'window-a',
+      { type: 'relay.publish', id: 'publish-offline', event } as NappletMessage,
+      (message) => sent.push(message),
+    );
+
+    expect(publish).not.toHaveBeenCalled();
+    expect(sent).toEqual([{
+      type: 'relay.publish.result',
+      id: 'publish-offline',
+      ok: false,
+      error: 'no relay pool available',
+    }]);
   });
 });

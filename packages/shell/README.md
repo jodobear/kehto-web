@@ -12,6 +12,13 @@ Browser adapter over @kehto/runtime — ShellBridge and domain proxies.
 pnpm add @kehto/shell
 ```
 
+## Published Napplet Compatibility
+
+`@kehto/shell` publishes against `@napplet/core` and `@napplet/nap`
+`>=0.29.0 <0.30.0`. The installed core/nap 0.29.0 contracts are from source
+`dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b` and release
+`60889f1c2476e063500c7ab6624af6abe0dbcbe5`.
+
 ## Overview
 
 `@kehto/shell` is the browser-specific integration layer for kehto. It wraps `@kehto/runtime` with the window/postMessage transport, localStorage persistence hooks, an audio manager, and the five canonical per-domain proxies defined by NIP-5D.
@@ -21,11 +28,64 @@ The primary entry point is `createShellBridge()` — it owns the postMessage lis
 Current draft behaviors this package enforces:
 
 - The shell does not inject a host-provided nostr object into napplets — NIP-5D explicitly forbids napplet-visible signing. Napplets call `relay.publish` / `relay.publishEncrypted` and the shell mediates the signing flow internally (NIP-44 default, NIP-04 opt-in for encrypted envelopes).
-- `injectNappletNamespacePrelude()` implements the NIP-5D injected-domain bootstrap and mandatory NAP-SHELL shim: hosts prepend it to `srcdoc` outside verified artifact bytes, install the parent-bound `shell.init` receiver, emit one `shell.ready`, and expose callable NAP interfaces before authored scripts run. Optional namespaces are filtered to the bare-domain allowlist; `shell` is always retained.
-- `window.napplet.shell.supports()` answers synchronously from the cached NAP-SHELL environment. Optional-domain presence remains the NIP-5D binding, while method semantics and numbered protocols remain owned by their matching NAP specs.
-- Five optional per-domain proxies — `createIdentityProxy`, `createThemeProxy`, `createKeysProxy`, `createMediaProxy`, `createNotifyProxy` — can be composed between napplet and runtime to intercept or augment traffic per NAP. They are NOT wired by default (Kehto's runtime already owns dispatch for the currently supported domains); they exist as host-app composition seams.
+- `injectNappletNamespacePrelude()` implements the NIP-5D injected-domain bootstrap and mandatory NAP-SHELL shim: hosts prepend it to `srcdoc` outside verified artifact bytes, install the parent-bound `shell.init` receiver, emit one `shell.ready`, and expose callable NAP interfaces before authored scripts run. Optional namespaces are filtered to the bare-domain allowlist; `shell` is always retained. Published core 0.29.0 and shim 0.27.0 omit generic mandatory shell, so Kehto retains this host-owned prelude under NAP-SHELL `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24` until an upstream correction is reviewed.
+- `window.napplet.shell.supports(domain)` answers synchronously and locally from the cached first `shell.init` environment. It returns `false` before `shell.init`, for unknown values, and for domains that are not live and granted to that napplet; it never sends a support-query message.
+- Five optional per-domain proxies — `createIdentityProxy`, `createThemeProxy`, `createKeysProxy`, `createMediaProxy`, `createNotifyProxy` — can be composed between napplet and runtime to intercept request traffic per NAP. They are NOT wired by default. Identity/theme proxy `emit()` compatibility members fail closed; hosts must deliver automatic changes through `ShellBridge.publishIdentityChanged()` / `publishTheme()`, which enforce live session, granted domain, and current ACL.
 - `keys.forward` is napplet-to-shell only. Active napplets suppress locally-bound keys from `keys.bindings` before forwarding; shell-initiated action triggers use `keys.action`.
-- `buildShellCapabilities()` advertises `dm` when the host adapter provides `hooks.dm`, and disabled-domain overrides remove it from both `domains` and `naps`.
+- `buildShellCapabilities()` advertises only live domains (including `dm` when the host adapter provides `hooks.dm`); disabled domains are absent from the delivered `domains` and named services snapshots.
+
+### NAP-INC binding and channel contract
+
+The injected INC binding follows merged
+[`naps/NAP-INC.md`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-INC.md)
+on `napplet/naps` master
+`6461e4b37c29dc09a20dff35d9515889c4433874`. The specification remains marked
+draft, but its merged path is the protocol authority.
+
+The released package projection and `window.napplet.inc` binding own
+query-to-text-payload
+transposition: it converts a convention URI query before emitting a stable,
+exact queryless topic identity. Subscriptions reject query-bearing identities.
+The binding never creates a normalized query-bearing wire/discovery identity,
+does not do prefix/wildcard/query-aware matching or service-over-INC prefix
+dispatch, and does not infer payload kinds. Runtime delivery supplies the
+**runtime-attested dTag**; no caller sender is accepted, topic source exclusion
+is runtime-owned, and IDs and payloads are opaque.
+
+Merged NAP-INC delivers one `IncEvent` to `on(topic, callback)`. Released
+`@napplet/nap@0.29.0` instead declares and implements a
+`(payload, NostrEvent)` callback. The protected binding follows the NAP;
+package-based consumers must bridge that upstream callback drift.
+
+For channels, runtime ACL checks are open-only rather than per-message. The
+target `inc.channel.opened` before the opener result creates an equivalent target
+handle; `channel.onOpened` exposes it, while symmetric handles expose `on` and
+`onClosed`. The binding retains inbound, early, and terminal lifecycle state in
+order, closes on bounded overflow, and treats teardown as deterministic.
+`channel.list()` is informational only. The downstream tracker is
+[`kehto/web#203`](https://github.com/kehto/web/issues/203), with its [upstream
+resolution reply](https://github.com/kehto/web/issues/203#issuecomment-5060904495);
+the prior opener-only interpretation is obsolete.
+
+### NAP-INTENT binding and delivery
+
+Phase 104 implements the draft [NAP-INTENT PR #91 at
+`a718915ddefa2f03a0126579601f59d8bd86f7c4`](https://github.com/napplet/naps/pull/91).
+The protected `window.napplet.intent` binding normalizes URI invocation into
+exact `archetype`, `action`, queryless `convention`, and optional payload
+fields. It rejects fragments, malformed/repeated queries, query plus explicit
+payload, mismatched normalized fields, and caller-supplied sender data.
+
+Only parent-originated result, change, and delivery envelopes settle the
+binding. Incoming no-ID `intent.deliver` values are retained until an
+`onDelivery` handler is registered. The runtime, not the source, attests the
+sender dTag; an accepted result records retained responsibility and does not
+expose target window, handled, protocol, retry, or lifecycle state.
+
+Phase 105 completed released `@napplet/*` package adoption and persistent live
+Paja/playground catalogs and target controllers. The Phase 104 Paja simulator
+and playground catalog builder are historical exact-contract consumers; preserve
+archived planning rather than presenting it as active guidance.
 
 ## Quick Start
 
@@ -41,7 +101,7 @@ const bridge = createShellBridge({
 
 // Register a reference service against the underlying runtime.
 bridge.runtime.registerService(
-  'notifications',
+  'notify',
   createNotificationService({ onChange: updateBadge }),
 );
 ```
@@ -68,15 +128,36 @@ const bridge = createShellBridge({
 ```
 
 ### Shell init
-- `buildShellCapabilities` — construct the current draft `ShellCapabilities` payload emitted during the `shell.ready` / `shell.init` handshake
+- `buildShellCapabilities` — construct the immutable domain-only `ShellCapabilities` payload emitted during the `shell.ready` / `shell.init` handshake
+- `resolveShellEnvironment(hooks, identity)` — host-integrator-only utility that narrows the live environment for a trusted creation-time identity before `shell.init`; it is not installed on `window.napplet` and is not a shim-facing napplet API
 - `injectNappletNamespacePrelude` — insert a host-owned NIP-5D `window.napplet` callable-domain prelude into verified HTML before authored scripts
 - `renderNappletNamespacePrelude` — render only the bootstrap `<script>` for hosts that already own HTML insertion
 
 ### Domain proxies (NIP-5D composition seams)
-- `createIdentityProxy` — intercept `identity.getProfile/getFollows/...` traffic
-- `createThemeProxy` — intercept `theme.get/theme.changed`
+- `createIdentityProxy` — intercept identity read requests; direct `emit()` is prohibited
+- `createThemeProxy` — intercept `theme.get`; direct `emit()` is prohibited
 - `createKeysProxy` — intercept `keys.bind/unbind/bindings`
 - `createMediaProxy` — intercept `media.*` playback control
+
+### Protected identity and theme delivery
+
+The injected identity/theme bindings follow NAP-IDENTITY and NAP-THEME at
+`napplet/naps` master `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`.
+They are readonly protected objects: identity exposes supported reads and
+`onChanged`, while theme exposes `get` and `onChanged` only. Results and
+automatic changes are accepted only when their `MessageEvent.source` is
+`window.parent`; direct-domain and whole-namespace assignment cannot replace
+the canonical operations.
+
+`ShellBridge` delivers `identity.changed` and `theme.changed` exactly once per
+eligible recipient: a live authenticated `shell.ready` session, its frozen
+environment includes the relevant domain, and its current recipient read
+capability is still granted. Identity sign-out is `pubkey: ""`. Theme updates
+arrive only after the service has stored the complete color state. These are
+automatic change messages, not NAP-INC/intent delivery and not a subscription
+protocol. Kehto's denied/unavailable theme read policy is a complete fixed
+normal result without `error`, deliberately avoiding a mixed theme/error
+payload.
 - `createNotifyProxy` — intercept `notify.send/list/read/dismiss`
 
 ### Session / origin registry
@@ -98,7 +179,13 @@ const bridge = createShellBridge({
 - `TopicKey`, `TopicValue` — typed topic lookup helpers
 
 ### Types
-Exported for host-app integration: `ShellAdapter`, `ShellCapabilities`, `RelayPoolHooks`, `RelayPoolLike`, `RelayConfigHooks`, `WindowManagerHooks`, `AuthHooks`, `ConfigHooks`, `HotkeyHooks`, `WorkerRelayHooks`, `WorkerRelayLike`, `CryptoHooks`, `DmHooks`, `UploadHooks`, `IntentHooks`, `LinkHooks`, `CommonHooks`, `ListsHooks`, `SerialHooks`, `BleHooks`, `WebrtcHooks`, `SessionEntry`, `NappKeyEntry` (deprecated), `AclEntry`, `AclCheckEvent`, `UnroutedMessageInfo`, `ServiceDescriptor`, `ServiceHandler`, `ServiceRegistry`, `NostrEvent`, `NostrFilter`, `NappletMessage`, `ConsentRequest`, and per-proxy `*Deps`/`*Proxy` interfaces.
+Exported for host-app integration: `ShellAdapter`, `ShellCapabilities`, `CapabilityHooks`, `OriginIdentity`, `RelayPoolHooks`, `RelayPoolLike`, `RelayConfigHooks`, `WindowManagerHooks`, `AuthHooks`, `ConfigHooks`, `HotkeyHooks`, `WorkerRelayHooks`, `WorkerRelayLike`, `CryptoHooks`, `DmHooks`, `UploadHooks`, `IntentHooks`, `LinkHooks`, `CommonHooks`, `ListsHooks`, `SerialHooks`, `BleHooks`, `WebrtcHooks`, `SessionEntry`, `NappKeyEntry` (deprecated), `AclEntry`, `AclCheckEvent`, `UnroutedMessageInfo`, `ServiceDescriptor`, `ServiceHandler`, `ServiceRegistry`, `NostrEvent`, `NostrFilter`, `NappletMessage`, `ConsentRequest`, and per-proxy `*Deps`/`*Proxy` interfaces.
+
+`RelayPoolLike.publish()` may return `Promise<void>` when transport acceptance
+is asynchronous. The shell adapter forwards that promise so the runtime does
+not acknowledge or buffer an event before the relay operation settles.
+`RelayPoolHooks.publishToScopedRelay()` may likewise return
+`Promise<boolean>` so asynchronous hosts report the settled outcome.
 
 ### Enforcement re-exports (from @kehto/runtime)
 `createEnforceGate`, `createNapEnforceGate`, `formatDenialReason`, plus `EnforceResult`, `EnforceConfig`, `NapEnforceConfig`, `IdentityResolver`, `AclChecker`, `NapMessage`.

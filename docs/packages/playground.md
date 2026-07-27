@@ -1,6 +1,6 @@
 # @kehto/playground
 
-Browser playground that hosts 13 demo napplets and demonstrates Kehto integration behavior.
+Browser playground that hosts 9 demo napplets and demonstrates Kehto integration behavior.
 
 > **Alpha status:** The playground shows Kehto's current behavior for the draft
 > NIP-5D protocol. It is not a stability guarantee for NAP contracts or helper APIs.
@@ -18,7 +18,7 @@ pnpm --filter @kehto/playground preview --port 4174
 | Field | Value |
 |-------|-------|
 | Source | `apps/playground/package.json`, `apps/playground/README.md` |
-| Version | `0.1.0` |
+| Version | `0.1.6` |
 | Private | `true` |
 | Scripts | `dev`, `build`, `preview` |
 
@@ -40,6 +40,41 @@ pnpm --filter @kehto/playground preview --port 4174
 | Demo source | `apps/playground/src/` |
 | Napplet source | `apps/playground/napplets/<name>/` |
 | Verification | Playwright E2E target served by `preview` on port `4174` |
+
+## Verified catalog and intent delivery
+
+The playground maintains a persistent catalog of resolver-verified manifests
+separately from its live frames and controllers. Install or replacement after
+verification is the only way to add or update catalog facts; explicit artifact
+removal is the only way to remove them. Frame close/reload never deletes an
+installed handler, so availability can select an installed cold target.
+
+Selection uses exact compatible installed conventions, not frame presence. A
+compatible default can resolve a request, a chooser can resolve several
+candidates, and ambiguity without a choice is rejected. An explicit handler
+d-tag also requires sender-aware authorization. After the host retains the
+delivery, it returns the accepted result, then starts or reuses the selected
+target. It waits for that generation's registered source to complete real
+`shell.ready`; only a current target receives one `intent.deliver`. Source
+teardown after acceptance is safe. Replacement, retry, and terminal behavior
+remain controller policy, and this path has no INC carrier.
+
+The feed opens profiles with `napplet:profile/open?pubkey=…`; profile metadata
+advertises only the queryless `napplet:profile/open` convention. Profile-viewer
+registers `intent.onDelivery` before capability waiting, so buffered target
+delivery is not missed. It reads profile picture/banner bytes with
+`resourceBytes`, creates Blob URLs, and revokes URLs for stale completion,
+replacement, error, clear, and `pagehide`—never direct remote image URLs.
+
+`theme.get` supplies the current complete state and each eligible frame receives
+one automatic synchronized `theme.changed` after an update. There is no
+subscribe/unsubscribe protocol. The mandatory shell is likewise host-owned:
+`@napplet/shim@0.27.0` does not provide `window.napplet.shell`; Kehto's prelude
+installs it before one bare ready/init handshake.
+
+The pinned NAP authority has no standalone `NAP-RESOURCE.md`; this package uses
+the NAP-IDENTITY `resource.bytes` delegation and existing Kehto resource policy,
+without claiming new resource wire semantics or NAP-DM behavior.
 
 ## Scope Boundaries
 

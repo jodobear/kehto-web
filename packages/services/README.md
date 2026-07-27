@@ -1,6 +1,8 @@
 # @kehto/services
 
-Reference service handlers for the napplet protocol — audio, notifications, identity, relay pool, cache, keys, media, notify, theme, link, common, lists, serial, BLE, WebRTC, DM.
+Reference service handlers for the napplet protocol — identity, relay pool,
+cache, keys, media, notify, theme, link, common, lists, serial, BLE, WebRTC,
+and DM.
 
 > **Alpha status:** Kehto is an early runtime implementation for a draft NIP-5D
 > protocol. NAP contracts and service envelopes are not final; treat these
@@ -12,22 +14,71 @@ Reference service handlers for the napplet protocol — audio, notifications, id
 pnpm add @kehto/services
 ```
 
+## Published Napplet Compatibility
+
+`@kehto/services` publishes against `@napplet/core` and `@napplet/nap`
+`>=0.29.0 <0.30.0`. The exact installed contracts are core/nap 0.29.0 from
+source `dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b` and release
+`60889f1c2476e063500c7ab6624af6abe0dbcbe5`.
+
 ## Overview
 
-`@kehto/services` ships the reference implementations of the `ServiceHandler` contract defined by `@kehto/runtime`. Each factory returns an object that the runtime routes NIP-5D envelopes to based on the domain prefix of the incoming message type (e.g., `identity.*` goes to the handler registered under `identity`).
+`@kehto/services` ships the reference implementations of the `ServiceHandler`
+contract defined by `@kehto/runtime`. Each factory returns an object that the
+runtime routes NIP-5D envelopes to by the exact `message.type` domain (for
+example, `notify.create` goes to the handler registered under `notify`).
 
 Host apps wire services into the runtime via `runtime.registerService(name, handler)`. The services are browser-agnostic — they have no DOM dependency. Browser-specific behaviors (audio element pool, OS notifications) are delivered through host-supplied callbacks.
+
+Services are selected only by the exact `message.type` domain. INC topics are
+opaque, queryless identities matched only by exact equality, so their text must
+not select a service handler. The runtime attaches the sender to delivered INC
+events from the authenticated endpoint; services do not create INC events.
 
 Current draft posture:
 
 - The v1.1 signer service is deleted outright. Its responsibilities split into two: read-only identity lookups go through `createIdentityService` (`getPublicKey`, `getRelays`, `getProfile`, `getFollows`, `getList`, `getZaps`, `getMutes`, `getBlocked`, `getBadges`); signing happens inside the shell as part of `relay.publish` / `relay.publishEncrypted` and is never exposed to napplets.
 - `createKeysService` and `createMediaService` ship real reference backends as of v1.4 (see the dedicated sections below). `createKeysService` attaches a document-level `keydown` listener by default and delivers `keys.action` push envelopes to registered napplets; `createMediaService` mirrors session metadata and playback state to `navigator.mediaSession` and emits `media.command` push envelopes on OS transport events. Both accept a host-bridge option (`HostKeysBridge` / `HostMediaBridge`) so Electron / Tauri / native shells can swap in OS-level backends without re-implementing the wire-protocol bookkeeping.
-- `createNotifyService` (NIP-5D `notify.*` NAP) coexists with the legacy `createNotificationService` (inc-emit `notifications:*` channel). Both may be registered simultaneously while hosts migrate.
+- `createNotifyService` handles direct `notify.*` envelopes. It is not an INC
+  topic handler.
 - `createOutboxService` supports `outbox.getEvent` from draft NAP-OUTBOX. Single-event lookups run through shell-owned relay routing and only return events whose ID matches the request. The draft wire contract keeps `outbox.query` one-shot and `outbox.subscribe` streaming; Kehto's concrete `createRelayPoolOutboxRouter` additionally exposes host-side `queryStream()` so verified query events can arrive before asynchronous NIP-65 discovery completes.
-- `createResourceService` supports `resource.bytesMany` from draft NAP-RESOURCE. Bulk requests return ordered per-URL items and keep per-URL failures local while preserving legacy single-fetch fields for existing Kehto callers.
+- `createResourceService` retains Kehto-local `resource.bytesMany` compatibility behavior. It is not presented as standalone NAP-RESOURCE wire authority; profile media authority is NAP-IDENTITY's delegated `resource.bytes` contract.
 - `createUploadService` supports `upload.info` from draft NAP-UPLOAD. Hosts may expose configured rails, return URL forms, maximum bytes, and MIME type policy without requiring napplets to start an upload.
-- `createResourceService` supports `resource.info` and `resource.bytesMany` from draft NAP-RESOURCE. `resource.info` returns advisory schemes and coarse limits; bulk requests return ordered per-URL items and keep per-URL failures local while preserving legacy single-fetch fields for existing Kehto callers.
+- `createResourceService` retains `resource.info` and `resource.bytesMany` as Kehto-local compatibility behavior. They do not infer missing standalone NAP-RESOURCE wire semantics.
 - `createDmService` keeps NAP-DM request correlation, subscriptions, and message normalization in runtime-owned code. Adapters cover concrete transports: NIP-17 gift wraps via `nostr-tools`, structural NDR runtimes with relay hooks, and Cordn/ContextVM coordinator clients. Kehto mirrors NAP-DM wire types locally until `@napplet/core` / `@napplet/nap` publish them.
+
+## NAP-INTENT manifest resolver
+
+Phase 104 follows the draft [NAP-INTENT PR #91 at
+`a718915ddefa2f03a0126579601f59d8bd86f7c4`](https://github.com/napplet/naps/pull/91).
+Callers invoke a stable, queryless `napplet:<archetype>/<action>` convention.
+Installed verified manifest tags produce exact `{ convention, eventKinds? }`
+contracts; numbered protocol names and payload inspection do not select a
+handler.
+
+- `manifestToIntentCatalogEntry()` converts resolved manifest
+  `{ dTag, title?, archetypes: [{ slug, convention, eventKinds? }] }` data into
+  exact candidates with `actions`, `conventions`, and `contracts`.
+- `createCatalogIntentResolver()` filters by exact convention, applies the
+  user-owned default/chooser/explicit-authorization policy, and asks an
+  `IntentTargetController` to retain immutable delivery responsibility.
+- `createIntentService()` validates source envelopes, uses the runtime-attested
+  sender, returns one immediate acceptance or rejection, starts an accepted
+  retained task only after the source result, and broadcasts catalog changes
+  through recipient-policy-aware runtime sends.
+
+`ok: true` means responsibility was retained, not that the target handled the
+intent. Once the target is ready it receives one no-ID `intent.deliver` with
+`sender`, `archetype`, `action`, `convention`, and optional opaque `payload`.
+Reuse, target windows, retries, replacement, persistence, and terminal reasons
+remain private controller state and never appear in the result or delivery.
+
+Paja currently exposes only an exact-contract development simulator, and the
+playground currently exposes only a verified-manifest catalog builder. Phase
+105 completed released `@napplet/*` package adoption plus the persistent live
+catalog/controller and feed-to-profile flow. Its public `Intent*` types are
+canonical releases from `@napplet/core` / `@napplet/nap`, not a local mirror;
+successful acceptance retains host delivery responsibility before target start.
 
 ## Quick Start
 
@@ -35,7 +86,7 @@ Current draft posture:
 import {
   createIdentityService,
   createListsService,
-  createNotificationService,
+  createNotifyService,
   createBleService,
   createDmService,
   createNip17DmAdapter,
@@ -53,10 +104,10 @@ runtime.registerService(
   }),
 );
 
-// Notification service — legacy inc-emit channel, browser badge fan-out.
+// Notification service — direct NIP-5D notify.* envelopes.
 runtime.registerService(
-  'notifications',
-  createNotificationService({ onChange: (list) => updateBadge(list) }),
+  'notify',
+  createNotifyService({ onSend: (_windowId, message) => updateBadge(message) }),
 );
 
 // Lists service — shell-owned NIP-51 metadata and mutations.
@@ -460,13 +511,16 @@ Each factory returns a `ServiceHandler` registrable via `runtime.registerService
 `createIdentityService` uses `getSigner()` for `identity.getPublicKey` and `identity.getRelays`. Hosts may also pass optional read-only provider hooks for `getProfile`, `getFollows`, `getList`, `getZaps`, `getMutes`, `getBlocked`, and `getBadges`. These hooks receive the current signer pubkey (or `""` when no signer is connected) and return the payload portion of the corresponding `.result` envelope. Kehto does not query relays itself; the hooks are for hosts that already maintain profile, contact-list, list, zap, moderation, or badge data.
 
 ### Notify NAP
-- `createNotifyService` — canonical `notify.*` envelopes (`notify:send` / `notify:channel`).
-- `createNotificationService` — legacy inc-emit `notifications:*` channel; coexists with `createNotifyService` until retired.
+- `createNotifyService` — canonical direct `notify.*` envelopes.
 
 ### Relay NAP
-- `createRelayPoolService` — `relay.publish`, `relay.publishEncrypted`, `relay.subscribe` fan-out (`relay:read` / `relay:write`).
+- `createRelayPoolService` — `relay.publish`, `relay.publishEncrypted`,
+  `relay.subscribe` fan-out (`relay:read` / `relay:write`). Publish handlers
+  receive only runtime-signed events and settle with canonical
+  `{ ok, event, eventId }` or `{ ok: false, error }` result envelopes.
 - `createCacheService` — offline event cache (`cache:read` / `cache:write`).
-- `createCoordinatedRelay` — composite service that bundles relay-pool + cache with read-through behavior.
+- `createCoordinatedRelay` — composite service that bundles relay-pool + cache
+  with read-through behavior and the same canonical publish result.
 
 ### Keys NAP
 - `createKeysService` — `keys.registerAction` / `keys.unregisterAction` / `keys.forward` + `keys.bindings` / `keys.action` push envelopes (`keys:forward`). Document-level chord listener by default; implement the `HostKeysBridge` interface to swap in Electron / Tauri / OS-level backends. See [Keys Service](#keys-service) for the full contract.
@@ -487,13 +541,39 @@ Each factory returns a `ServiceHandler` registrable via `runtime.registerService
 - `createCordnDmAdapter` / `createCordnRelayCoordinatorClient` — structural adapter for Cordn/ContextVM clients plus a relay-backed coordinator bridge for `PostGroupMessage`, `FetchGroupMessages`, and `SubscribeGroupMessages`.
 
 ### Theme NAP
-- `createThemeService` — `theme.get` + `theme.changed` fan-out (`theme:read`). Returns a `ThemeService` with `publishTheme()` / `setTheme()` utilities for host-side updates.
+- `createThemeService` — `theme.get` plus automatic `theme.changed` delivery
+  (`theme:read`). Returns a `ThemeService` with `publishTheme()` and
+  `getCurrentTheme()` for host-side updates.
 
-### Audio (legacy inc-emit)
-- `createAudioService` — `audio:*` inc-emit topic handler. Browser-agnostic registry of per-window audio sources; host wires `onChange` to update transport UI.
+### Intent NAP
+- `createIntentService` — exact `intent.invoke`, `intent.available`, and
+  `intent.handlers` request/result handling plus recipient-gated
+  `intent.changed`.
+- `manifestToIntentCatalogEntry` — verified manifest archetype contracts to
+  catalog entries.
+- `createCatalogIntentResolver` — exact convention selection and retained
+  target-controller seam.
+
+### Identity and theme wire guarantees
+
+Against NAP-IDENTITY/NAP-THEME at `napplet/naps` master
+`5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`,
+`createIdentityService` is readonly: `identity.getPublicKey` always sends one
+matching `.result` with `pubkey: ""` when a signer is absent or fails, and the
+other supported reads retain their safe primary result fields. Unknown identity
+actions are silent; identity changed values are host pushes, not request
+retries or INC/intent traffic.
+
+`createThemeService` accepts `theme.get` only and owns the current complete
+three-color theme. `publishTheme()` normalizes and stores that state before it
+invokes its one bridge callback, so an immediate `theme.get` observes the same
+value as the automatic push. There is no theme subscribe/unsubscribe protocol.
+For denied or unavailable runtime reads, Kehto uses the fixed non-sensitive
+complete normal result without `error`: this explicit policy reconciles the
+draft error-only example without a mixed theme/error extension.
 
 ### Types
-`AudioSource`, `AudioServiceOptions`, `Notification`, `NotificationServiceOptions`, `IdentityServiceOptions`, `RelayPoolServiceOptions`, `CacheServiceOptions`, `CoordinatedRelayOptions`, `KeysServiceOptions`, `MediaServiceOptions`, `NotifyServiceOptions`, `ThemeServiceOptions`, `ThemeService`, `BleServiceOptions`, `BleServiceContext`, `WebrtcServiceOptions`, `WebrtcServiceContext`, `DmServiceOptions`, `DmAdapter`, `DmRelayPool`, `Nip17DmAdapterOptions`, `NdrDmAdapterOptions`, `CordnDmAdapterOptions`.
+`AudioSource`, `AudioServiceOptions`, `Notification`, `NotificationServiceOptions`, `IdentityServiceOptions`, `RelayPoolServiceOptions`, `CacheServiceOptions`, `CoordinatedRelayOptions`, `KeysServiceOptions`, `MediaServiceOptions`, `NotifyServiceOptions`, `ThemeServiceOptions`, `ThemeService`, `IntentRequest`, `IntentResult`, `IntentDelivery`, `IntentContract`, `IntentCandidate`, `IntentAvailability`, `IntentResolver`, `IntentTargetController`, `BleServiceOptions`, `BleServiceContext`, `WebrtcServiceOptions`, `WebrtcServiceContext`, `DmServiceOptions`, `DmAdapter`, `DmRelayPool`, `Nip17DmAdapterOptions`, `NdrDmAdapterOptions`, `CordnDmAdapterOptions`.
 
 ## API Reference
 

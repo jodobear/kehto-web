@@ -33,9 +33,9 @@ const expectedRequires: Record<(typeof playgroundNapplets)[number], readonly str
   chat: ['inc', 'storage', 'relay', 'theme'],
   composer: ['relay', 'theme'],
   'cvm-relatr': ['cvm', 'theme'],
-  feed: ['identity', 'relay', 'inc', 'theme'],
+  feed: ['identity', 'intent', 'relay', 'resource', 'theme'],
   preferences: ['storage', 'theme'],
-  'profile-viewer': ['inc', 'relay', 'theme'],
+  'profile-viewer': ['intent', 'relay', 'resource', 'theme'],
   'resource-demo': ['resource', 'theme'],
   toaster: ['notify', 'theme'],
 };
@@ -102,6 +102,72 @@ const relaySubscribeRoutingSurfaces = [
   },
 ] as const;
 
+const relayPublishRoutingSurfaces = [
+  {
+    file: 'packages/runtime/src/relay-handler.ts',
+    markers: [
+      'const signed = await signEvent(eventTemplate);',
+      'replayDetector.reserve(signed)',
+      'replayDetector.commit(signed.id)',
+      'replayDetector.release(signed.id)',
+      "{ type: 'relay.publish', id, event: signed }",
+      "type: 'relay.publish.result', id, ok: true, event, eventId: event.id",
+      'Promise.resolve(publishResult)',
+    ],
+  },
+  {
+    file: 'packages/services/src/relay-pool-service.ts',
+    markers: ["publishEvent(relayMessage, 'relay.publish.result', send);", 'eventId: event.id'],
+  },
+  {
+    file: 'packages/services/src/coordinated-relay.ts',
+    markers: ['publishCoordinatedEvent(options, relayMessage, send);', 'eventId: event.id'],
+  },
+  {
+    file: 'apps/playground/src/playground-relay-service.ts',
+    markers: ['if (!ok) {', 'ok: true,', 'eventId: event.id'],
+  },
+  {
+    file: 'packages/paja/src/browser-relay-runtime.ts',
+    markers: [
+      'const attempt = await attemptPublish(relayUrls, event);',
+      'if (attempt.error) throw new Error(attempt.error);',
+      'retainPublishedEvent(event);',
+    ],
+  },
+  {
+    file: 'packages/paja/src/browser-adapter.ts',
+    markers: [
+      'publishToScopedRelay: async',
+      'await pool.publish(getPajaRelayUrls(getSimulation()), event);',
+      '} catch {',
+    ],
+  },
+  {
+    file: 'packages/runtime/src/dispatch.test.ts',
+    markers: ['shell-signs the template and returns the full signed event', 'accepted).toBeUndefined()'],
+  },
+  {
+    file: 'packages/services/src/relay-pool-service.test.ts',
+    markers: ['returns the canonical signed event after relay.publish succeeds', 'eventId: event.id'],
+  },
+  {
+    file: 'packages/services/src/coordinated-relay.test.ts',
+    markers: ['publishes, caches, and returns the canonical signed event result', 'eventId: event.id'],
+  },
+  {
+    file: 'tests/unit/playground-relay-service.test.ts',
+    markers: ["not.toHaveProperty('accepted')", "not.toHaveProperty('message')"],
+  },
+  {
+    file: 'packages/paja/src/browser-relay-runtime.test.ts',
+    markers: [
+      'returns a canonical failure and retains nothing when confirmation is denied',
+      'reports all-live-relay rejection without retaining service or outbox events',
+    ],
+  },
+] as const;
+
 const rawListenerTypeGuards: Record<string, readonly string[]> = {
   'apps/playground/src/theme.ts': ["data.type !== 'theme.changed'"],
   'apps/playground/napplets/common-demo/src/main.ts': ['msg.type !== resultType'],
@@ -126,6 +192,57 @@ const rawListenerTypeGuards: Record<string, readonly string[]> = {
   ],
 };
 
+const activeShellSurfaceFiles = [
+  'packages/shell/src/napplet-namespace.ts',
+  'packages/shell/src/napplet-namespace.test.ts',
+  'packages/shell/src/shell-supports-conformance.test.ts',
+  'packages/shell/README.md',
+] as const;
+
+const activeServiceGuidanceFiles = [
+  'apps/playground/README.md',
+  'packages/services/README.md',
+  'docs/packages/services.md',
+  'skills/add-service/SKILL.md',
+  'skills/integrate-shell/SKILL.md',
+] as const;
+
+const activeIntentContractFiles = [
+  'packages/services/src/catalog-intent-resolver.ts',
+  'packages/services/src/manifest-intent-catalog.ts',
+  'packages/services/src/index.ts',
+  'apps/playground/src/playground-intent-catalog.ts',
+] as const;
+
+const activeArchetypeMetadataFiles = [
+  'packages/nip/src/5d/index.ts',
+  'apps/playground/napplets/shared-vite-config.ts',
+  'apps/playground/napplets/profile-viewer/vite.config.ts',
+  'apps/playground/src/napplet-resolver.ts',
+  'apps/playground/src/playground-intent-catalog.ts',
+] as const;
+
+const unsafeServiceGuidancePatterns = [
+  { label: 'legacy audio factory', pattern: /\bcreateAudioService\s*\(/ },
+  { label: 'legacy notification INC factory', pattern: /\bcreateNotificationService\s*\(/ },
+  { label: 'legacy audio topic emission', pattern: /\b(?:emit|subscribe)\s*\(\s*['"]audio:/ },
+  { label: 'legacy notification topic emission', pattern: /\b(?:emit|subscribe)\s*\(\s*['"]notifications:/ },
+  { label: 'service registration from a colon topic', pattern: /registerService\(\s*['"][^'"]+:[^'"]*['"]/ },
+  { label: 'INC topic-prefix service handling', pattern: /topic\?\.startsWith\s*\(/ },
+  { label: 'fabricated INC event delivery', pattern: /(?:send|postMessage)\s*\([\s\S]{0,160}type:\s*['"]inc\.event['"]/ },
+] as const;
+
+// Planning history and changelogs retain the removed vocabulary as historical record.
+const historicalShellExclusions = ['.planning/', 'CHANGELOG.md'] as const;
+
+const publishedConventionAuthorities = Object.freeze({
+  napIntent: 'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+  napIdentityTheme: '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24',
+  napRelayDraft: '0be8abce18beb46ca37bd4ddd042f58d30b4eedc',
+  publishedSource: 'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b',
+  publishedRelease: '60889f1c2476e063500c7ab6624af6abe0dbcbe5',
+});
+
 const forbiddenNappletSourcePatterns = [
   { label: 'window.nostr', pattern: /\bwindow\s*\.\s*nostr\b/ },
   { label: 'localStorage', pattern: /\blocalStorage\b/ },
@@ -145,6 +262,10 @@ function removeComments(source: string): string {
   return source
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+function removeExplicitLegacyProhibitions(source: string): string {
+  return source.replace(/(?:do not|never|must not)\b[^.]*\./gi, '');
 }
 
 function listFiles(root: string): string[] {
@@ -187,7 +308,68 @@ function interfaceFieldNames(source: string, interfaceName: string): string[] {
     .filter((name) => name !== 'type');
 }
 
+function localInterfaceFieldNames(source: string, interfaceName: string): string[] {
+  const body = interfaceBody(source, interfaceName);
+  return [...body.matchAll(/^\s{2}(?:readonly\s+)?([a-zA-Z][a-zA-Z0-9_]*)\??:/gm)]
+    .map((match) => match[1]);
+}
+
+function sourceBetween(source: string, start: string, end: string): string {
+  const startIndex = source.indexOf(start);
+  const endIndex = source.indexOf(end, startIndex);
+  if (startIndex < 0 || endIndex < 0) {
+    throw new Error(`missing source slice: ${start} -> ${end}`);
+  }
+  return source.slice(startIndex, endIndex);
+}
+
 describe('NIP-5D conformance static guards', () => {
+  it('keeps released intent ownership and the host-owned NAP-SHELL prelude as positive evidence', () => {
+    const services = readRepoFile('packages/services/src/index.ts');
+    const prelude = readRepoFile('packages/shell/src/napplet-namespace.ts');
+    const publishedContract = readRepoFile('tests/unit/published-napplet-contract.test.ts');
+
+    expect(publishedConventionAuthorities).toEqual({
+      napIntent: 'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+      napIdentityTheme: '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24',
+      napRelayDraft: '0be8abce18beb46ca37bd4ddd042f58d30b4eedc',
+      publishedSource: 'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b',
+      publishedRelease: '60889f1c2476e063500c7ab6624af6abe0dbcbe5',
+    });
+    for (const authority of Object.values(publishedConventionAuthorities)) {
+      expect(publishedContract, `published contract authority ${authority}`).toContain(authority);
+    }
+    expect(services).toContain("} from '@napplet/core';");
+    for (const typeName of ['IntentRequest', 'IntentContract', 'IntentResult', 'IntentDelivery']) {
+      expect(services, `published intent type ${typeName}`).toContain(typeName);
+    }
+    expect(existsSync(join(process.cwd(), 'packages/services/src/intent-types.ts'))).toBe(false);
+
+    // Published core/shim omit generic shell, so NAP-SHELL stays a Kehto-owned
+    // prelude with a live receiver, one bare ready signal, and local support.
+    expect(prelude).toContain("const domains = uniqueBareDomains(['shell', ...options.domains]);");
+    expect(prelude).toContain("if (message.type !== 'shell.init') return;");
+    expect(prelude).toContain('function supports(domain: string): boolean');
+    expect(prelude).toContain("post({ type: 'shell.ready' });");
+    expect(prelude).toContain('onReady(handler: ReadyHandler)');
+  });
+
+  it("keeps Paja's verified catalog separate from frame and controller authority", () => {
+    const catalog = readRepoFile('packages/paja/src/installed-napplet-catalog.ts');
+    const adapter = readRepoFile('packages/paja/src/browser-adapter.ts');
+    const controller = readRepoFile('packages/paja/src/browser-intent-controller.ts');
+
+    expect(catalog).toContain('manifestToIntentCatalogEntry');
+    expect(catalog).toContain('PajaResolvedPointer');
+    expect(catalog).not.toMatch(/\b(?:Window|HTMLIFrameElement|MessagePort|contentWindow)\b/);
+    expect(catalog).not.toContain('DEV_INTENT');
+    expect(adapter).toContain('catalog: new InstalledNappletCatalog()');
+    expect(adapter).toContain('controller: new BrowserIntentController(');
+    expect(controller).toContain('await this.options.waitForReady(generation);');
+    expect(controller).toContain('await this.options.isCurrent(generation)');
+    expect(controller).toContain('if (isDelivered()) return;');
+  });
+
   it('keeps test resolution on published napplet packages', () => {
     const rootPackageJson = JSON.parse(readRepoFile('package.json')) as {
       pnpm?: { overrides?: Record<string, string> };
@@ -222,16 +404,96 @@ describe('NIP-5D conformance static guards', () => {
     expect(violations).toEqual([]);
   });
 
+  it('keeps active intent and manifest surfaces on exact convention contracts', () => {
+    const publishedIntentTypes = readRepoFile(installedCoreDist);
+    const resolver = readRepoFile('packages/services/src/catalog-intent-resolver.ts');
+    const paja = readRepoFile('packages/paja/src/browser-adapter.ts');
+    const pajaIntent = [
+      sourceBetween(
+        paja,
+        'interface PajaIntentHost',
+        'function createDevCvmTransport',
+      ),
+      sourceBetween(
+        paja,
+        'if (getSimulation().intent.enabled)',
+        'if (getSimulation().capabilities.domains.link)',
+      ),
+    ].join('\n');
+    const forbiddenCanonicalField =
+      /\b(?:protocol|protocols|handled|windowId|newWindow)\s*(?:\?|):/;
+
+    expect(existsSync(join(process.cwd(), 'packages/services/src/intent-types.ts'))).toBe(false);
+    expect(interfaceFieldNames(publishedIntentTypes, 'IntentContract')).toEqual([
+      'convention',
+      'eventKinds',
+    ]);
+    expect(interfaceFieldNames(publishedIntentTypes, 'IntentCandidate')).toEqual([
+      'dTag',
+      'title',
+      'actions',
+      'conventions',
+      'contracts',
+      'isDefault',
+    ]);
+    expect(interfaceFieldNames(publishedIntentTypes, 'IntentAcceptedResult')).toEqual([
+      'ok',
+      'archetype',
+      'action',
+      'convention',
+      'handler',
+    ]);
+    expect(interfaceFieldNames(publishedIntentTypes, 'IntentRejectedResult')).toEqual([
+      'ok',
+      'error',
+    ]);
+    expect(interfaceFieldNames(publishedIntentTypes, 'IntentDelivery')).toEqual([
+      'sender',
+      'archetype',
+      'action',
+      'convention',
+      'payload',
+    ]);
+    expect(localInterfaceFieldNames(resolver, 'IntentRetentionParams')).toEqual([
+      'handler',
+      'delivery',
+      'behavior',
+    ]);
+
+    for (const file of activeIntentContractFiles) {
+      const source = removeComments(readRepoFile(file));
+      expect(source, `${file} obsolete canonical intent field`).not.toMatch(
+        forbiddenCanonicalField,
+      );
+    }
+    expect(removeComments(pajaIntent), 'Paja development intent simulator').not.toMatch(
+      forbiddenCanonicalField,
+    );
+    expect(paja).toContain('InstalledNappletCatalog');
+    expect(paja).toContain('BrowserIntentController');
+    expect(paja).toContain('createCatalogIntentResolver');
+    expect(pajaIntent).toContain('catalog: new InstalledNappletCatalog()');
+    expect(pajaIntent).toContain('controller: new BrowserIntentController(');
+    expect(paja).not.toContain('DEV_INTENT');
+
+    for (const file of activeArchetypeMetadataFiles) {
+      const source = removeComments(readRepoFile(file));
+      expect(source, `${file} numbered archetype metadata`).not.toMatch(
+        /\bnap\s*:|NAP-[0-9]+/,
+      );
+    }
+  });
+
   it('requires every playground napplet to declare and preflight its NAP contract', () => {
     for (const name of playgroundNapplets) {
       const config = readRepoFile(`apps/playground/napplets/${name}/vite.config.ts`);
       const source = readRepoFile(`apps/playground/napplets/${name}/src/main.ts`);
       const requiresLiteral = stringLiteralList(expectedRequires[name]);
 
-      // profile-viewer also declares the NAAT archetype axis (Phase 87, ARCH-03).
+      // profile-viewer also declares one exact queryless archetype convention.
       const expectedConfigCall =
         name === 'profile-viewer'
-          ? `definePlaygroundNappletConfig('${name}', { requires: [${requiresLiteral}], archetypes: [{ slug: 'profile', nap: 'NAP-1' }] })`
+          ? `definePlaygroundNappletConfig('${name}', { requires: [${requiresLiteral}], archetypes: [{ slug: 'profile', convention: 'napplet:profile/open' }] })`
           : `definePlaygroundNappletConfig('${name}', { requires: [${requiresLiteral}] })`;
       expect(config, `${name} vite requires`).toContain(expectedConfigCall);
       expect(source, `${name} source requires`).toContain(
@@ -311,6 +573,55 @@ describe('NIP-5D conformance static guards', () => {
     expect(policy).toContain('napplet artifacts are not required to bundle their own handshake');
   });
 
+  it('keeps active NAP-SHELL support domain-only and host resolution out of injected APIs', () => {
+    const namespace = readRepoFile('packages/shell/src/napplet-namespace.ts');
+    const readme = readRepoFile('packages/shell/README.md');
+    const retiredNegotiationMarkers = [
+      'capabilities.' + 'protocols',
+      'proto' + 'col?: string',
+      'n' + 'aps:',
+    ];
+
+    expect(historicalShellExclusions).toEqual(['.planning/', 'CHANGELOG.md']);
+    for (const file of activeShellSurfaceFiles) {
+      const source = readRepoFile(file);
+      expect(source, `${file} must not declare a second supports parameter`).not.toMatch(
+        /(?:function\s+)?supports\s*(?::\s*)?\(\s*[^,)]+\s*,/,
+      );
+      for (const marker of retiredNegotiationMarkers) {
+        expect(source, `${file} must not expose ${marker}`).not.toContain(marker);
+      }
+    }
+
+    expect(namespace).toContain('function supports(domain: string): boolean');
+    expect(namespace).not.toContain('resolveShellEnvironment');
+    expect(readme).toContain('`window.napplet.shell.supports(domain)`');
+    expect(readme).toContain('returns `false` before `shell.init`');
+    expect(readme).toContain('resolveShellEnvironment(hooks, identity)');
+    expect(readme).not.toContain('numbered protocols');
+    expect(readme).not.toContain('`naps`');
+  });
+
+  it('keeps active service guidance on direct domains and runtime-attested INC delivery', () => {
+    for (const file of activeServiceGuidanceFiles) {
+      const source = readRepoFile(file);
+      const recommendations = removeExplicitLegacyProhibitions(source);
+
+      expect(source, `${file} direct domain guidance`).toContain('exact `message.type` domain');
+      expect(source, `${file} opaque INC guidance`).toMatch(/opaque,?\s+queryless\s+identities/i);
+      expect(source, `${file} runtime-attested sender guidance`).toMatch(/runtime\s+attaches the sender/i);
+
+      for (const { label, pattern } of unsafeServiceGuidancePatterns) {
+        expect(recommendations, `${file} must not recommend ${label}`).not.toMatch(pattern);
+      }
+    }
+
+    // Mentioning a retired token to prohibit it is documentation, not a compatibility recommendation.
+    expect(removeExplicitLegacyProhibitions('Do not use createAudioService() for INC routing.')).not.toMatch(
+      /createAudioService\s*\(/,
+    );
+  });
+
   it('keeps NAP-RELAY subscribe routing fields wired through runtime, services, playground, and tests', () => {
     const relayTypes = readRepoFile(`${installedNapDist}/relay/types.d.ts`);
     const fields = interfaceFieldNames(relayTypes, 'RelaySubscribeMessage');
@@ -318,6 +629,26 @@ describe('NIP-5D conformance static guards', () => {
     expect(fields).toEqual(['id', 'subId', 'filters', 'relay']);
 
     for (const { file, markers } of relaySubscribeRoutingSurfaces) {
+      const source = readRepoFile(file);
+      for (const marker of markers) {
+        expect(source, `${file} missing ${marker}`).toContain(marker);
+      }
+    }
+  });
+
+  it('keeps NAP-RELAY publish signing and canonical results wired through every host surface', () => {
+    const relayTypes = readRepoFile(`${installedNapDist}/relay/types.d.ts`);
+
+    expect(interfaceFieldNames(relayTypes, 'RelayPublishMessage')).toEqual(['id', 'event']);
+    expect(interfaceFieldNames(relayTypes, 'RelayPublishResultMessage')).toEqual([
+      'id',
+      'ok',
+      'event',
+      'eventId',
+      'error',
+    ]);
+
+    for (const { file, markers } of relayPublishRoutingSurfaces) {
       const source = readRepoFile(file);
       for (const marker of markers) {
         expect(source, `${file} missing ${marker}`).toContain(marker);
@@ -442,5 +773,49 @@ describe('NIP-5D conformance static guards', () => {
     const queryResultFields = interfaceFieldNames(relayTypes, 'RelayQueryResultMessage');
     expect(queryResultFields, 'RelayQueryResultMessage must declare events').toContain('events');
     expect(queryResultFields, 'RelayQueryResultMessage must not declare count').not.toContain('count');
+  });
+
+  it('pins active INC guidance to merged authority and the implemented routing boundary', () => {
+    const docs = [
+      'RUNTIME-SPEC.md',
+      'docs/policies/NIP-5D-CONFORMANCE.md',
+      'packages/runtime/README.md',
+      'packages/shell/README.md',
+    ] as const;
+    const exactHeads = ['6461e4b37c29dc09a20dff35d9515889c4433874'] as const;
+
+    for (const file of docs) {
+      const source = readRepoFile(file);
+      for (const head of exactHeads) expect(source, `${file} must pin ${head}`).toContain(head);
+      expect(source, `${file} must retain exact queryless identities`).toMatch(/exact\s+queryless\s+(?:topic\s+)?identity/i);
+      expect(source, `${file} must describe runtime-attested dTags`).toMatch(/runtime-attested dTag/i);
+      expect(source, `${file} must defer intent binding work`).toContain('Phase 104');
+      expect(source, `${file} must retain the package gate`).toContain('Phase 105');
+    }
+
+    const runtimeSpec = readRepoFile('RUNTIME-SPEC.md');
+    const policy = readRepoFile('docs/policies/NIP-5D-CONFORMANCE.md');
+    const runtimeReadme = readRepoFile('packages/runtime/README.md');
+    const shellReadme = readRepoFile('packages/shell/README.md');
+    const incHandler = readRepoFile('packages/runtime/src/inc-handler.ts');
+    const namespace = readRepoFile('packages/shell/src/napplet-namespace.ts');
+
+    expect(runtimeSpec).toContain('Published-projection query-to-text-payload transposition');
+    expect(policy).toContain('kehto/web#203');
+    expect(policy).toContain('https://github.com/kehto/web/issues/203#issuecomment-5060904495');
+    expect(policy).toContain('Merged NAP-INC says `on(topic, callback)` delivers one `IncEvent`');
+    expect(runtimeReadme).toContain('open-time authorization');
+    expect(shellReadme).toContain('target `inc.channel.opened` before the opener result');
+    expect(shellReadme).toContain('`channel.list()` is informational only');
+    expect(shellReadme).toContain('`(payload, NostrEvent)` callback');
+
+    expect(incHandler).toContain('const subscribers = state.subscriptions.get(topic);');
+    expect(incHandler).toContain('sessionRegistry.getEntryByWindowId(windowId)?.dTag');
+    expect(incHandler).toContain("type: 'inc.channel.opened'");
+    expect(incHandler).not.toMatch(/topic\??\.startsWith\s*\(/);
+    expect(namespace).toContain('INC subscriptions require a queryless topic identity');
+    expect(namespace).toContain('function deliverOpened');
+    expect(namespace).toContain('function closeChannelState');
+    expect(namespace).toContain("reason: 'buffer overflow'");
   });
 });

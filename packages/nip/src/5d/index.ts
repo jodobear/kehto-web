@@ -91,10 +91,9 @@ export interface NappletManifest {
   /** Short NAP capability names from `requires` tags. */
   requires: string[];
   /**
-   * Archetype slugs this napplet fulfills, from `archetype` manifest tags; the
-   * optional `nap` is the recommended default wire protocol (the 3rd tag element).
+   * Convention contracts this napplet fulfills, from `archetype` manifest tags.
    */
-  archetypes: Array<{ slug: string; nap?: string }>;
+  archetypes: Array<{ slug: string; convention: string; eventKinds?: number[] }>;
   /** Optional human title. */
   title?: string;
   /** Optional human description. */
@@ -143,16 +142,64 @@ function allTagValues(tags: readonly (readonly string[])[], name: string): strin
 
 function archetypesFromTags(
   tags: readonly (readonly string[])[],
-): Array<{ slug: string; nap?: string }> {
-  const out: Array<{ slug: string; nap?: string }> = [];
+): Array<{ slug: string; convention: string; eventKinds?: number[] }> {
+  const out: Array<{ slug: string; convention: string; eventKinds?: number[] }> = [];
   for (const tag of tags) {
     if (tag[0] !== 'archetype') continue;
-    if (typeof tag[1] !== 'string' || tag[1].length === 0) continue;
-    out.push(
-      typeof tag[2] === 'string' && tag[2].length > 0
-        ? { slug: tag[1], nap: tag[2] }
-        : { slug: tag[1] },
-    );
+    const slug = tag[1];
+    if (typeof slug !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
+      throw new NappletResolutionError(
+        'invalid-manifest',
+        'archetype slug must contain lowercase letters, numbers, and hyphens',
+      );
+    }
+
+    const convention = tag[2];
+    if (typeof convention !== 'string' || convention.length === 0) {
+      throw new NappletResolutionError('invalid-manifest', 'archetype convention is required');
+    }
+    if (/^NAP-\d+$/.test(convention)) {
+      throw new NappletResolutionError(
+        'invalid-manifest',
+        'numbered NAP identifier is not an archetype convention',
+      );
+    }
+    const conventionMatch = /^napplet:([^/?#\s]+)\/([^/?#\s]+)$/.exec(convention);
+    if (!conventionMatch) {
+      throw new NappletResolutionError(
+        'invalid-manifest',
+        'archetype convention must be a queryless napplet:<archetype>/<intent> identity',
+      );
+    }
+    if (conventionMatch[1] !== slug) {
+      throw new NappletResolutionError(
+        'invalid-manifest',
+        'archetype slug must match the convention archetype',
+      );
+    }
+
+    const eventKinds = tag.slice(3).map((value) => {
+      const match = /^kind:(\d+)$/.exec(value);
+      if (!match) {
+        throw new NappletResolutionError(
+          'invalid-manifest',
+          'archetype trailing fields must use kind:<unsigned-integer>',
+        );
+      }
+      const kind = Number(match[1]);
+      if (!Number.isSafeInteger(kind) || kind < 0) {
+        throw new NappletResolutionError(
+          'invalid-manifest',
+          'archetype event kinds must be unsigned safe integers',
+        );
+      }
+      return kind;
+    });
+    out.push({
+      slug,
+      convention,
+      ...(eventKinds.length === 0 ? {} : { eventKinds }),
+    });
   }
   return out;
 }

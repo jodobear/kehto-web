@@ -7,8 +7,9 @@
  * through `manifestToIntentCatalogEntry` into an `IntentCatalogEntry`, the shape
  * `createCatalogIntentResolver.loadCatalog` consumes.
  *
- * This builder is the wiring proof for ARCH-03; surfacing an interactive intent
- * UI in the playground is intentionally out of scope.
+ * This builder is the Phase 104 wiring proof for ARCH-03. Phase 105 owns the
+ * persistent live playground catalog/controller and interactive intent flow;
+ * this module does not claim that host lifecycle wiring yet.
  *
  * @packageDocumentation
  */
@@ -34,10 +35,18 @@ export type IntentCatalogSource = Pick<PlaygroundNapplet, 'dTag' | 'title' | 'ar
  * @example
  * ```ts
  * const catalog = buildPlaygroundIntentCatalog([
- *   { dTag: 'profile-viewer', title: 'Profile', archetypes: [{ slug: 'profile', nap: 'NAP-1' }] },
+ *   {
+ *     dTag: 'profile-viewer',
+ *     title: 'Profile',
+ *     archetypes: [{ slug: 'profile', convention: 'napplet:profile/open' }],
+ *   },
  * ]);
  * // → [{ dTag: 'profile-viewer', title: 'Profile',
- * //      archetypes: { profile: { actions: ['open'], protocols: ['NAP-1'] } } }]
+ * //      archetypes: { profile: {
+ * //        actions: ['open'],
+ * //        conventions: ['napplet:profile/open'],
+ * //        contracts: [{ convention: 'napplet:profile/open' }],
+ * //      } } }]
  * ```
  */
 export function buildPlaygroundIntentCatalog(

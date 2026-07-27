@@ -5,7 +5,7 @@ import type { Observation } from '@kehto/firewall';
 
 import type {
   RuntimeAdapter, ConsentHandler, FirewallEvent,
-  ServiceHandler, ServiceRegistry, ServiceInfo,
+  ServiceHandler, ServiceRegistry, ServiceInfo, ServiceRuntimeContext,
 } from './types.js';
 import { notifyServiceWindowDestroyed } from './service-dispatch.js';
 import { createSessionRegistry, type SessionRegistry } from './session-registry.js';
@@ -20,6 +20,11 @@ import { createIdentityHandler } from './identity-handler.js';
 import { createCountHandler } from './count-handler.js';
 import { createIncRuntime, type IncRuntime } from './inc-handler.js';
 import { createRuntimeDomainHandlers, type RuntimeDomainHandlers } from './domain-handlers.js';
+import {
+  createCanonicalDomainResult,
+  createIntentPolicyDenial,
+  isIdentityOrThemeMessage,
+} from './domain-results.js';
 
 /**
  * The napplet protocol engine — handles NIP-5D NAP domain dispatch,
@@ -233,7 +238,20 @@ function buildObservation(
   const focus = getFocusContext?.(windowId) ?? { focused: true };
   const opClass = senderCap ?? envelope.type;
   const { kind, size } = extractKindSize(envelope);
-  return { napplet, opClass, kind, size, initElapsedMs, focused: focus.focused, msSinceFocusGain: focus.msSinceFocusGain, now };
+  return {
+    napplet,
+    opClass,
+    kind,
+    size,
+    initElapsedMs,
+    // `windowId` comes from the host's source-bound session lookup, never the
+    // napplet message envelope. It scopes startup burst accounting to this
+    // registered realm while rate limits remain dTag-wide.
+    initKey: windowId,
+    focused: focus.focused,
+    msSinceFocusGain: focus.msSinceFocusGain,
+    now,
+  };
 }
 
 /** Configuration for createFirewallGate. */
@@ -268,12 +286,27 @@ function createFirewallGate(config: FirewallGateConfig): (windowId: string, enve
     const opClass = obs.opClass;
 
     if (decision === 'reject' || decision === 'prompt') {
-      // Mirror the ACL denial envelope shaping (runtime.ts ACL path):
-      // storage envelopes → `.result`; all others → `.error` (T-81-03: no internals leaked)
+      const intentDenial = createIntentPolicyDenial(envelope);
+      if (intentDenial) {
+        hooks.sendToNapplet(windowId, intentDenial);
+        hooks.onFirewallEvent?.({ windowId, napplet, opClass, decision, action, ruleId, reason, message: envelope } as FirewallEvent);
+        if (decision === 'prompt') fireConsent(windowId, napplet);
+        return 'drop';
+      }
+
+      const canonicalResult = createCanonicalDomainResult(envelope);
+      if (canonicalResult) {
+        hooks.sendToNapplet(windowId, canonicalResult);
+        hooks.onFirewallEvent?.({ windowId, napplet, opClass, decision, action, ruleId, reason, message: envelope } as FirewallEvent);
+        if (decision === 'prompt') fireConsent(windowId, napplet);
+        return 'drop';
+      }
+
       const id = (envelope as NappletMessage & { id?: string }).id ?? '';
-      const isStorageEnvelope = envelope.type.startsWith('storage.');
-      const type = isStorageEnvelope ? `${envelope.type}.result` : `${envelope.type}.error`;
-      hooks.sendToNapplet(windowId, { type, id, error: `firewall: ${reason}` } as NappletMessage);
+      const type = denialResponseType(envelope);
+      if (type) {
+        hooks.sendToNapplet(windowId, { type, id, error: `firewall: ${reason}` } as NappletMessage);
+      }
 
       hooks.onFirewallEvent?.({ windowId, napplet, opClass, decision, action, ruleId, reason, message: envelope } as FirewallEvent);
 
@@ -293,8 +326,19 @@ function createFirewallGate(config: FirewallGateConfig): (windowId: string, enve
   };
 }
 
+function denialResponseType(envelope: NappletMessage): string | null {
+  if (envelope.type.startsWith('intent.')) return null;
+  if (envelope.type.startsWith('storage.')) return `${envelope.type}.result`;
+  if (envelope.type === 'inc.subscribe' || envelope.type === 'inc.channel.open') {
+    return `${envelope.type}.result`;
+  }
+  if (envelope.type.startsWith('inc.')) return null;
+  return `${envelope.type}.error`;
+}
+
 function createMessageHandler(
   hooks: RuntimeAdapter,
+  sessionRegistry: SessionRegistry,
   enforceNap: ReturnType<typeof createNapEnforceGate>,
   dispatchNapEnvelope: (windowId: string, envelope: NappletMessage) => void,
   firewallGate: (windowId: string, envelope: NappletMessage, senderCap: string | null) => 'dispatch' | 'drop',
@@ -304,16 +348,37 @@ function createMessageHandler(
     const envelope = msg as NappletMessage;
     const dotIdx = envelope.type.indexOf('.');
     if (dotIdx === -1) return;
+    // NAP-SHELL establishes the sole capability ingress boundary: valid
+    // envelopes remain inert until the source-bound shell.ready transition
+    // creates a session. This deliberately precedes capability resolution,
+    // ACL, firewall, service routing, and domain dispatch.
+    if (!sessionRegistry.getEntryByWindowId(windowId)) return;
+    const domain = envelope.type.slice(0, dotIdx);
+    if (hooks.isDomainAllowed && !hooks.isDomainAllowed(windowId, domain)) return;
+    if (isIdentityOrThemeMessage(envelope) && !createCanonicalDomainResult(envelope)) return;
 
     const caps = resolveCapabilitiesNap(envelope);
     if (caps.senderCap) {
       const result = enforceNap(windowId, caps.senderCap as Capability, envelope);
       if (!result.allowed) {
+        const intentDenial = createIntentPolicyDenial(envelope);
+        if (intentDenial) {
+          hooks.sendToNapplet(windowId, intentDenial);
+          return;
+        }
+
+        const canonicalResult = createCanonicalDomainResult(envelope);
+        if (canonicalResult) {
+          hooks.sendToNapplet(windowId, canonicalResult);
+          return;
+        }
+
         const id = (envelope as NappletMessage & { id?: string }).id ?? '';
-        const isStorageEnvelope = envelope.type.startsWith('storage.');
         const error = formatDenialReason(result.capability);
-        const type = isStorageEnvelope ? `${envelope.type}.result` : `${envelope.type}.error`;
-        hooks.sendToNapplet(windowId, { type, id, error } as NappletMessage);
+        const type = denialResponseType(envelope);
+        if (type) {
+          hooks.sendToNapplet(windowId, { type, id, error } as NappletMessage);
+        }
         return;
       }
     }
@@ -344,6 +409,62 @@ function createRuntimeInstance(context: RuntimeInstanceContext): Runtime {
     replayDetector, serviceRegistry, sessionRegistry, subscriptions, consentHandlerRef,
   } = context;
   const undeclaredServiceConsents = new Set<string>();
+  const attachedServices = new Map<string, ServiceHandler>();
+  const isDomainAllowed = hooks.isDomainAllowed;
+  const sendToNapplet = hooks.sendToNapplet;
+  const serviceContext: ServiceRuntimeContext = Object.freeze({
+    resolveDTag(windowId: string): string | undefined {
+      return sessionRegistry.getEntryByWindowId(windowId)?.dTag;
+    },
+    listWindowIds(): readonly string[] {
+      return Object.freeze(
+        sessionRegistry.getAllEntries().map((entry) => entry.windowId),
+      );
+    },
+    sendToEligibleNapplet(windowId: string, message: NappletMessage): boolean {
+      const entry = sessionRegistry.getEntryByWindowId(windowId);
+      if (!entry || typeof message.type !== 'string') return false;
+      const dotIndex = message.type.indexOf('.');
+      if (dotIndex <= 0) return false;
+      const domain = message.type.slice(0, dotIndex);
+      try {
+        if (isDomainAllowed && !isDomainAllowed(windowId, domain)) return false;
+        const { recipientCap } = resolveCapabilitiesNap(message);
+        if (!recipientCap) return false;
+        if (!aclState.check('', entry.dTag, entry.aggregateHash, recipientCap as Capability)) {
+          return false;
+        }
+        sendToNapplet(windowId, message);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  });
+
+  function attachService(name: string, handler: ServiceHandler): void {
+    attachedServices.set(name, handler);
+    try {
+      handler.onRegistered?.(serviceContext);
+    } catch {
+      // A failed optional attachment leaves the service safely context-free.
+    }
+  }
+
+  function detachService(name: string): void {
+    const handler = attachedServices.get(name);
+    if (!handler) return;
+    attachedServices.delete(name);
+    try {
+      handler.onUnregistered?.();
+    } catch {
+      // Service cleanup is best-effort and cannot block runtime teardown.
+    }
+  }
+
+  for (const [name, handler] of Object.entries(serviceRegistry)) {
+    attachService(name, handler);
+  }
 
   return {
     handleMessage: context.handleMessage,
@@ -351,6 +472,7 @@ function createRuntimeInstance(context: RuntimeInstanceContext): Runtime {
       eventBuffer.bufferAndDeliver(createInjectedEvent(hooks, topic, payload), null);
     },
     destroy(): void {
+      for (const name of attachedServices.keys()) detachService(name);
       manifestCache.persist();
       aclState.persist();
       firewallState.persist();
@@ -365,14 +487,17 @@ function createRuntimeInstance(context: RuntimeInstanceContext): Runtime {
       consentHandlerRef.current = handler;
     },
     registerService(name: string, handler: ServiceHandler): void {
+      detachService(name);
       serviceRegistry[name] = handler;
       registeredServices.set(name, {
         name: handler.descriptor.name,
         version: handler.descriptor.version,
         description: handler.descriptor.description,
       });
+      attachService(name, handler);
     },
     unregisterService(name: string): void {
+      detachService(name);
       delete serviceRegistry[name];
       registeredServices.delete(name);
     },
@@ -411,7 +536,15 @@ export function createRuntime(hooks: RuntimeAdapter): Runtime {
   const serviceRegistry: ServiceRegistry = { ...hooks.services };
   const registeredServices = createRegisteredServices(serviceRegistry);
   const sessionRegistry = createSessionRegistry(hooks.onPendingUpdate);
-  const aclState = createAclState(hooks.aclPersistence);
+  let incRuntime: IncRuntime | null = null;
+  const aclState = createAclState(hooks.aclPersistence, 'permissive', (mutation) => {
+    if (mutation.type === 'revoke' && mutation.capability !== 'relay:read') return;
+    for (const entry of sessionRegistry.getAllEntries()) {
+      if (entry.dTag === mutation.dTag && entry.aggregateHash === mutation.aggregateHash) {
+        incRuntime?.revokeWindow(entry.windowId);
+      }
+    }
+  });
   const firewallState = createFirewallState(hooks.firewallPersistence);
   const manifestCache = createManifestCache(hooks.manifestPersistence);
   const replayDetector = createReplayDetector(
@@ -465,6 +598,12 @@ export function createRuntime(hooks: RuntimeAdapter): Runtime {
     onAclCheck: hooks.onAclCheck,
   });
 
+  incRuntime = createIncRuntime(
+    hooks,
+    sessionRegistry,
+    (targetWindowId, message) => enforceNap(targetWindowId, 'relay:read', message).allowed,
+  );
+
   const firewallGate = createFirewallGate({ firewallState, sessionRegistry, hooks, fireConsent });
 
   const eventBuffer = createEventBuffer(
@@ -481,7 +620,6 @@ export function createRuntime(hooks: RuntimeAdapter): Runtime {
   firewallState.load();
   manifestCache.load();
 
-  const incRuntime = createIncRuntime(hooks, sessionRegistry);
   const domainHandlers = createRuntimeDomainHandlers({ hooks, serviceRegistry, sessionRegistry, aclState });
   const dispatchNapEnvelope = createNapEnvelopeDispatcher({
     relay: createRelayHandler({ hooks, serviceRegistry, subscriptions, eventBuffer, replayDetector }),
@@ -490,7 +628,7 @@ export function createRuntime(hooks: RuntimeAdapter): Runtime {
     inc: incRuntime.handleMessage,
     ...domainHandlers,
   });
-  const handleMessage = createMessageHandler(hooks, enforceNap, dispatchNapEnvelope, firewallGate);
+  const handleMessage = createMessageHandler(hooks, sessionRegistry, enforceNap, dispatchNapEnvelope, firewallGate);
 
   return createRuntimeInstance({
     hooks,

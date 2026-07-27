@@ -7,6 +7,9 @@ import {
   getDemoTopologyInputs,
   getDemoServiceNames,
   getNapplets,
+  closeNapplet,
+  getInstalledNappletCatalog,
+  createPlaygroundIntentTargetOptions,
   loadNapplet,
   getNotificationServiceHandler,
   getRelayServiceHandler,
@@ -18,6 +21,8 @@ import {
   type LoadedNappletIdentity,
   isServiceEnabled,
 } from './shell-host.js';
+import { createCatalogIntentResolver, createIntentService } from '@kehto/services';
+import { PlaygroundIntentController } from './playground-intent-controller.js';
 import { initThemeSwitcherHost, buildHostRelaySubscribe } from './theme-switcher-host.js';
 import type { Capability } from '@kehto/shell';
 import { createConsentModal } from './consent-modal.js';
@@ -53,6 +58,7 @@ import { demoConfig } from './demo-config.js';
 import { setAclRingSize } from './acl-history.js';
 import {
   createPlaygroundPreferences,
+  getPersistedPlaygroundTheme,
   isStaticPagesDemo,
   type PersistenceMode,
 } from './main-preferences.js';
@@ -63,9 +69,26 @@ if (isStaticPagesDemo) {
 
 const notificationUi = createNotificationUi();
 
+const initialTheme = getPersistedPlaygroundTheme();
+
+const installedNapplets = getInstalledNappletCatalog();
+const intentController = new PlaygroundIntentController(createPlaygroundIntentTargetOptions());
+const intentResolver = createCatalogIntentResolver({
+  loadCatalog: () => installedNapplets.intentCatalog(),
+  targets: intentController,
+  getDefaultHandler: (archetype) => installedNapplets.getDefaultHandler(archetype),
+  // UI selection is introduced with the live profile flow; ambiguity remains
+  // fail-closed until that user-policy seam is available.
+  chooseHandler: () => undefined,
+  // A napplet never authorizes its own explicit handler preference.
+  authorizeExplicitHandler: () => false,
+});
+installedNapplets.onChanged((archetype) => intentResolver.notifyChanged(archetype));
+const intentService = createIntentService({ resolver: intentResolver });
+
 const { tap } = bootShell((notifications) => {
   notificationUi.controller.handleServiceChange(notifications);
-});
+}, initialTheme, intentService);
 
 const notificationHandler = getNotificationServiceHandler();
 if (notificationHandler) {
@@ -97,7 +120,7 @@ for (const serviceName of getDemoServiceNames()) {
 
 // Initialize persistent color state tracking for topology edges
 initColorState(topology);
-const preferences = createPlaygroundPreferences({ topology, edgeFlasher });
+const preferences = createPlaygroundPreferences({ topology, edgeFlasher, initialTheme });
 preferences.initControls();
 
 onColorStateChange(() => {
@@ -134,20 +157,6 @@ if (debuggerEl) {
   debuggerEl.addSystemMessage(getDemoHostAuditSummary());
   debuggerEl.addSystemMessage('notification service registered -- host callbacks active');
 }
-
-window.addEventListener('message', (event: MessageEvent) => {
-  const data = event.data as Record<string, unknown> | null;
-  if (!data || typeof data !== 'object') return;
-  if (data.type === 'shell.ready') {
-    window.setTimeout(() => {
-      preferences.broadcastCurrentTheme();
-    }, 0);
-    window.setTimeout(() => {
-      preferences.broadcastCurrentTheme();
-    }, 100);
-    return;
-  }
-});
 
 // Mount host-side theme switcher on the theme service topology card.
 initThemeSwitcherHost({
@@ -201,7 +210,6 @@ const shellPubkey = document.getElementById('shell-pubkey');
 if (shellPubkey) shellPubkey.textContent = `pubkey: ${getDemoHostPubkey().substring(0, 20)}...`;
 
 function handleLoadedNapplet(): void {
-  preferences.broadcastCurrentTheme();
   setTimeout(() => {
     refreshAclPanelsIfNeeded();
   }, 0);
@@ -469,6 +477,39 @@ export function setSelectedNode(id: string | null): void {
   window.dispatchEvent(event);
   return true;
 };
+
+// Browser-test seams exercise host lifecycle and observe only envelope metadata;
+// neither hook grants a napplet capability or changes installed catalog authority.
+(window as Window & {
+  __closeNappletForTest__?: (dTag: string) => boolean;
+}).__closeNappletForTest__ = (dTag: string): boolean => {
+  const info = [...getNapplets().values()].find((entry) => entry.dTag === dTag);
+  return info ? closeNapplet(info.windowId) : false;
+};
+
+(window as Window & {
+  __clearPlaygroundTapForTest__?: () => void;
+}).__clearPlaygroundTapForTest__ = (): void => {
+  tap.clear();
+};
+
+(window as Window & {
+  __getPlaygroundEnvelopeTapForTest__?: () => Array<{
+    direction: string;
+    windowId?: string;
+    type?: string;
+    delivery?: unknown;
+  }>;
+}).__getPlaygroundEnvelopeTapForTest__ = () => tap.messages
+  .filter((message) => message.envelopeType !== undefined)
+  .map((message) => ({
+    direction: message.direction,
+    windowId: message.windowId,
+    type: message.envelopeType,
+    delivery: message.envelopeType === 'intent.deliver'
+      ? (message.envelope as { delivery?: unknown } | undefined)?.delivery
+      : undefined,
+  }));
 
 (window as Window & {
   __publishConfigValues__?: (values: Record<string, unknown>) => boolean;

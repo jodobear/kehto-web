@@ -26,14 +26,14 @@ pnpm add @kehto/services @kehto/runtime @napplet/core @napplet/nap
 
 | Package | Range |
 |---------|-------|
-| `@napplet/core` | `>=0.23.0 <=0.28.x` |
-| `@napplet/nap` | `>=0.23.0 <=0.28.x` |
+| `@napplet/core` | `>=0.29.0 <0.30.0` |
+| `@napplet/nap` | `>=0.29.0 <0.30.0` |
 
 ## Primary APIs
 
 | Area | Exports |
 |------|---------|
-| Legacy/reference basics | `createAudioService`, `createNotificationService`, `AudioSource`, `AudioServiceOptions`, `Notification`, `NotificationServiceOptions` |
+| Direct-domain notifications | `createNotifyService`, `NotifyServiceOptions` |
 | Identity | `createIdentityService`, `IdentityServiceOptions` |
 | Relay/cache/count | `createRelayPoolService`, `RelayPoolServiceOptions`, `createCacheService`, `CacheServiceOptions`, `HostCacheBridge`, `createCoordinatedRelay`, `CoordinatedRelayOptions`, `createCountService`, `CountServiceOptions`, `CountRequest`, `CountResult` |
 | Keys | `createKeysService`, `KeysServiceOptions`, `HostKeysBridge`, `HostKeyEvent` |
@@ -46,7 +46,15 @@ pnpm add @kehto/services @kehto/runtime @napplet/core @napplet/nap
 ## Scope Boundaries
 
 - Provides reference service handlers that host apps register with `runtime.registerService()`.
+- The runtime selects a handler by the exact `message.type` domain (for example,
+  `notify.create` selects `notify`). INC topics are opaque, queryless identities
+  matched only by exact equality; they never select a service handler. The
+  runtime attaches the sender to delivered INC events from the authenticated
+  endpoint, so a service must not fabricate an INC delivery.
 - Host apps provide backing bridges/callbacks for browser, native, signer, relay, fetch, notification, and media behavior.
+- Relay services receive runtime-signed events and always settle publish calls
+  with the NAP-RELAY result shape: `{ ok: true, event, eventId }` on success or
+  `{ ok: false, error }` on failure.
 - `createCountService()` implements the NAP-COUNT `count.query` service shape. Backends count NIP-01 filter matches through relay COUNT support, local indexes, or caches and may return exact counts, approximate/HLL metadata, relays, or refusal errors such as `unsupported-filter` and `too-expensive`; they must not return matching events.
 - BLE and WebRTC hook contexts expose `emit(...)` so host bridges can send runtime-owned event envelopes back to the requesting napplet.
 - NAP-DM support keeps request correlation, subscriptions, and normalized message shape in `createDmService`; NIP-17, NDR, and Cordn specifics live behind adapters. Relay-backed helper bridges cover NDR runtime hooks and Cordn coordinator methods without adding hard package dependencies.

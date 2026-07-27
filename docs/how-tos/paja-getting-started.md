@@ -57,6 +57,12 @@ Use **Interfaces** to turn individual `window.napplet.<domain>` injection on or
 off. Paja reloads the target after each toggle, and the next `shell.init`
 advertises the changed support surface.
 
+`shell` is not an interface toggle. `@napplet/shim@0.27.0` does not supply a
+generic shell API, so Paja's Kehto-owned prelude always installs mandatory
+`window.napplet.shell` before one bare `shell.ready`. It caches the first
+`shell.init` for local `ready()`, `supports()`, read-only `services`, and
+one-shot `onReady()` behavior.
+
 ## 5. Tune ACL
 
 Use **ACL** to grant or revoke runtime capabilities such as `state:write`,
@@ -70,6 +76,21 @@ Use **Messages** to filter inbound and outbound envelopes by type, domain, or
 payload text. The log includes target traffic plus Paja system events for
 interface toggles, ACL changes, signer changes, and signer/publish
 confirmations. Error envelopes show their error text directly in the row.
+
+## Intent Delivery in a Local Host
+
+Paja's installed intent catalog contains resolver-verified manifest contracts;
+it is not the same thing as the live target iframe. A closed target can remain
+installed and be cold-started. Selection uses only exact compatible installed
+contracts: a compatible default can win, the host can ask a chooser, ambiguity
+is rejected, and an explicit d-tag needs sender-aware authorization.
+
+After Paja retains a delivery it returns the accepted result, then starts or
+reuses the target. It waits for the current target's registered source and
+`shell.ready` before exactly one target-only delivery. The invoking source may
+close after acceptance. Stale/replaced targets and terminal failures stay in
+the host controller's retry/replacement policy; they do not produce an INC
+message or delivery acknowledgement.
 
 ## 7. Choose Upload Storage
 

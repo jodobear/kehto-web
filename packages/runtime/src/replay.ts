@@ -27,10 +27,34 @@ const REPLAY_WINDOW_SECONDS = 30;
  */
 export interface ReplayDetector {
   /**
-   * Check if an event should be rejected as a replay.
-   * Returns null if event is valid, or a string reason if it should be rejected.
+   * Check if an event should be rejected as a replay and record it as processed.
+   * Returns null if the event is valid, or a string reason if it should be rejected.
    */
   check(event: NostrEvent): string | null;
+
+  /**
+   * Check an event and atomically reserve its ID for pending processing.
+   * Call {@link commit} after processing succeeds or {@link release} after it fails.
+   *
+   * @param event - Signed event whose ID should be reserved
+   * @returns null if reserved, or a string reason if it should be rejected
+   */
+  reserve(event: NostrEvent): string | null;
+
+  /**
+   * Commit a pending reservation as successfully processed.
+   *
+   * @param eventId - Reserved signed event ID
+   */
+  commit(eventId: string): void;
+
+  /**
+   * Release a pending reservation so a failed operation can be retried.
+   * Committed event IDs are never removed by this method.
+   *
+   * @param eventId - Reserved signed event ID
+   */
+  release(eventId: string): void;
 
   /** Clear all tracked event IDs. */
   clear(): void;
@@ -57,20 +81,50 @@ export interface ReplayDetector {
  * ```
  */
 export function createReplayDetector(getReplayWindow?: () => number | undefined): ReplayDetector {
-  const seenEventIds = new Map<string, number>();
+  type ReplayEntry = {
+    state: 'pending' | 'committed';
+    timestamp: number;
+  };
+
+  const seenEventIds = new Map<string, ReplayEntry>();
+
+  function checkAndTrack(event: NostrEvent, state: ReplayEntry['state']): string | null {
+    const replayWindow = getReplayWindow?.() ?? REPLAY_WINDOW_SECONDS;
+    const now = Math.floor(Date.now() / 1000);
+    for (const [id, entry] of seenEventIds) {
+      if (entry.state === 'committed' && now - entry.timestamp > replayWindow) {
+        seenEventIds.delete(id);
+      }
+    }
+    if (now - event.created_at > replayWindow) return 'invalid: event created_at too old';
+    if (event.created_at - now > 10) return 'invalid: event created_at in the future';
+    if (seenEventIds.has(event.id)) return 'duplicate: already processed';
+    seenEventIds.set(event.id, { state, timestamp: now });
+    return null;
+  }
 
   return {
     check(event: NostrEvent): string | null {
-      const replayWindow = getReplayWindow?.() ?? REPLAY_WINDOW_SECONDS;
-      const now = Math.floor(Date.now() / 1000);
-      if (now - event.created_at > replayWindow) return 'invalid: event created_at too old';
-      if (event.created_at - now > 10) return 'invalid: event created_at in the future';
-      if (seenEventIds.has(event.id)) return 'duplicate: already processed';
-      seenEventIds.set(event.id, now);
-      for (const [id, timestamp] of seenEventIds) {
-        if (now - timestamp > replayWindow) seenEventIds.delete(id);
+      return checkAndTrack(event, 'committed');
+    },
+
+    reserve(event: NostrEvent): string | null {
+      return checkAndTrack(event, 'pending');
+    },
+
+    commit(eventId: string): void {
+      const entry = seenEventIds.get(eventId);
+      if (entry?.state !== 'pending') return;
+      seenEventIds.set(eventId, {
+        state: 'committed',
+        timestamp: Math.floor(Date.now() / 1000),
+      });
+    },
+
+    release(eventId: string): void {
+      if (seenEventIds.get(eventId)?.state === 'pending') {
+        seenEventIds.delete(eventId);
       }
-      return null;
     },
 
     clear(): void {

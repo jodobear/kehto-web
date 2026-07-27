@@ -118,9 +118,9 @@ async function publishLive(pool: SimplePool, relayUrls: string[], event: NostrEv
 export function createPajaRelayBackend(
   getSimulation: () => PajaSimulation,
   confirmRequest: (request: PajaConfirmationRequest) => boolean,
+  livePool = new SimplePool(),
 ): PajaRelayBackend {
   const events: NostrEvent[] = getSimulation().relay.fixtures.flatMap(toNostrEvent);
-  const livePool = new SimplePool();
   const subscribers = new Set<{
     filters: NostrFilter[];
     next(item: NostrEvent | 'EOSE'): void;
@@ -135,6 +135,36 @@ export function createPajaRelayBackend(
     for (const event of [...memoryEvents, ...liveEvents]) out.set(event.id, event);
     return [...out.values()].sort((a, b) => b.created_at - a.created_at);
   };
+
+  function retainPublishedEvent(event: NostrEvent): void {
+    events.push(event);
+    for (const subscriber of subscribers) {
+      if (matchesAnyFilter(event, subscriber.filters)) subscriber.next(event);
+    }
+  }
+
+  async function attemptPublish(
+    relayUrls: string[],
+    event: NostrEvent,
+  ): Promise<{ outcomes: Record<string, boolean>; error?: string }> {
+    const simulation = getSimulation();
+    const rejected = Object.fromEntries(relayUrls.map((url) => [url, false]));
+    if (simulation.relay.mode === 'disabled') {
+      return { outcomes: rejected, error: 'relay unavailable' };
+    }
+    if (!confirmRequest({ action: 'publish', event })) {
+      return { outcomes: rejected, error: 'publish denied' };
+    }
+
+    const outcomes = simulation.relay.mode === 'live'
+      ? await publishLive(livePool, relayUrls, event)
+      : Object.fromEntries(relayUrls.map((url) => [url, true]));
+    if (!Object.values(outcomes).some(Boolean)) {
+      return { outcomes, error: 'publish failed' };
+    }
+    retainPublishedEvent(event);
+    return { outcomes };
+  }
 
   const backend: PajaRelayBackend = {
     subscription(relayUrls: string[], filtersInput: NostrFilter[]) {
@@ -162,16 +192,9 @@ export function createPajaRelayBackend(
         },
       };
     },
-    publish(relayUrls: string[], event: NostrEvent): void {
-      if (getSimulation().relay.mode === 'disabled') return;
-      if (!confirmRequest({ action: 'publish', event })) return;
-      events.push(event);
-      for (const subscriber of subscribers) {
-        if (matchesAnyFilter(event, subscriber.filters)) subscriber.next(event);
-      }
-      if (getSimulation().relay.mode === 'live') {
-        void publishLive(livePool, relayUrls, event);
-      }
+    async publish(relayUrls: string[], event: NostrEvent): Promise<void> {
+      const attempt = await attemptPublish(relayUrls, event);
+      if (attempt.error) throw new Error(attempt.error);
     },
     request(relayUrls: string[], filtersInput: NostrFilter[]) {
       return {
@@ -192,14 +215,7 @@ export function createPajaRelayBackend(
     },
     query,
     async publishToRelays(relayUrls, event) {
-      if (getSimulation().relay.mode === 'disabled') return Object.fromEntries(relayUrls.map((url) => [url, false]));
-      if (!confirmRequest({ action: 'publish', event })) return Object.fromEntries(relayUrls.map((url) => [url, false]));
-      events.push(event);
-      for (const subscriber of subscribers) {
-        if (matchesAnyFilter(event, subscriber.filters)) subscriber.next(event);
-      }
-      if (getSimulation().relay.mode !== 'live') return Object.fromEntries(relayUrls.map((url) => [url, true]));
-      return publishLive(livePool, relayUrls, event);
+      return (await attemptPublish(relayUrls, event)).outcomes;
     },
     isAvailable,
     close() {

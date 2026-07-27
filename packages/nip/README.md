@@ -24,6 +24,23 @@ For browser hosts that want repeated NIP-5D loads to reuse verified artifact
 bytes, see the repo guide:
 [Implement a napplet artifact cache](https://kehto.github.io/web/docs/how-tos/implement-napplet-artifact-cache).
 
+## NIP-5D archetype manifest contracts
+
+Phase 104 follows the draft [NAP-INTENT PR #91 at
+`a718915ddefa2f03a0126579601f59d8bd86f7c4`](https://github.com/napplet/naps/pull/91).
+An accepted manifest tag has the exact form
+`["archetype", "<slug>", "napplet:<slug>/<action>", "kind:<number>", ...]`.
+The convention is stable and queryless; each tag becomes one ordered contract,
+and optional unsigned `kind:` values remain discovery metadata for that
+contract. Numbered NAP names are not archetype metadata.
+
+`resolveNapplet()` exposes these verified tags as
+`manifest.archetypes: Array<{ slug, convention, eventKinds? }>`. The NIP package
+parses and verifies that metadata but does not select handlers, retain intent
+delivery, or start target windows. Those responsibilities live in
+`@kehto/services` and the host runtime. Phase 105 owns adoption of the released
+`@napplet/*` convention package line and persistent Paja/playground catalogs.
+
 ## Selection criteria
 
 A NIP earns a place here only if it is:

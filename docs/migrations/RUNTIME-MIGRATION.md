@@ -425,11 +425,17 @@ Relay operations were split across four verb cases in `dispatchVerb()` (lines 22
 | `relay.event` | `["EVENT", "sub-1", {"kind":1,...}]` | `{"type":"relay.event","subId":"uuid","event":{...}}` |
 | `relay.eose` | `["EOSE", "sub-1"]` | `{"type":"relay.eose","subId":"uuid"}` |
 | `relay.closed` | `["CLOSED", "sub-1", ""]` | `{"type":"relay.closed","subId":"uuid","message":""}` |
-| `relay.publish.result` (accepted) | `["OK", "event-id", true, ""]` | `{"type":"relay.publish.result","id":"uuid","accepted":true}` |
-| `relay.publish.result` (rejected) | `["OK", "event-id", false, "blocked: ..."]` | `{"type":"relay.publish.result","id":"uuid","accepted":false,"message":"blocked: ..."}` |
+| `relay.publish.result` (accepted) | `["OK", "event-id", true, ""]` | `{"type":"relay.publish.result","id":"uuid","ok":true,"event":{...},"eventId":"event-id"}` |
+| `relay.publish.result` (rejected) | `["OK", "event-id", false, "blocked: ..."]` | `{"type":"relay.publish.result","id":"uuid","ok":false,"error":"blocked: ..."}` |
 | `relay.query.result` | `["COUNT", "count-1", {"count":42}]` | `{"type":"relay.query.result","id":"uuid","count":42}` (**superseded** — see note below) |
 
 > **Note (issue #94 — superseded):** The `relay.query.result` row above shows `{"count":42}`, which matched the initial NIP-5D migration design. The canonical `@napplet/nap` `RelayQueryResultMessage` contract (unchanged since 0.12.0) specifies `{ type: 'relay.query.result', id, events: NostrEvent[] }` — an `events` array, never a `count`. The kehto runtime was corrected in issue #94: `handleRelayQuery` now performs a one-shot subscribe-until-EOSE, delegates to the registered relay service, merges buffered matches, deduplicates by `event.id`, and replies once with `events`. The ACL mapping (`relay.query` → `relay:read`) is unchanged and remains correct.
+>
+> **NAP-RELAY publish correction:** Draft PR #2 at
+> `0be8abce18beb46ca37bd4ddd042f58d30b4eedc` requires the shell to sign the
+> incoming event template and return the full signed event. The retired
+> `accepted` / `message` examples above were replaced with canonical
+> `ok` / `event` / `eventId` / `error` fields.
 
 #### Capability Mapping
 

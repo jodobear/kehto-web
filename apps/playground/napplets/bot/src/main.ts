@@ -13,6 +13,7 @@
  */
 import '@napplet/shim';
 import { getMissingNapDomains } from '../../domain-availability';
+import { readIncPayload } from '../../inc-event';
 import { applyNapTheme, installNapTheme, onNapThemeChanged } from '../../shared-theme';
 import { incEmit, incOn } from '@napplet/nap/inc/sdk';
 import { storageGetItem, storageSetItem } from '@napplet/nap/storage/sdk';
@@ -21,18 +22,6 @@ const REQUIRED_NAPS = ['inc', 'storage', 'theme'] as const;
 
 const CAPABILITY_WAIT_MS = 5_000;
 const CAPABILITY_WAIT_INTERVAL_MS = 25;
-
-/**
- * Emit a notifications:create event through the real napplet→service path.
- * The shell routes this INC event to the notification service handler.
- */
-function notifyCreate(title: string, body: string): void {
-  try {
-    incEmit('notifications:create', [], JSON.stringify({ title, body }));
-  } catch {
-    /* best-effort — don't break the main flow if notifications are denied */
-  }
-}
 
 const statusEl = document.getElementById('status-text')!;
 const ruleCountEl = document.getElementById('rule-count')!;
@@ -138,14 +127,11 @@ function handleTeachCommand(text: string): boolean {
   saveRules();
   updateRulesDisplay();
 
-  // Emit a notification so the host can surface this rule learn event
-  notifyCreate('Bot activity', `learned: "${trigger}" → "${response}"`);
-
   // Acknowledge the teach command
-  incEmit('bot:response', [], JSON.stringify({
+  incEmit('bot:response', {
     text: `learned! I'll respond "${response}" when I hear "${trigger}"`,
     timestamp: Date.now(),
-  }));
+  });
 
   return true;
 }
@@ -184,12 +170,11 @@ function handleChatMessage(payload: unknown): void {
 
   // Emit response to chat via INC (exercises sign:event for the emit)
   try {
-    incEmit('bot:response', [], JSON.stringify({
+    incEmit('bot:response', {
       text: response,
       timestamp: Date.now(),
-    }));
+    });
     log('inc bot:response sent', 'info');
-    notifyCreate('Bot activity', response.length > 60 ? response.slice(0, 60) + '…' : response);
   } catch (error) {
     log(`inc response failed -- ${formatError(error, 'denied: relay:write')}`, 'error');
   }
@@ -206,7 +191,9 @@ async function init(): Promise<void> {
 
   // Wire the INC subscription per D-02 BEFORE announcing ready, so a chat sender
   // that acts on the bot's "ready" signal cannot race ahead of this subscription.
-  incOn('chat:message', handleChatMessage);
+  incOn('chat:message', (value, packageEvent) => {
+    handleChatMessage(readIncPayload(value, packageEvent));
+  });
   log('subscribed to inc chat:message topic', 'info');
 
   statusEl.textContent = 'ready';

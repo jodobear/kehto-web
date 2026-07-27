@@ -40,8 +40,8 @@ interface BuildOpts {
   noIndex?: boolean;
   /** Omit the aggregate x tag entirely. */
   noAggregateTag?: boolean;
-  /** Archetype tags to emit: `[slug]` or `[slug, nap]`. */
-  archetypes?: Array<[string] | [string, string]>;
+  /** Raw archetype tag fields after the tag name. */
+  archetypes?: string[][];
   /** Emit a `source` tag with this value. */
   source?: string;
 }
@@ -137,18 +137,29 @@ describe('parseNappletManifest', () => {
 });
 
 describe('archetype + source parsing', () => {
-  it('parses a single archetype tag with a NAP-N protocol', () => {
-    const { event } = buildManifest({ archetypes: [['profile', 'NAP-1']] });
+  it('parses one strict convention contract with same-tag event kinds', () => {
+    const { event } = buildManifest({
+      archetypes: [['note', 'napplet:note/open', 'kind:1', 'kind:30023']],
+    });
     const m = parseNappletManifest(event);
-    expect(m.archetypes).toEqual([{ slug: 'profile', nap: 'NAP-1' }]);
+    expect(m.archetypes).toEqual([{
+      slug: 'note',
+      convention: 'napplet:note/open',
+      eventKinds: [1, 30023],
+    }]);
   });
 
-  it('parses multiple archetype tags in declared order', () => {
-    const { event } = buildManifest({ archetypes: [['profile', 'NAP-1'], ['feed', 'NAP-2']] });
+  it('preserves repeated same-archetype tags and independently scoped kinds in declared order', () => {
+    const { event } = buildManifest({
+      archetypes: [
+        ['note', 'napplet:note/open', 'kind:1'],
+        ['note', 'napplet:note/edit', 'kind:30023', 'kind:0'],
+      ],
+    });
     const m = parseNappletManifest(event);
     expect(m.archetypes).toEqual([
-      { slug: 'profile', nap: 'NAP-1' },
-      { slug: 'feed', nap: 'NAP-2' },
+      { slug: 'note', convention: 'napplet:note/open', eventKinds: [1] },
+      { slug: 'note', convention: 'napplet:note/edit', eventKinds: [30023, 0] },
     ]);
   });
 
@@ -158,11 +169,33 @@ describe('archetype + source parsing', () => {
     expect(m.archetypes).toEqual([]);
   });
 
-  it('omits nap when the archetype tag has no 3rd element', () => {
-    const { event } = buildManifest({ archetypes: [['feed']] });
-    const m = parseNappletManifest(event);
-    expect(m.archetypes).toEqual([{ slug: 'feed' }]);
-    expect('nap' in m.archetypes[0]).toBe(false);
+  it.each([
+    ['missing convention', ['feed']],
+    ['empty convention', ['feed', '']],
+    ['numbered NAP', ['feed', 'NAP-1']],
+    ['query-bearing convention', ['feed', 'napplet:feed/open?kind=1']],
+    ['fragment-bearing convention', ['feed', 'napplet:feed/open#section']],
+    ['whitespace in convention', ['feed', 'napplet:feed/open now']],
+    ['malformed convention', ['feed', 'napplet:feed']],
+    ['mismatched convention archetype', ['feed', 'napplet:profile/open']],
+    ['empty slug', ['', 'napplet:feed/open']],
+    ['uppercase slug', ['Feed', 'napplet:Feed/open']],
+    ['whitespace slug', [' feed', 'napplet:feed/open']],
+    ['leading-hyphen slug', ['-feed', 'napplet:-feed/open']],
+    ['unexpected trailing field', ['feed', 'napplet:feed/open', 'scope:1']],
+    ['empty kind', ['feed', 'napplet:feed/open', 'kind:']],
+    ['negative kind', ['feed', 'napplet:feed/open', 'kind:-1']],
+    ['decimal kind', ['feed', 'napplet:feed/open', 'kind:1.5']],
+    ['unsafe kind', ['feed', 'napplet:feed/open', `kind:${Number.MAX_SAFE_INTEGER + 1}`]],
+  ])('rejects %s as invalid-manifest', (_name, fields) => {
+    const { event } = buildManifest({ archetypes: [fields] });
+    try {
+      parseNappletManifest(event);
+      throw new Error('expected parseNappletManifest to reject');
+    } catch (error) {
+      expect(error).toBeInstanceOf(NappletResolutionError);
+      expect((error as NappletResolutionError).code).toBe('invalid-manifest');
+    }
   });
 
   it('parses the source tag when present', () => {
