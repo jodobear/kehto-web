@@ -177,6 +177,28 @@ describe('firewall integration — publish flood and burst guard', () => {
     expect(err).toBeDefined();
     expect((err as any).error).toMatch(/firewall:/);
   });
+
+  it('starts a fresh burst budget only for a replacement source lifecycle', () => {
+    for (let i = 0; i < DEFAULT_BURST_MAX_OPS; i++) {
+      runtime.handleMessage(WINDOW_ID, makePublish(i));
+    }
+    expect(findEnvelopeResponse(ctx.sent, 'relay.publish.error')).toBeUndefined();
+
+    runtime.destroyWindow(WINDOW_ID);
+    runtime.sessionRegistry.unregister(WINDOW_ID);
+    const beforeStaleMessage = ctx.sent.length;
+    runtime.handleMessage(WINDOW_ID, makePublish(100));
+    expect(ctx.sent).toHaveLength(beforeStaleMessage);
+
+    runtime.sessionRegistry.register(WINDOW_ID_2, makeSessionEntryAged(WINDOW_ID_2, 0));
+    for (let i = 0; i < DEFAULT_BURST_MAX_OPS; i++) {
+      runtime.handleMessage(WINDOW_ID_2, makePublish(200 + i));
+    }
+    expect(findEnvelopeResponse(ctx.sent, 'relay.publish.error')).toBeUndefined();
+
+    runtime.handleMessage(WINDOW_ID_2, makePublish(300));
+    expect(findEnvelopeResponse(ctx.sent, 'relay.publish.error')).toBeDefined();
+  });
 });
 
 // ─── Firewall Integration — Backgrounded (Unfocused) Burst ──────────────────
