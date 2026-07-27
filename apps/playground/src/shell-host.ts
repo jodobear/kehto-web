@@ -24,6 +24,8 @@ import {
   injectCspMeta,
   PLAYGROUND_MANIFEST_AUTHOR,
 } from './napplet-resolver.js';
+import type { PlaygroundNapplet } from './napplet-resolver.js';
+import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
 import { getSignerConnectionState } from './signer-connection.js';
 import { pushAclEvent } from './acl-history.js';
 import {
@@ -149,6 +151,7 @@ export interface LoadNappletOptions {
 }
 
 const napplets = new Map<string, NappletInfo>();
+const installedNapplets = new InstalledNappletCatalog();
 const demoServiceNames = new Set<string>(DEMO_TOPOLOGY_SERVICE_NAMES);
 let nappletCounter = 0;
 
@@ -178,6 +181,29 @@ export let relay: ShellBridge;
 
 export function getNapplets(): Map<string, NappletInfo> { return napplets; }
 export function getNapplet(windowId: string): NappletInfo | undefined { return napplets.get(windowId); }
+
+/** Return the resolver-verified installed catalog, separate from live frames. */
+export function getInstalledNappletCatalog(): InstalledNappletCatalog {
+  return installedNapplets;
+}
+
+/** Explicitly uninstall an artifact; frame lifecycle never removes catalog authority. */
+export function uninstallNapplet(dTag: string): boolean {
+  return installedNapplets.remove(dTag);
+}
+
+/**
+ * Record an artifact immediately after `resolvePlaygroundNapplet` succeeds.
+ *
+ * This narrow host seam makes resolver verification the only production route
+ * to installed-handler authority; it intentionally has no iframe dependency.
+ */
+export function installVerifiedNapplet(
+  resolved: PlaygroundNapplet,
+  restart: { name: string; containerId: string },
+) {
+  return installedNapplets.install(resolved, restart);
+}
 
 /**
  * Look up the windowId for a napplet by its dTag (DEMO_NAPPLETS entry `name`).
@@ -473,6 +499,11 @@ export async function loadNapplet(
       `[demo] ${resolved.dTag} requires unsupported NAP capabilities: ${missingRequiredNaps.join(', ')}`,
     );
   }
+
+  // Resolver verification is the only route into persistent handler authority.
+  // Live iframe teardown, source swaps, and session cleanup never mutate this
+  // catalog; only an explicit artifact uninstall may remove the record.
+  installVerifiedNapplet(resolved, { name, containerId });
 
   const windowId = `demo-${name}-${++nappletCounter}`;
 
