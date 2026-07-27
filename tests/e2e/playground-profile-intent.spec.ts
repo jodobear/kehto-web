@@ -6,25 +6,27 @@ test.describe.configure({ mode: 'serial' });
 
 const PROFILE_PUBKEY = 'b'.repeat(64);
 
-test('accepts the feed profile convention before its source closes and delivers once to the ready profile target', async ({ page }) => {
+test('accepts the feed profile convention before its source closes and cold-starts one profile delivery without INC', async ({ page }) => {
   test.setTimeout(120_000);
   await demoBeforeEach(page);
 
   const feed = await getNappletFrame(page, 'feed-frame-container');
-  const profile = await getNappletFrame(page, 'profile-viewer-frame-container');
-  if (!feed || !profile) throw new Error('feed and profile frames must be ready');
+  if (!feed) throw new Error('feed frame must be ready');
 
   await expect(page.frameLocator('#profile-viewer-frame-container iframe').locator('#profile-status'))
     .toContainText('waiting', { timeout: 15_000 });
 
-  await profile.evaluate(() => {
-    const target = window as Window & {
-      __profileDeliveries?: Array<Record<string, unknown>>;
-      napplet?: { intent?: { onDelivery(handler: (delivery: Record<string, unknown>) => void): { close(): void } } };
+  const closedTarget = await page.evaluate(() => {
+    const host = window as Window & {
+      __closeNappletForTest__?: (dTag: string) => boolean;
+      __clearPlaygroundTapForTest__?: () => void;
     };
-    target.__profileDeliveries = [];
-    target.napplet?.intent?.onDelivery((delivery) => target.__profileDeliveries?.push(delivery));
+    const closed = host.__closeNappletForTest__?.('profile-viewer') ?? false;
+    host.__clearPlaygroundTapForTest__?.();
+    return closed;
   });
+  expect(closedTarget).toBe(true);
+  await expect(page.locator('#profile-viewer-frame-container iframe')).toHaveCount(0);
 
   const accepted = await feed.evaluate(async (pubkey) => {
     const napplet = (window as Window & {
@@ -35,20 +37,54 @@ test('accepts the feed profile convention before its source closes and delivers 
   }, PROFILE_PUBKEY);
   expect(accepted).toMatchObject({ ok: true, convention: 'napplet:profile/open' });
 
-  await page.locator('#feed-frame-container iframe').evaluate((frame) => frame.remove());
+  const closedSource = await page.evaluate(() => {
+    const host = window as Window & { __closeNappletForTest__?: (dTag: string) => boolean };
+    return host.__closeNappletForTest__?.('feed') ?? false;
+  });
+  expect(closedSource).toBe(true);
+
+  // The accepted request must revive the verified profile handler, rather than
+  // carrying the intent through a profile-specific INC topic or query identity.
+  await expect(page.locator('#profile-viewer-frame-container iframe')).toHaveCount(1, { timeout: 15_000 });
   await expect(page.frameLocator('#profile-viewer-frame-container iframe').locator('#profile-pubkey'))
     .toHaveText(PROFILE_PUBKEY, { timeout: 15_000 });
 
-  const deliveries = await profile.evaluate(() => {
-    const target = window as Window & { __profileDeliveries?: Array<Record<string, unknown>> };
-    return target.__profileDeliveries ?? [];
+  await expect.poll(async () => page.evaluate(() => {
+    const host = window as Window & {
+      __getPlaygroundEnvelopeTapForTest__?: () => Array<{
+        direction: string;
+        windowId?: string;
+        type?: string;
+        delivery?: unknown;
+      }>;
+    };
+    return (host.__getPlaygroundEnvelopeTapForTest__?.() ?? [])
+      .filter((message) => message.type === 'intent.deliver').length;
+  }), { timeout: 15_000 }).toBe(1);
+
+  const messages = await page.evaluate(() => {
+    const host = window as Window & {
+      __getPlaygroundEnvelopeTapForTest__?: () => Array<{
+        direction: string;
+        windowId?: string;
+        type?: string;
+        delivery?: unknown;
+      }>;
+    };
+    return host.__getPlaygroundEnvelopeTapForTest__?.() ?? [];
   });
+
+  const deliveries = messages.filter((message) => message.type === 'intent.deliver');
   expect(deliveries).toHaveLength(1);
   expect(deliveries[0]).toMatchObject({
+    direction: 'shell->napplet',
+  });
+  expect(deliveries[0]?.delivery).toMatchObject({
     sender: 'feed',
     archetype: 'profile',
     action: 'open',
     convention: 'napplet:profile/open',
     payload: { pubkey: PROFILE_PUBKEY },
   });
+  expect(messages.filter((message) => message.type?.startsWith('inc.'))).toHaveLength(0);
 });

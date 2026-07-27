@@ -7,6 +7,7 @@ import {
   getDemoTopologyInputs,
   getDemoServiceNames,
   getNapplets,
+  closeNapplet,
   getInstalledNappletCatalog,
   createPlaygroundIntentTargetOptions,
   loadNapplet,
@@ -476,6 +477,39 @@ export function setSelectedNode(id: string | null): void {
   window.dispatchEvent(event);
   return true;
 };
+
+// Browser-test seams exercise host lifecycle and observe only envelope metadata;
+// neither hook grants a napplet capability or changes installed catalog authority.
+(window as Window & {
+  __closeNappletForTest__?: (dTag: string) => boolean;
+}).__closeNappletForTest__ = (dTag: string): boolean => {
+  const info = [...getNapplets().values()].find((entry) => entry.dTag === dTag);
+  return info ? closeNapplet(info.windowId) : false;
+};
+
+(window as Window & {
+  __clearPlaygroundTapForTest__?: () => void;
+}).__clearPlaygroundTapForTest__ = (): void => {
+  tap.clear();
+};
+
+(window as Window & {
+  __getPlaygroundEnvelopeTapForTest__?: () => Array<{
+    direction: string;
+    windowId?: string;
+    type?: string;
+    delivery?: unknown;
+  }>;
+}).__getPlaygroundEnvelopeTapForTest__ = () => tap.messages
+  .filter((message) => message.envelopeType !== undefined)
+  .map((message) => ({
+    direction: message.direction,
+    windowId: message.windowId,
+    type: message.envelopeType,
+    delivery: message.envelopeType === 'intent.deliver'
+      ? (message.envelope as { delivery?: unknown } | undefined)?.delivery
+      : undefined,
+  }));
 
 (window as Window & {
   __publishConfigValues__?: (values: Record<string, unknown>) => boolean;

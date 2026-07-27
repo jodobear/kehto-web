@@ -209,6 +209,23 @@ export function uninstallNapplet(dTag: string): boolean {
 }
 
 /**
+ * Close a live frame while retaining its resolver-verified catalog authority.
+ *
+ * A later intent may reopen the handler only through the installed record,
+ * which keeps frame lifecycle separate from NIP-5D artifact authority.
+ */
+export function closeNapplet(windowId: string): boolean {
+  const info = napplets.get(windowId);
+  if (!info) return false;
+  clearPlaygroundIntentGeneration(windowId);
+  originRegistry.unregister(windowId);
+  relay.runtime.sessionRegistry.unregister(windowId);
+  napplets.delete(windowId);
+  info.iframe.remove();
+  return true;
+}
+
+/**
  * Record an artifact immediately after `resolvePlaygroundNapplet` succeeds.
  *
  * This narrow host seam makes resolver verification the only production route
