@@ -238,7 +238,20 @@ function buildObservation(
   const focus = getFocusContext?.(windowId) ?? { focused: true };
   const opClass = senderCap ?? envelope.type;
   const { kind, size } = extractKindSize(envelope);
-  return { napplet, opClass, kind, size, initElapsedMs, focused: focus.focused, msSinceFocusGain: focus.msSinceFocusGain, now };
+  return {
+    napplet,
+    opClass,
+    kind,
+    size,
+    initElapsedMs,
+    // `windowId` comes from the host's source-bound session lookup, never the
+    // napplet message envelope. It scopes startup burst accounting to this
+    // registered realm while rate limits remain dTag-wide.
+    initKey: windowId,
+    focused: focus.focused,
+    msSinceFocusGain: focus.msSinceFocusGain,
+    now,
+  };
 }
 
 /** Configuration for createFirewallGate. */

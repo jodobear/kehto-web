@@ -70,7 +70,7 @@ function actionToDecision(action: Action): Decision {
  *    Policy returns do NOT advance any counters; newState = input state.
  *
  * 2. **Init-burst guard** — if `observation.initElapsedMs` is defined and less than
- *    `config.burstGuard.windowMs`, the burst counter for this napplet is advanced.
+ *    `config.burstGuard.windowMs`, the burst counter for this initialization lifecycle is advanced.
  *    If the count exceeds `config.burstGuard.maxOps`, the burst action fires
  *    (default `block`). The advanced burst counter is returned in newState.
  *    A stored counter expires once `now - windowStart >= windowMs`: the guard is
@@ -166,7 +166,12 @@ export function evaluate(
   const { initElapsedMs } = observation;
 
   if (initElapsedMs !== undefined && initElapsedMs < config.burstGuard.windowMs) {
-    // Advance the burst counter for this napplet. A stored counter whose window
+    // Advance the burst counter for this initialization lifecycle. Runtime
+    // callers supply a host-attested initKey, so a new source cannot inherit
+    // the previous realm's startup budget after a conformant teardown/reload.
+    // Pure callers without a lifecycle key retain the historical dTag scope.
+    const burstKey = observation.initKey ?? napplet;
+    // A stored counter whose window
     // has fully elapsed (now - windowStart >= windowMs) belongs to a PREVIOUS
     // initialization of this napplet — its window was closed/reloaded and a new
     // session restarted initElapsedMs. Expire it so each init window gets a
@@ -176,7 +181,7 @@ export function evaluate(
     // Within one init window this never resets early: increments only happen
     // while initElapsedMs < windowMs, and now - windowStart <= initElapsedMs
     // there (windowStart is at or after the session's init start).
-    const existingBurst: BurstCounter | undefined = state.bursts[napplet];
+    const existingBurst: BurstCounter | undefined = state.bursts[burstKey];
     const activeBurst =
       existingBurst !== undefined && now - existingBurst.windowStart < config.burstGuard.windowMs
         ? existingBurst
@@ -186,7 +191,7 @@ export function evaluate(
       windowStart: activeBurst?.windowStart ?? now,
     };
 
-    const newBursts = { ...state.bursts, [napplet]: newBurst };
+    const newBursts = { ...state.bursts, [burstKey]: newBurst };
 
     if (newBurst.count > config.burstGuard.maxOps) {
       const burstAction = config.burstGuard.action;
