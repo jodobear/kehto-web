@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -184,6 +185,15 @@ function sourceFiles(root: string): string[] {
       files.push(path);
     }
   }
+  return files;
+}
+
+function activeSourceFiles(root: string): string[] {
+  const files = sourceFiles(root);
+  expect(
+    files,
+    `active migration root has no source files: ${relative(process.cwd(), root)}`,
+  ).not.toEqual([]);
   return files;
 }
 
@@ -384,7 +394,7 @@ describe('current @napplet package graph guard', () => {
   it('rejects legacy namespace imports from @napplet/sdk in migrated source', () => {
     const violations: string[] = [];
     for (const dir of sdkTargetDirs) {
-      for (const file of sourceFiles(join(process.cwd(), dir, 'src'))) {
+      for (const file of activeSourceFiles(join(process.cwd(), dir, 'src'))) {
         const content = readFileSync(file, 'utf8');
         if (bannedSdkImportPattern.test(content) || namespaceImportPattern.test(content)) {
           violations.push(relative(process.cwd(), file));
@@ -400,7 +410,7 @@ describe('current @napplet package graph guard', () => {
     const pattern = new RegExp(removedTransportNamespace, 'i');
 
     for (const dir of activeMigrationSourceDirs) {
-      for (const abs of sourceFiles(join(process.cwd(), dir))) {
+      for (const abs of activeSourceFiles(join(process.cwd(), dir))) {
         const file = relative(process.cwd(), abs);
         const content = readFileSync(abs, 'utf8');
         const lines = content.split(/\r?\n/);
@@ -417,6 +427,15 @@ describe('current @napplet package graph guard', () => {
     expect(() => sourceFiles(join(process.cwd(), '.missing-active-migration-root'))).toThrow(
       'active migration root is missing',
     );
+  });
+
+  it('fails closed when a configured active source root has no qualifying source files', () => {
+    const root = mkdtempSync(join(tmpdir(), 'kehto-empty-active-root-'));
+    try {
+      expect(() => activeSourceFiles(root)).toThrow('active migration root has no source files');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('matches multiline obsolete intent object shapes before reporting the match line', () => {
@@ -441,7 +460,7 @@ describe('current @napplet package graph guard', () => {
 
     for (const [patternId, { roots, pattern }] of Object.entries(obsoleteActivePatterns)) {
       for (const root of roots) {
-        for (const abs of sourceFiles(join(process.cwd(), root))) {
+        for (const abs of activeSourceFiles(join(process.cwd(), root))) {
           const file = relative(process.cwd(), abs);
           const text = readFileSync(abs, 'utf8');
           for (const line of matchingLines(text, pattern)) {
