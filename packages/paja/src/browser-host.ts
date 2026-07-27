@@ -867,7 +867,7 @@ async function installPajaHost(): Promise<void> {
     const sourceTab = source ? state.tabs.find((tab) => tab.frame.contentWindow === source) ?? null : null;
     const isSingleFrameMessage = frame ? event.source === frame.contentWindow : false;
     if (!sourceTab && !isSingleFrameMessage) return;
-    const registeredWindowId = source ? originRegistry.getWindowId(source) : null;
+    const registeredWindowId = source ? originRegistry.getWindowId(source) ?? null : null;
     const sourceWindowId = sourceTab?.windowId ?? registeredWindowId ?? undefined;
     if (sourceTab && (!source || !sourceWindowId || registeredWindowId !== sourceWindowId)) return;
     if (isSingleFrameMessage && (!sourceWindowId || sourceWindowId !== runtime.currentWindowId)) return;
