@@ -126,11 +126,11 @@ describe('current @napplet package graph guard', () => {
     }
   });
 
-  it('admits only the current @napplet 0.28 line on published kehto packages', () => {
+  it('admits only the current @napplet 0.29 line on published kehto packages', () => {
     // Kehto runtime packages track the current NAP contract so new canonical
     // fields are wired through runtime, services, shell, Paja, docs, and tests.
-    const PEER_RANGE = '>=0.23.0 <=0.28.x';
-    const DEV_RANGE = '>=0.23.0 <=0.28.x';
+    const PEER_RANGE = '>=0.29.0 <0.30.0';
+    const DEV_RANGE = '>=0.29.0 <0.30.0';
     for (const dir of publicPackageDirs) {
       const packageJsonPath = join(process.cwd(), dir, 'package.json');
       const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
