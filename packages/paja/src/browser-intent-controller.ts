@@ -44,11 +44,13 @@ export interface BrowserIntentControllerOptions {
     generation: BrowserIntentGeneration,
     delivery: IntentRetentionParams['delivery'],
   ): void | Promise<void>;
-  /** Maximum open/replacement attempts after acceptance. Defaults to two. */
+  /** Maximum open/replacement attempts after acceptance. Finite values clamp to 1–10; defaults to two. */
   maxAttempts?: number;
   /** Observe terminal post-acceptance policy without producing another result. */
   onTerminal?(params: IntentRetentionParams, reason: BrowserIntentTerminalReason): void;
 }
+
+const MAX_INTENT_DELIVERY_ATTEMPTS = 10;
 
 /**
  * Retains immutable delivery responsibility before the intent service accepts.
@@ -121,7 +123,8 @@ export class BrowserIntentController implements IntentTargetController {
 
 function normalizeAttempts(value: number | undefined): number {
   if (value === undefined) return 2;
-  return Math.max(1, Math.floor(value));
+  if (!Number.isFinite(value)) throw new TypeError('maxAttempts must be finite');
+  return Math.min(MAX_INTENT_DELIVERY_ATTEMPTS, Math.max(1, Math.floor(value)));
 }
 
 function freezeRetention(params: IntentRetentionParams): IntentRetentionParams {

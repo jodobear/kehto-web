@@ -92,4 +92,29 @@ describe('BrowserIntentController', () => {
 
     expect(onTerminal).toHaveBeenCalledWith(expect.objectContaining({ handler: 'profile-viewer' }), 'no-current-target');
   });
+
+  it('rejects non-finite maxAttempts and bounds finite attempt limits', async () => {
+    const callbacks = {
+      openOrReuse: vi.fn(() => null),
+      waitForReady: () => undefined,
+      isCurrent: () => false,
+      send: () => {},
+    };
+
+    for (const value of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => new BrowserIntentController({ ...callbacks, maxAttempts: value }))
+        .toThrow('maxAttempts must be finite');
+    }
+
+    for (const value of [0, -1]) {
+      const normalized = new BrowserIntentController({ ...callbacks, maxAttempts: value });
+      await normalized.retain(params()).start();
+      expect(callbacks.openOrReuse).toHaveBeenCalledTimes(1);
+      callbacks.openOrReuse.mockClear();
+    }
+
+    const bounded = new BrowserIntentController({ ...callbacks, maxAttempts: 999 });
+    await bounded.retain(params()).start();
+    expect(callbacks.openOrReuse).toHaveBeenCalledTimes(10);
+  });
 });

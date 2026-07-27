@@ -75,6 +75,31 @@ describe('PlaygroundIntentController', () => {
     expect(send).toHaveBeenCalledWith({ id: 'current' }, expect.objectContaining(delivery));
   });
 
+  it('rejects non-finite maxAttempts and bounds finite attempt limits', async () => {
+    const callbacks = {
+      openOrReuse: vi.fn(() => null),
+      waitForReady: () => undefined,
+      isCurrent: () => false,
+      send: () => {},
+    };
+
+    for (const value of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => new PlaygroundIntentController({ ...callbacks, maxAttempts: value }))
+        .toThrow('maxAttempts must be finite');
+    }
+
+    for (const value of [0, -1]) {
+      const normalized = new PlaygroundIntentController({ ...callbacks, maxAttempts: value });
+      await normalized.retain(params()).start();
+      expect(callbacks.openOrReuse).toHaveBeenCalledTimes(1);
+      callbacks.openOrReuse.mockClear();
+    }
+
+    const bounded = new PlaygroundIntentController({ ...callbacks, maxAttempts: 999 });
+    await bounded.retain(params()).start();
+    expect(callbacks.openOrReuse).toHaveBeenCalledTimes(10);
+  });
+
   it('does not create an INC delivery route', () => {
     expect(() => new PlaygroundIntentController({
       openOrReuse: () => null,
