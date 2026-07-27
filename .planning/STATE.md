@@ -6,7 +6,7 @@ current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
 stopped_at: Completed 105-08-PLAN.md
-last_updated: "2026-07-27T09:54:38.853Z"
+last_updated: "2026-07-27T10:01:53.937Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
@@ -94,7 +94,7 @@ Last activity: 2026-07-27 — Phase 105 execution started
 | Phase 105 P04 | 6m | 2 tasks | 3 files |
 | Phase 105 P05 | 6m | 2 tasks | 11 files |
 | Phase 105 P06 | 11min | 2 tasks | 7 files |
-| Phase 105 P08 | 13m | 2 tasks | 6 files |
+| Phase 105 P08 | 20m | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -210,7 +210,7 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T09:54:38.840Z
+Last session: 2026-07-27T10:01:53.925Z
 Stopped at: Completed 105-08-PLAN.md
 Resume file: None
 
