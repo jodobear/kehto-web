@@ -435,6 +435,6 @@ lockfile.
 | VERIFY-01 | Phase 106 | Complete |
 | VERIFY-02 | Phase 106 | Complete |
 | VERIFY-03 | Phase 106 | Complete |
-| VERIFY-04 | Phase 106 | Pending |
-| VERIFY-05 | Phase 106 | Pending |
+| VERIFY-04 | Phase 106 | Complete |
+| VERIFY-05 | Phase 106 | Complete |
 | VERIFY-06 | Phase 106 | Complete |

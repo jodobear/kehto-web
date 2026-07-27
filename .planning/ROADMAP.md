@@ -323,7 +323,7 @@ users rely on.
   5. The exact upstream draft heads and published npm/JSR artifacts are revalidated; any drift is reported and reconciled rather than silently inferred.
   6. Build, type-check, unit, relevant and full E2E, docs, AI-slop, and diff gates pass; changesets cover every changed published Kehto package and the branch is ready for its concise PR.
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans executed
 
 **Wave 1**
 
@@ -335,7 +335,7 @@ users rely on.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 106-03-PLAN.md — Run final release gates, preserve exact changesets, and make existing PR #204 green and mergeable.
+- [x] 106-03-PLAN.md — Run final release gates, preserve exact changesets, and make existing PR #204 green and mergeable.
 
 ## Progress
 
@@ -346,7 +346,7 @@ users rely on.
 | 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete    | 2026-07-23 |
 | 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 6/6 | Complete    | 2026-07-26 |
 | 105. Published Convention Adoption and Host Flows | v1.29 | 12/12 | Complete    | 2026-07-27 |
-| 106. Active-Surface Conformance and Release | v1.29 | 2/3 | In Progress|  |
+| 106. Active-Surface Conformance and Release | v1.29 | 3/3 | In Progress|  |
 
 ---
 
