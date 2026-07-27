@@ -828,6 +828,8 @@ const aclAdapter: DemoAclAdapter = {
       const hasCapability = (capability: Capability): boolean =>
         entry ? entry.capabilities.includes(capability) : relay.runtime.aclState.check(pk, dTag, hash, capability);
       const caps: Record<Capability, boolean> = {
+        'dm:read': hasCapability('dm:read'),
+        'dm:write': hasCapability('dm:write'),
         'relay:read': hasCapability('relay:read'),
         'relay:write': hasCapability('relay:write'),
         'cache:read': hasCapability('cache:read'),

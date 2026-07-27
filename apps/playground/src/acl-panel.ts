@@ -11,6 +11,11 @@ import type { NappletDebugger } from './debugger.js';
 import type { Capability } from '@kehto/shell';
 
 export const DEMO_CAPABILITY_LABELS: Record<Capability, string> = {
+  // NAP-DM is absent from `napplet/naps` at c5cd06f; NAAT-DM only defines
+  // `napplet:dm/open`. These canonical shell capability labels do not enable a
+  // DM service or establish an authorization policy.
+  'dm:read': 'DM Read',
+  'dm:write': 'DM Write',
   'relay:read': 'Relay Subscribe',
   'relay:write': 'Relay Publish / INC Send',
   'cache:read': 'Cache Read',
@@ -36,6 +41,8 @@ export const DEMO_CAPABILITY_LABELS: Record<Capability, string> = {
 };
 
 export const DEMO_CAPABILITY_HINTS: Record<Capability, string> = {
+  'dm:read': 'direct-message read access',
+  'dm:write': 'direct-message write access',
   'relay:read': 'relay subscribe / inc receive',
   'relay:write': 'relay publish / inc send',
   'cache:read': 'cache read access',
