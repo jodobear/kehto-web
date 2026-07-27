@@ -53,9 +53,52 @@ this checklist.
 | Branch synchronization | Focused evidence was collected from the recorded worktree branch and source SHA above; synchronization with target `main` is not yet claimed. |
 | Full build/type/unit/docs/AI-slop gate | Not executed by this evidence task; pending the Plan 106-03 release gate. |
 
+## UI audit disposition — explicit non-blocking protocol-release debt
+
+The [Phase 105 UI audit](../105-published-convention-adoption-and-host-flows/105-UI-REVIEW.md)
+scored the Paja and playground hosts **12/24** from automated desktop (1280×720)
+and mobile (375×812) captures. This is **not a visual pass or visual sign-off**.
+It remains visible, non-blocking protocol-release debt because the focused Phase
+106 evidence proves the protocol/runtime behavior required for PR #204 without
+claiming that its hosts meet the audit's visual bar.
+
+- **recoverability:** profile/feed denial, unavailable, and not-found states lack
+  keyboard-accessible retry or reconnect actions; Paja can expose an unstyled raw
+  target-load error.
+- **Legibility and type scale:** embedded status, label, and metadata content is
+  commonly 9–10px, below a robust readable default.
+- **Semantic tokens and spacing:** Paja and embedded napplets retain hard-coded
+  colors and ungoverned pixel increments instead of a shared token and spacing
+  scale.
+- **Mobile composition:** the playground's tall sparse topology loses hierarchy
+  at 375px, while Paja hides target context, clips dense controls, and wraps its
+  footer into fragments.
+
+**Owner and scope:** Kehto maintainers own a separately scoped post-merge UI
+follow-up. Phase 106 includes no broad UI redesign, token migration, or visual
+approval. The functional and security dependency record remains the [Phase 105
+verification](../105-published-convention-adoption-and-host-flows/105-VERIFICATION.md)
+and the [closed Phase 105 ASVS L1 report (29/29 threats,
+0 open)](../105-published-convention-adoption-and-host-flows/105-SECURITY.md).
+
 ## Boundary
 
-Phase 106-02 records passing focused browser evidence only. It does not claim
-that final PR #204 checks are complete and does not authorize merge, a Version
-Packages PR, exact-main CI confirmation, a tag, `release.yml` dispatch, or any
-publish operation.
+The authorized endpoint for Phase 106 is a green, merge-ready
+[PR #204](https://github.com/kehto/web/pull/204). This Plan 106-02 does not
+claim the final PR head/check state or mergeability; that evidence remains
+pending the Plan 106-03 release gate. It does not authorize merge of PR #204,
+creating a Version Packages PR, exact-target-`main` CI confirmation, a tag,
+`release.yml` dispatch, or any publish operation.
+
+The following are informational, unexecuted post-merge steps owned by the
+release process:
+
+1. A Kehto maintainer merges the green PR #204.
+2. After `main` CI is green, `publish.yml` creates or updates the generated
+   Version Packages PR.
+3. The generated release-metadata guard verifies docs package-version rows and
+   JSR metadata, then a maintainer merges that Version Packages PR.
+4. The maintainer identifies the exact target `main` SHA and verifies the CI
+   run for that same SHA before release.
+5. Only then may a maintainer push the release tag or dispatch `release.yml`,
+   which is the sole npm/JSR publisher.
