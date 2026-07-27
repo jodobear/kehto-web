@@ -26,9 +26,9 @@ Phase 106 is a verification-and-release phase, not a new runtime feature phase. 
 
 The decisive new fact is that the recorded authority for draft PR #89 (`4593ce9…`) is stale: the PR is merged at head `e0cd584…`, and GitHub reports one additional commit changing `naps/NAP-INC.md` by 79 additions and 8 deletions. [VERIFIED: GitHub REST API] PRs #90 and #92 are also merged, while #91 remains open at the previously recorded `a718915…` head. [VERIFIED: GitHub REST API] Do not replace the existing implementation references mechanically: fetch the immutable new head, diff the relevant semantic rules, and either update the source/tests/docs or record a bounded proof that Kehto already satisfies the merged text. [VERIFIED: GitHub REST API]
 
-The Phase 105 UI audit is not evidence of a protocol defect: its verifier found no functional gaps, while the separate review scored 12/24 and named recoverability, legibility, semantic-token, and mobile-layout concerns. [VERIFIED: codebase grep] Treat this as an explicit product release-decision checkpoint: do not silently declare visual quality passed, but do not fold a cross-host visual redesign into this conformance phase without a decision. [ASSUMED]
+The Phase 105 UI audit is not evidence of a protocol defect: its verifier found no functional gaps, while the separate review scored 12/24 and named recoverability, legibility, semantic-token, and mobile-layout concerns. [VERIFIED: codebase grep] Its disposition is locked: Phase 106 records a non-blocking Kehto-maintainer post-merge follow-up linked from the release checklist, must not claim a visual pass, and must not expand into a cross-host redesign. [RESOLVED: locked planning decision]
 
-**Primary recommendation:** Build one evidence-oriented plan that (1) revalidates upstream/package authorities, (2) closes only demonstrated active-surface guard gaps, (3) runs focused then full gates, and (4) completes the existing changeset/PR/release workflow after an explicit UI-risk disposition. [VERIFIED: codebase grep]
+**Primary recommendation:** Build one evidence-oriented plan that (1) revalidates upstream/package authorities, (2) closes only demonstrated active-surface guard gaps, (3) runs focused then full gates, and (4) completes the existing changeset/PR workflow while recording the locked UI-risk disposition and stopping at a merge-ready PR. [VERIFIED: codebase grep]
 
 ## Architectural Responsibility Map
 
@@ -175,7 +175,7 @@ gh api 'repos/napplet/naps/compare/4593ce9e301ce098fd3dad64206fcd6f144fa7af...e0
 
 **What goes wrong:** The Phase 105 verifier reports no code gaps while the separate UI review records unresolved recoverability, type-scale, token, and mobile concerns. [VERIFIED: codebase grep]
 
-**How to avoid:** Add a human release-decision checkpoint that either accepts/defer-links those warnings or explicitly authorizes a separate UI remediation scope. [ASSUMED]
+**How to avoid:** Link the audit from the release checklist, retain the 12/24 findings, and assign the locked non-blocking post-merge follow-up to Kehto maintainers without claiming visual sign-off or redesigning the hosts in Phase 106. [RESOLVED: locked planning decision]
 
 ### Pitfall 4: Making a release tag before target-main CI is known
 
@@ -231,23 +231,22 @@ Run the named E2E subset before the full suite so failures map directly to VERIF
 | Package adoption held behind unpublished convention APIs | Published core/nap `0.29.0`, shim `0.27.0`, SDK `0.25.0`, and Vite plugin `0.12.0` are installed/pinned | 2026-07-26 [VERIFIED: npm registry] | Maintain published-artifact guards rather than a local mirror. [VERIFIED: codebase grep] |
 | Numbered negotiation tolerated in active migration surfaces | Current guards use exact queryless conventions and classify historical exclusions | Phase 105 [VERIFIED: codebase grep] | Final guard must detect only active regressions. [VERIFIED: codebase grep] |
 
-## Assumptions Log
+## Resolved Decisions Log
 
-| # | Claim | Section | Risk if Wrong |
+| # | Decision | Section | Execution consequence |
 |---|---|---|---|
-| A1 | Phase 106 should not implement the Phase 105 UI redesign unless a human explicitly expands scope; it should record a release-risk disposition instead. | Summary / Common Pitfalls | A release may be blocked or scope may be mis-sized if product owners consider the 12/24 review a ship blocker. |
+| R1 | Phase 105 UI findings are a locked non-blocking Kehto-maintainer post-merge follow-up. | Summary / Common Pitfalls | Link the audit from the release checklist; do not claim a visual pass or expand Phase 106 into redesign. |
+| R2 | PR #89's merged authority is not assumed conformant. | Summary / Authority-first revalidation | Task 106-01-01 must record a semantic verdict before later evidence work can proceed. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **How should the Phase 105 UI audit be dispositioned?**
    - What we know: The audit reports 12/24 and actionable recoverability, typography, token, and mobile-layout warnings; Phase 105’s functional verifier found no implementation gap. [VERIFIED: codebase grep]
-   - What is unclear: Whether release readiness requires fixing those visual concerns now or recording them as a post-release UI follow-up. [ASSUMED]
-   - Recommendation: Insert a `checkpoint:human-verify` before release/PR creation. A waiver must link the audit and name an owner/follow-up; a remediation decision should become a separately scoped UI phase. [ASSUMED]
+   - Resolution: The audit is a locked, non-blocking Kehto-maintainer post-merge follow-up linked from the Phase 106 release checklist. Phase 106 must preserve the 12/24 findings, must not claim a visual pass, and must not expand into redesign. [RESOLVED: locked planning decision]
 
 2. **Does the merged PR #89 text require a code change?**
    - What we know: The current head differs from the recorded authority and changes only `NAP-INC.md`. [VERIFIED: GitHub REST API]
-   - What is unclear: Whether the 87-line delta changes any Kehto-observable rule beyond the already-tested behavior. [VERIFIED: GitHub REST API]
-   - Recommendation: Make semantic diff review the first execution task and block final conformance until its matrix is recorded. [VERIFIED: GitHub REST API]
+   - Resolution: Conformance is not assumed from the prior implementation or test state. Task 106-01-01 must compare the semantic delta, record a clause-level verdict, and block Task 106-01-02, Task 106-01-03, and all later evidence work until the verdict is conformant, repaired, or a bounded spec gap rather than repair-required/blocked. [RESOLVED: authority-verdict gate]
 
 ## Environment Availability
 
