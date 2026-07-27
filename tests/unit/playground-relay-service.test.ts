@@ -361,19 +361,19 @@ describe('playground relay service', () => {
 
     await waitFor(() => expect(sends).toHaveLength(1));
     expect(pool.log.publishes[0]?.relays).toEqual(['wss://hint.relay', 'wss://alice.write', 'wss://bob.inbox']);
-    expect(sends[0]).toMatchObject({
+    expect(sends[0]).toEqual({
       type: 'relay.publish.result',
       id: 'publish-a',
-      eventId: note.id,
       ok: true,
       event: note,
-      cached: true,
+      eventId: note.id,
     });
+    expect(cache.stored).toContain(note);
     expect(sends[0]).not.toHaveProperty('accepted');
     expect(sends[0]).not.toHaveProperty('message');
   });
 
-  it('does not report publish acceptance when relays reject despite local cache storage', async () => {
+  it('returns a canonical failure and does not cache when every relay rejects', async () => {
     const cache = createCache([mailbox('alice', [['wss://alice.write', 'write']])]);
     const pool = createPool({ publishResponses: [{ ok: false, from: 'wss://alice.write', message: 'blocked' }] });
     const sends: NappletMessage[] = [];
@@ -387,13 +387,15 @@ describe('playground relay service', () => {
     );
 
     await waitFor(() => expect(sends).toHaveLength(1));
-    expect(sends[0]).toMatchObject({
+    expect(sends[0]).toEqual({
       type: 'relay.publish.result',
       id: 'publish-b',
       ok: false,
-      cached: true,
       error: 'blocked',
     });
+    expect(cache.stored).not.toContain(note);
+    expect(sends[0]).not.toHaveProperty('event');
+    expect(sends[0]).not.toHaveProperty('eventId');
     expect(sends[0]).not.toHaveProperty('accepted');
     expect(sends[0]).not.toHaveProperty('message');
   });

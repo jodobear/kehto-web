@@ -233,12 +233,14 @@ function handleRelayPublish(
         sendRelayPublishResult(hooks, windowId, id, false, undefined, 'signEvent returned no event');
         return;
       }
-      const replayResult = replayDetector.check(signed);
+      const replayResult = replayDetector.reserve(signed);
       if (replayResult !== null) {
         sendRelayPublishResult(hooks, windowId, id, false, undefined, replayResult);
         return;
       }
       publishSignedRelayEvent(context, windowId, id, signed, (ok, error) => {
+        if (ok) replayDetector.commit(signed.id);
+        else replayDetector.release(signed.id);
         sendRelayPublishResult(hooks, windowId, id, ok, ok ? signed : undefined, error);
       });
     } catch (error) {
@@ -321,8 +323,14 @@ function publishSignedRelayEvent(
     return;
   }
   try {
-    hooks.relayPool.publish(signed);
-    settle(true);
+    const publishResult = hooks.relayPool.publish(signed);
+    void Promise.resolve(publishResult).then(
+      () => settle(true),
+      (error: unknown) => settle(
+        false,
+        error instanceof Error && error.message ? error.message : 'publish failed',
+      ),
+    );
   } catch (error) {
     settle(
       false,

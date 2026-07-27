@@ -107,7 +107,7 @@ const hooks: ShellAdapter = {
 };
 ```
 
-Note: `relayPool.getRelayPool()` must return an object implementing `RelayPoolLike` — a specific interface from `packages/shell/src/types.ts` with `subscription()`, `publish()`, and `request()` methods. Wrap your relay library with an adapter if it does not match this interface.
+Note: `relayPool.getRelayPool()` must return an object implementing `RelayPoolLike` — a specific interface from `packages/shell/src/types.ts` with `subscription()`, `publish()`, and `request()` methods. `publish()` may return `Promise<void>` and should do so when relay acceptance is asynchronous, allowing the runtime to report the real result. Wrap your relay library with an adapter if it does not match this interface.
 
 ## Step 3 — Create the bridge and wire the message listener
 

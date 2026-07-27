@@ -165,9 +165,16 @@ class PlaygroundRelayRuntimeImpl {
           });
         },
       }),
-      publish: (relayUrls, event) => {
+      publish: async (relayUrls, event) => {
         this.recordRelayAccess(relayUrls, 'publish');
-        void Promise.resolve(this.pool.publish(relayUrls, event as NostrEvent, { timeout: this.publishTimeoutMs })).catch(() => null);
+        const responses = await Promise.resolve(
+          this.pool.publish(relayUrls, event as NostrEvent, { timeout: this.publishTimeoutMs }),
+        );
+        if (Array.isArray(responses) && !responses.some((response) => response.ok)) {
+          throw new Error(
+            responses.find((response) => response.message)?.message ?? 'publish failed',
+          );
+        }
       },
       request: (relayUrls, filters) => ({
         subscribe: (observer) => {
@@ -296,32 +303,24 @@ class PlaygroundRelayRuntimeImpl {
       return;
     }
 
-    let cached = false;
-    try {
-      this.eventStore.add(event);
-      await this.cache.store(event);
-      cached = true;
-    } catch {
-      cached = false;
-    }
-
     const mailboxes = await this.resolveMailboxes(collectMailboxPubkeys([], event));
     const relays = this.selectPublishRelays(event, mailboxes);
     const responses = await this.publishToRelays(relays, event);
     const ok = responses.some((response) => response.ok);
-    const error = ok
-      ? undefined
-      : responses.find((response) => response.message)?.message ?? 'publish failed';
+    if (!ok) {
+      const error = responses.find((response) => response.message)?.message ?? 'publish failed';
+      send({ type: 'relay.publish.result', id, ok: false, error } as NappletMessage);
+      return;
+    }
 
+    try { this.eventStore.add(event); } catch { /* remote publish already succeeded */ }
+    try { await this.cache.store(event); } catch { /* local cache is best-effort */ }
     send({
       type: 'relay.publish.result',
       id,
+      ok: true,
+      event,
       eventId: event.id,
-      ok,
-      ...(ok ? { event } : {}),
-      cached,
-      relays,
-      ...(error ? { error } : {}),
     } as NappletMessage);
   }
 

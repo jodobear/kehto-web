@@ -447,6 +447,73 @@ describe('NIP-5D Envelope Dispatch', () => {
       });
     });
 
+    it('awaits async publish failure, avoids buffering, and permits a deterministic retry', async () => {
+      const signedEvent = {
+        id: '1'.repeat(64),
+        pubkey: '2'.repeat(64),
+        created_at: Math.floor(Date.now() / 1000),
+        kind: 1,
+        tags: [],
+        content: 'retry me',
+        sig: '3'.repeat(128),
+      };
+      const publishing = createPublishingRuntime(signedEvent);
+      publishing.publish.mockRejectedValueOnce(new Error('relay temporarily unavailable'));
+      const template = {
+        created_at: signedEvent.created_at,
+        kind: signedEvent.kind,
+        tags: signedEvent.tags,
+        content: signedEvent.content,
+      };
+
+      publishing.runtime.handleMessage(WINDOW_ID, {
+        type: 'relay.publish',
+        id: 'req-pub-first',
+        event: template,
+      } as NappletMessage);
+
+      await vi.waitFor(() => {
+        expect(findEnvelopeResponse(publishing.ctx.sent, 'relay.publish.result')).toEqual({
+          type: 'relay.publish.result',
+          id: 'req-pub-first',
+          ok: false,
+          error: 'relay temporarily unavailable',
+        });
+      });
+
+      publishing.setRelayAvailable(false);
+      publishing.ctx.sent.length = 0;
+      publishing.runtime.handleMessage(WINDOW_ID, {
+        type: 'relay.query',
+        id: 'req-pub-failed-query',
+        filters: [{ ids: [signedEvent.id] }],
+      } as NappletMessage);
+      expect(findEnvelopeResponse(publishing.ctx.sent, 'relay.query.result')).toEqual({
+        type: 'relay.query.result',
+        id: 'req-pub-failed-query',
+        events: [],
+      });
+
+      publishing.setRelayAvailable(true);
+      publishing.ctx.sent.length = 0;
+      publishing.runtime.handleMessage(WINDOW_ID, {
+        type: 'relay.publish',
+        id: 'req-pub-retry',
+        event: template,
+      } as NappletMessage);
+
+      await vi.waitFor(() => {
+        expect(findEnvelopeResponse(publishing.ctx.sent, 'relay.publish.result')).toEqual({
+          type: 'relay.publish.result',
+          id: 'req-pub-retry',
+          ok: true,
+          event: signedEvent,
+          eventId: signedEvent.id,
+        });
+      });
+      expect(publishing.publish).toHaveBeenCalledTimes(2);
+    });
+
     it('relay.query sends relay.query.result with events array (no count field)', () => {
       runtime.handleMessage(WINDOW_ID, {
         type: 'relay.query',

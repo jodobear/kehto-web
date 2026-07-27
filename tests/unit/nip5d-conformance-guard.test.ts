@@ -107,8 +107,12 @@ const relayPublishRoutingSurfaces = [
     file: 'packages/runtime/src/relay-handler.ts',
     markers: [
       'const signed = await signEvent(eventTemplate);',
+      'replayDetector.reserve(signed)',
+      'replayDetector.commit(signed.id)',
+      'replayDetector.release(signed.id)',
       "{ type: 'relay.publish', id, event: signed }",
       "type: 'relay.publish.result', id, ok: true, event, eventId: event.id",
+      'Promise.resolve(publishResult)',
     ],
   },
   {
@@ -121,7 +125,7 @@ const relayPublishRoutingSurfaces = [
   },
   {
     file: 'apps/playground/src/playground-relay-service.ts',
-    markers: ['...(ok ? { event } : {})', '...(error ? { error } : {})'],
+    markers: ['if (!ok) {', 'ok: true,', 'eventId: event.id'],
   },
   {
     file: 'packages/runtime/src/dispatch.test.ts',

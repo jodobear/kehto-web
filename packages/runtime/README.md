@@ -134,6 +134,11 @@ records, not targets for active-surface edits.
 
 Everything plugs into a single factory, `createRuntime()`, via a `RuntimeAdapter` hook bag — persistence, relay pool, auth, services, and so on. No DOM, no postMessage, no localStorage: those live in `@kehto/shell`.
 
+`RelayPoolAdapter.publish()` may return a promise. The runtime waits for that
+promise before reporting publish success, buffers only successful publishes,
+and releases failed replay reservations so a deterministic signed event can be
+retried without allowing concurrent duplicate publication.
+
 ## Quick Start
 
 ```ts

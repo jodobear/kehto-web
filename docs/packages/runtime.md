@@ -48,7 +48,9 @@ pnpm add @kehto/runtime @kehto/acl @napplet/core @napplet/nap
   `0be8abce18beb46ca37bd4ddd042f58d30b4eedc`: `relay.publish` accepts an
   unsigned template, signs it through the shell-owned signer, publishes only
   the signed event, and returns canonical `{ ok, event, eventId }` or
-  `{ ok: false, error }`.
+  `{ ok: false, error }`. Async relay adapters settle before success is
+  reported; failures are not buffered and release their pending replay
+  reservation so the same deterministic signed event can be retried.
 - Routes the NAP-COUNT `count.query` domain through a registered `count` service. The runtime validates non-empty filters and returns `count.query.result` refusals such as `invalid-filter` or `count-unavailable` instead of emulating counts by fetching event payloads.
 - Routes service-only NAP domains such as `dm` through registered handlers, so chat backends stay outside core runtime dispatch.
 - Does not own browser `window`, iframe creation, DOM, `postMessage` listeners, or localStorage implementation details.

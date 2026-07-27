@@ -87,11 +87,11 @@ function createRelayPoolAdapter(
       return { unsubscribe: () => sub.unsubscribe() };
     },
 
-    publish(event: NostrEvent): void {
+    publish(event: NostrEvent): void | Promise<void> {
       const pool = shellHooks.relayPool.getRelayPool();
       if (!pool) return;
       const relayUrls = shellHooks.relayPool.selectRelayTier([]);
-      pool.publish(relayUrls, event);
+      return pool.publish(relayUrls, event);
     },
 
     selectRelayTier(filters: NostrFilter[]): string[] {

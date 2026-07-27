@@ -181,6 +181,10 @@ payload.
 ### Types
 Exported for host-app integration: `ShellAdapter`, `ShellCapabilities`, `CapabilityHooks`, `OriginIdentity`, `RelayPoolHooks`, `RelayPoolLike`, `RelayConfigHooks`, `WindowManagerHooks`, `AuthHooks`, `ConfigHooks`, `HotkeyHooks`, `WorkerRelayHooks`, `WorkerRelayLike`, `CryptoHooks`, `DmHooks`, `UploadHooks`, `IntentHooks`, `LinkHooks`, `CommonHooks`, `ListsHooks`, `SerialHooks`, `BleHooks`, `WebrtcHooks`, `SessionEntry`, `NappKeyEntry` (deprecated), `AclEntry`, `AclCheckEvent`, `UnroutedMessageInfo`, `ServiceDescriptor`, `ServiceHandler`, `ServiceRegistry`, `NostrEvent`, `NostrFilter`, `NappletMessage`, `ConsentRequest`, and per-proxy `*Deps`/`*Proxy` interfaces.
 
+`RelayPoolLike.publish()` may return `Promise<void>` when transport acceptance
+is asynchronous. The shell adapter forwards that promise so the runtime does
+not acknowledge or buffer an event before the relay operation settles.
+
 ### Enforcement re-exports (from @kehto/runtime)
 `createEnforceGate`, `createNapEnforceGate`, `formatDenialReason`, plus `EnforceResult`, `EnforceConfig`, `NapEnforceConfig`, `IdentityResolver`, `AclChecker`, `NapMessage`.
 

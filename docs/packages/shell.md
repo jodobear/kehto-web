@@ -47,6 +47,8 @@ pnpm add @kehto/shell @kehto/runtime @kehto/acl @napplet/core @napplet/nap nostr
 ## Scope Boundaries
 
 - Owns browser integration: `window`, `postMessage`, iframe session identity, gateway loading, shell capabilities, origin/session registries, and browser-specific adapters.
+- Forwards an asynchronous `RelayPoolLike.publish()` promise through its
+  runtime adapter so `relay.publish.result` reflects transport settlement.
 - Provides `injectNappletNamespacePrelude()` for optional NIP-5D domains plus mandatory NAP-SHELL before authored `srcdoc` scripts execute. The prelude installs its receiver before one `shell.ready`, caches the first parent `shell.init`, and prevents napplet namespace reassignment from removing `shell`.
 - The published `@napplet/core@0.29.0` and `@napplet/shim@0.27.0` line does not supply a generic mandatory shell surface. Kehto therefore retains this host-owned prelude under NAP-SHELL `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24` until an upstream correction is reviewed.
 - Advertises `count` in shell capabilities and the injected `window.napplet` namespace only when `ShellAdapter.services.count` is wired, so `shell.supports("count")` tracks an actual NAP-COUNT backend.

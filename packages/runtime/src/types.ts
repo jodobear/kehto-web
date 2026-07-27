@@ -76,8 +76,13 @@ export interface RelayPoolAdapter {
     relayUrls?: string[],
   ): RelaySubscriptionHandle;
 
-  /** Publish an event to relays. */
-  publish(event: NostrEvent): void;
+  /**
+   * Publish an event to relays.
+   *
+   * Async adapters return a promise that settles only after the transport has
+   * accepted or rejected the publish.
+   */
+  publish(event: NostrEvent): void | Promise<void>;
 
   /** Select relay URLs appropriate for the given filters. */
   selectRelayTier(filters: NostrFilter[]): string[];

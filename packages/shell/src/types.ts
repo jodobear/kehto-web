@@ -72,7 +72,7 @@ export interface RelayPoolLike {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   subscription(relayUrls: string[], filters: any): { subscribe(observer: (item: unknown) => void): { unsubscribe(): void } };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  publish(relayUrls: string[], event: any): void;
+  publish(relayUrls: string[], event: any): void | Promise<void>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   request(relayUrls: string[], filters: any): { subscribe(observer: { next: (event: unknown) => void; complete: () => void; error: () => void }): { unsubscribe(): void } };
   /** Optional exact/approximate count support that does not return event payloads. */
