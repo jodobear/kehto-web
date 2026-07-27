@@ -49,12 +49,22 @@ const protocolPackageNames = [
 ] as const;
 
 const protocolPackageVersions: Record<(typeof protocolPackageNames)[number], string> = {
+  '@napplet/core': '0.29.0',
+  '@napplet/nap': '0.29.0',
+  '@napplet/sdk': '0.25.0',
+  '@napplet/shim': '0.27.0',
+  '@napplet/vite-plugin': '0.12.0',
+};
+
+const previousProtocolPackageVersions: Record<(typeof protocolPackageNames)[number], string> = {
   '@napplet/core': '0.28.0',
   '@napplet/nap': '0.28.0',
   '@napplet/sdk': '0.24.4',
   '@napplet/shim': '0.26.8',
   '@napplet/vite-plugin': '0.11.2',
 };
+
+const protocolVersionLines = [protocolPackageVersions, previousProtocolPackageVersions];
 
 const bannedSdkImportPattern = /from\s+['"]@napplet\/sdk['"]/;
 const staleNapSegment = [110, 117, 98].map((code) => String.fromCharCode(code)).join('');
@@ -64,6 +74,23 @@ const namespaceImportPattern = new RegExp(
   String.raw`import\s+\{[^}]*\b(storage|relay|identity|keys|config|notify)\b[^}]*\}\s+from\s+['"]@napplet/sdk['"]`,
   's',
 );
+type ManifestDependencies = {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+
+function expectExactProtocolLine(
+  pkg: ManifestDependencies,
+  dir: string,
+  packageNames: readonly (typeof protocolPackageNames)[number][],
+): void {
+  const matchesReleaseLine = protocolVersionLines.some((versions) => packageNames.every(
+    (packageName) => (pkg.dependencies?.[packageName] ?? pkg.devDependencies?.[packageName]) === versions[packageName],
+  ));
+
+  expect(matchesReleaseLine, `${dir} must use one exact Napplet release line`).toBe(true);
+}
+
 function sourceFiles(root: string): string[] {
   if (!existsSync(root)) return [];
   const entries = readdirSync(root);
@@ -97,32 +124,27 @@ describe('current @napplet package graph guard', () => {
     }
   });
 
-  it('keeps all SDK-migrated manifests on the exact current NAP package graph', () => {
+  it('keeps SDK-migrated manifests on one exact NAP package graph during the ordered package upgrade', () => {
     for (const dir of sdkTargetDirs) {
       const packageJsonPath = join(process.cwd(), dir, 'package.json');
       const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
         dependencies?: Record<string, string>;
         devDependencies?: Record<string, string>;
       };
-      expect(pkg.dependencies?.['@napplet/sdk'], `${dir} @napplet/sdk`).toBe(protocolPackageVersions['@napplet/sdk']);
-      expect(pkg.dependencies?.['@napplet/shim'], `${dir} @napplet/shim`).toBe(protocolPackageVersions['@napplet/shim']);
-      expect(pkg.dependencies?.['@napplet/nap'], `${dir} @napplet/nap`).toBe(protocolPackageVersions['@napplet/nap']);
+      expectExactProtocolLine(pkg, dir, ['@napplet/sdk', '@napplet/shim', '@napplet/nap', '@napplet/vite-plugin']);
       expect(pkg.dependencies?.[staleNapPackage], `${dir} ${staleNapPackage}`).toBeUndefined();
-      expect(pkg.devDependencies?.['@napplet/vite-plugin'], `${dir} @napplet/vite-plugin`).toBe(protocolPackageVersions['@napplet/vite-plugin']);
     }
   });
 
-  it('keeps all helper-migrated manifests on the exact current NAP helper graph', () => {
+  it('keeps helper-migrated manifests on one exact NAP helper graph during the ordered package upgrade', () => {
     for (const dir of helperTargetDirs) {
       const packageJsonPath = join(process.cwd(), dir, 'package.json');
       const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
         dependencies?: Record<string, string>;
         devDependencies?: Record<string, string>;
       };
-      expect(pkg.dependencies?.['@napplet/shim'], `${dir} @napplet/shim`).toBe(protocolPackageVersions['@napplet/shim']);
-      expect(pkg.dependencies?.['@napplet/nap'], `${dir} @napplet/nap`).toBe(protocolPackageVersions['@napplet/nap']);
+      expectExactProtocolLine(pkg, dir, ['@napplet/shim', '@napplet/nap', '@napplet/vite-plugin']);
       expect(pkg.dependencies?.[staleNapPackage], `${dir} ${staleNapPackage}`).toBeUndefined();
-      expect(pkg.devDependencies?.['@napplet/vite-plugin'], `${dir} @napplet/vite-plugin`).toBe(protocolPackageVersions['@napplet/vite-plugin']);
     }
   });
 
