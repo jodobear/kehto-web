@@ -5,18 +5,21 @@ import '@napplet/shim';
 import { getMissingNapDomains } from '../../domain-availability';
 import { applyNapTheme, installNapTheme, onNapThemeChanged } from '../../shared-theme';
 import { identityGetPublicKey, identityOnChanged } from '@napplet/nap/identity/sdk';
-import { incEmit } from '@napplet/nap/inc/sdk';
+import { intentInvoke } from '@napplet/nap/intent/sdk';
+import { resourceBytes } from '@napplet/nap/resource/sdk';
 import type { NostrEvent } from '@napplet/core';
 import { createFeedStore, type FeedProfile } from './feed-store.js';
 import { createFeedIdentityEventController } from './feed-identity-events.js';
+import { createFeedProfileMediaController } from './profile-media.js';
 
-const REQUIRED_NAPS = ['identity', 'relay', 'inc', 'theme'] as const;
+const REQUIRED_NAPS = ['identity', 'intent', 'relay', 'resource', 'theme'] as const;
 const CAPABILITY_WAIT_MS = 5_000;
 const CAPABILITY_WAIT_INTERVAL_MS = 25;
 
 const statusEl = document.getElementById('feed-status')!;
 const listEl = document.getElementById('feed-list')!;
 const RELATIVE_TIME_REFRESH_MS = 60_000;
+const profileMedia = createFeedProfileMediaController({ loadBytes: resourceBytes });
 
 function formatError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
@@ -66,7 +69,9 @@ function openProfile(pubkey: string): void {
   }
 
   try {
-    incEmit('profile:open', [], JSON.stringify({ pubkey: normalized }));
+    void intentInvoke(`napplet:profile/open?pubkey=${encodeURIComponent(normalized)}`).catch(() => {
+      // The profile viewer surfaces availability; a feed click is best-effort.
+    });
   } catch {
     // Best effort; the profile viewer itself surfaces the failure state.
   }
@@ -137,12 +142,13 @@ function renderAvatar(pubkey: string, authorName: string, profile?: FeedProfile)
   }
 
   const img = document.createElement('img');
-  img.src = picture;
   img.alt = authorName;
   img.loading = 'lazy';
   img.addEventListener('error', () => {
+    profileMedia.handleError(img);
     avatarEl.replaceChildren(fallback);
   }, { once: true });
+  void profileMedia.load(picture, img);
   avatarEl.appendChild(img);
   return avatarEl;
 }
@@ -193,6 +199,7 @@ const relativeTimeRefreshId = window.setInterval(() => {
 }, RELATIVE_TIME_REFRESH_MS);
 
 function renderState(): void {
+  profileMedia.clearAll();
   listEl.replaceChildren();
   for (const event of store.state.timeline) renderEvent(event);
   if (store.state.loading) {
@@ -239,4 +246,5 @@ window.addEventListener('pagehide', () => {
   window.clearInterval(relativeTimeRefreshId);
   identityController.stop();
   store.destroy();
+  profileMedia.destroy();
 });

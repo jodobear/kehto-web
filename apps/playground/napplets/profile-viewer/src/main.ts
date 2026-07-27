@@ -1,14 +1,16 @@
 /**
- * Profile viewer napplet - consumes NAP-01 profile:open events and loads kind 0 metadata.
+ * Profile viewer napplet - receives published profile intents and loads kind 0 metadata.
  */
 import '@napplet/shim';
 import { getMissingNapDomains } from '../../domain-availability';
 import { applyNapTheme, installNapTheme, onNapThemeChanged } from '../../shared-theme';
-import { incOn } from '@napplet/nap/inc/sdk';
+import { intentOnDelivery } from '@napplet/nap/intent/sdk';
 import { relaySubscribe } from '@napplet/nap/relay/sdk';
-import type { NostrEvent, Subscription } from '@napplet/core';
+import { resourceBytes } from '@napplet/nap/resource/sdk';
+import type { IntentDelivery, NostrEvent, Subscription } from '@napplet/core';
+import { createProfileMediaController } from './profile-media.js';
 
-const REQUIRED_NAPS = ['inc', 'relay', 'theme'] as const;
+const REQUIRED_NAPS = ['intent', 'relay', 'resource', 'theme'] as const;
 const CAPABILITY_WAIT_MS = 5_000;
 const CAPABILITY_WAIT_INTERVAL_MS = 25;
 const PROFILE_LOAD_TIMEOUT_MS = 8_000;
@@ -18,7 +20,12 @@ const pubkeyEl = document.getElementById('profile-pubkey')!;
 const nameEl = document.getElementById('profile-name')!;
 const aboutEl = document.getElementById('profile-about')!;
 const pictureEl = document.getElementById('profile-picture') as HTMLImageElement;
+const bannerEl = document.getElementById('profile-banner') as HTMLImageElement;
 const detailEl = document.getElementById('profile-details')!;
+const profileMedia = createProfileMediaController({ loadBytes: resourceBytes });
+
+pictureEl.addEventListener('error', () => profileMedia.handleError(pictureEl));
+bannerEl.addEventListener('error', () => profileMedia.handleError(bannerEl));
 
 type ProfileMetadata = {
   name?: string;
@@ -26,12 +33,13 @@ type ProfileMetadata = {
   displayName?: string;
   about?: string;
   picture?: string;
+  banner?: string;
   nip05?: string;
   lud16?: string;
 };
 
 let profileSub: Subscription | null = null;
-let incSub: Subscription | null = null;
+let intentDeliverySub: Subscription | null = null;
 let profileLoadTimer: number | null = null;
 
 function formatError(error: unknown, fallback: string): string {
@@ -91,6 +99,7 @@ function parseProfile(event: NostrEvent): ProfileMetadata | null {
       displayName: optionalString(data.displayName),
       about: optionalString(data.about),
       picture: optionalString(data.picture),
+      banner: optionalString(data.banner),
       nip05: optionalString(data.nip05),
       lud16: optionalString(data.lud16),
     };
@@ -103,11 +112,11 @@ function getDisplayName(profile: ProfileMetadata | null, pubkey: string): string
   return profile?.display_name ?? profile?.displayName ?? profile?.name ?? truncatePubkey(pubkey);
 }
 
-function getProfilePicture(profile: ProfileMetadata | null): string | null {
-  if (!profile?.picture) return null;
+function getProfileMedia(value: string | undefined): string | null {
+  if (!value) return null;
   try {
-    const url = new URL(profile.picture);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? profile.picture : null;
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? value : null;
   } catch {
     return null;
   }
@@ -142,15 +151,26 @@ function renderProfile(pubkey: string, profile: ProfileMetadata | null): void {
   aboutEl.textContent = profile?.about ?? 'No profile metadata found.';
   renderDetails(profile);
 
-  const picture = getProfilePicture(profile);
+  const picture = getProfileMedia(profile?.picture);
   if (picture) {
-    pictureEl.src = picture;
     pictureEl.alt = `${displayName} profile picture`;
     pictureEl.style.display = '';
+    void profileMedia.load(picture, pictureEl);
   } else {
-    pictureEl.removeAttribute('src');
+    profileMedia.clear(pictureEl);
     pictureEl.alt = 'profile';
     pictureEl.style.display = 'none';
+  }
+
+  const banner = getProfileMedia(profile?.banner);
+  if (banner) {
+    bannerEl.alt = `${displayName} profile banner`;
+    bannerEl.style.display = '';
+    void profileMedia.load(banner, bannerEl);
+  } else {
+    profileMedia.clear(bannerEl);
+    bannerEl.alt = 'profile banner';
+    bannerEl.style.display = 'none';
   }
 
   setStatus(profile ? 'loaded' : 'not found', profile ? 'green' : 'gray');
@@ -167,9 +187,12 @@ function clearProfile(): void {
   profileSub?.close();
   profileSub = null;
   clearProfileLoadTimer();
-  pictureEl.removeAttribute('src');
+  profileMedia.clear(pictureEl);
   pictureEl.alt = 'profile';
   pictureEl.style.display = 'none';
+  profileMedia.clear(bannerEl);
+  bannerEl.alt = 'profile banner';
+  bannerEl.style.display = 'none';
   pubkeyEl.textContent = '';
   nameEl.textContent = '';
   aboutEl.textContent = 'Select a profile from the feed.';
@@ -213,9 +236,10 @@ function payloadPubkey(payload: unknown): string | null {
   return normalizePubkey((payload as { pubkey?: unknown }).pubkey);
 }
 
-function subscribeToProfileOpen(): void {
-  incSub = incOn('profile:open', (payload) => {
-    const pubkey = payloadPubkey(payload);
+function subscribeToProfileDelivery(): void {
+  intentDeliverySub = intentOnDelivery((delivery: IntentDelivery) => {
+    if (delivery.convention !== 'napplet:profile/open') return;
+    const pubkey = payloadPubkey(delivery.payload);
     if (!pubkey) return;
     loadProfile(pubkey);
   });
@@ -226,20 +250,21 @@ async function init(): Promise<void> {
   onNapThemeChanged((theme) => {
     applyNapTheme(theme);
   });
+  subscribeToProfileDelivery();
   await waitForRequiredNaps();
   clearProfile();
-  subscribeToProfileOpen();
   setStatus('waiting', 'gray');
 }
 
 init().catch((err) => {
   if (statusEl.textContent === 'connecting...') {
-    setStatus(`denied: ${formatError(err, 'inc or relay unavailable')}`, 'red');
+    setStatus(`denied: ${formatError(err, 'intent, relay, or resource unavailable')}`, 'red');
   }
 });
 
 window.addEventListener('pagehide', () => {
   clearProfileLoadTimer();
   profileSub?.close();
-  incSub?.close();
+  intentDeliverySub?.close();
+  profileMedia.destroy();
 });
