@@ -53,6 +53,15 @@ function readRepoFile(path: string): string {
 }
 
 describe('playground gateway artifact guard', () => {
+  it('classifies active host-flow evidence separately from archived and deliberate invalid inputs', () => {
+    const guard = readRepoFile('tests/unit/playground-gateway-guard.test.ts');
+    const activeSources = ['const', 'activeHostFlowSources'].join(' ');
+    const exclusions = ['const', 'intentionalHostFlowExclusions'].join(' ');
+
+    expect(guard).toContain(activeSources);
+    expect(guard).toContain(exclusions);
+  });
+
   it('keeps fake demo sources retained but out of the active playground registry', () => {
     const definitions = readRepoFile('apps/playground/src/demo-definitions.ts');
 
