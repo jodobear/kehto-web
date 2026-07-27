@@ -286,6 +286,22 @@ describe('NIP-5D conformance static guards', () => {
     expect(prelude).toContain('onReady(handler: ReadyHandler)');
   });
 
+  it("keeps Paja's verified catalog separate from frame and controller authority", () => {
+    const catalog = readRepoFile('packages/paja/src/installed-napplet-catalog.ts');
+    const adapter = readRepoFile('packages/paja/src/browser-adapter.ts');
+    const controller = readRepoFile('packages/paja/src/browser-intent-controller.ts');
+
+    expect(catalog).toContain('manifestToIntentCatalogEntry');
+    expect(catalog).toContain('PajaResolvedPointer');
+    expect(catalog).not.toMatch(/\b(?:Window|HTMLIFrameElement|MessagePort|contentWindow)\b/);
+    expect(catalog).not.toContain('DEV_INTENT');
+    expect(adapter).toContain('catalog: new InstalledNappletCatalog()');
+    expect(adapter).toContain('controller: new BrowserIntentController(');
+    expect(controller).toContain('await this.options.waitForReady(generation);');
+    expect(controller).toContain('await this.options.isCurrent(generation)');
+    expect(controller).toContain('if (isDelivered()) return;');
+  });
+
   it('keeps test resolution on published napplet packages', () => {
     const rootPackageJson = JSON.parse(readRepoFile('package.json')) as {
       pnpm?: { overrides?: Record<string, string> };

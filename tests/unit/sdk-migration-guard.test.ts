@@ -126,9 +126,11 @@ describe('current @napplet package graph guard', () => {
       join(process.cwd(), 'tests/unit/sdk-migration-guard.test.ts'),
       'utf8',
     );
+    const activeSources = ['const', 'activeMigrationSourceDirs'].join(' ');
+    const exclusions = ['const', 'historicalMigrationExclusions'].join(' ');
 
-    expect(guard).toContain('const activeMigrationSourceDirs');
-    expect(guard).toContain('const historicalMigrationExclusions');
+    expect(guard).toContain(activeSources);
+    expect(guard).toContain(exclusions);
     const broadHistoryScan = ['execFileSync', "('git', ['ls-files', '-z'])"].join('');
     expect(guard).not.toContain(broadHistoryScan);
     expect(historicalMigrationExclusions).toEqual([

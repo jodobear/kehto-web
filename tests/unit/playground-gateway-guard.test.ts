@@ -48,6 +48,29 @@ const expectedRequires: Record<(typeof playgroundNapplets)[number], readonly str
   toaster: ['notify', 'theme'],
 };
 
+const activeHostFlowSources = Object.freeze({
+  pajaCatalog: 'packages/paja/src/installed-napplet-catalog.ts',
+  pajaController: 'packages/paja/src/browser-intent-controller.ts',
+  playgroundCatalog: 'apps/playground/src/installed-napplet-catalog.ts',
+  playgroundController: 'apps/playground/src/playground-intent-controller.ts',
+  playgroundHost: 'apps/playground/src/shell-host.ts',
+  intentService: 'packages/services/src/intent-service.ts',
+  feed: 'apps/playground/napplets/feed/src/main.ts',
+  profile: 'apps/playground/napplets/profile-viewer/src/main.ts',
+  feedMedia: 'apps/playground/napplets/feed/src/profile-media.ts',
+  profileMedia: 'apps/playground/napplets/profile-viewer/src/profile-media.ts',
+  resourceDemo: 'apps/playground/napplets/resource-demo/src/main.ts',
+  profileOpen: 'tests/e2e/profile-open.spec.ts',
+  identityFlow: 'tests/e2e/identity-flow.spec.ts',
+  themeBroadcast: 'tests/e2e/theme-broadcast.spec.ts',
+});
+
+const intentionalHostFlowExclusions = [
+  '.planning/',
+  'CHANGELOG.md',
+  'tests/fixtures/napplets/',
+] as const;
+
 function readRepoFile(path: string): string {
   return readFileSync(join(process.cwd(), path), 'utf8');
 }
@@ -60,6 +83,79 @@ describe('playground gateway artifact guard', () => {
 
     expect(guard).toContain(activeSources);
     expect(guard).toContain(exclusions);
+    expect(intentionalHostFlowExclusions).toEqual([
+      '.planning/',
+      'CHANGELOG.md',
+      'tests/fixtures/napplets/',
+    ]);
+  });
+
+  it('keeps verified catalogs separate from live frames and retained delivery on the target-only path', () => {
+    const source = Object.fromEntries(
+      Object.entries(activeHostFlowSources).map(([name, path]) => [name, readRepoFile(path)]),
+    );
+
+    for (const [name, catalog] of [
+      ['Paja', source.pajaCatalog],
+      ['playground', source.playgroundCatalog],
+    ] as const) {
+      expect(catalog, `${name} catalog derives handlers from verified manifests`).toContain(
+        'manifestToIntentCatalogEntry',
+      );
+      expect(catalog, `${name} catalog stores immutable records`).toContain('Object.freeze');
+      expect(catalog, `${name} catalog must not store live frame authority`).not.toMatch(
+        /\b(?:Window|HTMLIFrameElement|MessagePort|contentWindow)\b/,
+      );
+      expect(catalog, `${name} catalog must not own a simulator`).not.toContain('DEV_INTENT');
+    }
+    expect(source.playgroundHost).toContain('const installedNapplets = new InstalledNappletCatalog();');
+    expect(source.playgroundHost).toContain('installedNapplets.install(resolved,');
+
+    for (const controller of [source.pajaController, source.playgroundController]) {
+      const ready = controller.indexOf('await this.options.waitForReady(generation);');
+      const current = controller.indexOf('await this.options.isCurrent(generation)');
+      const once = controller.indexOf('if (isDelivered()) return;');
+      const mark = controller.indexOf('markDelivered();');
+      const send = controller.indexOf('await this.options.send(generation, params.delivery);');
+      expect(ready).toBeGreaterThanOrEqual(0);
+      expect(current).toBeGreaterThan(ready);
+      expect(once).toBeGreaterThan(current);
+      expect(mark).toBeGreaterThan(once);
+      expect(send).toBeGreaterThan(mark);
+    }
+    expect(source.intentService.indexOf("type: 'intent.invoke.result'")).toBeLessThan(
+      source.intentService.indexOf('const started = outcome.retained.start();'),
+    );
+    expect(source.playgroundHost).toContain('type: \'intent.deliver\'');
+    expect(source.playgroundHost).not.toContain("type: 'inc.event'");
+  });
+
+  it('keeps published profile delivery, resource cleanup, and current theme proof in active sources', () => {
+    const source = Object.fromEntries(
+      Object.entries(activeHostFlowSources).map(([name, path]) => [name, readRepoFile(path)]),
+    );
+
+    expect(source.feed).toContain('intentInvoke(`napplet:profile/open?pubkey=${encodeURIComponent(normalized)}`)');
+    expect(source.profile).toContain('intentOnDelivery((delivery: IntentDelivery) => {');
+    expect(source.profile).toContain("if (delivery.convention !== 'napplet:profile/open') return;");
+    for (const profileSource of [source.feed, source.profile]) {
+      expect(profileSource).not.toContain("from '@napplet/nap/inc/sdk'");
+      expect(profileSource).not.toContain("'profile:open'");
+    }
+    expect(source.profileOpen).toContain('intent.invoke(`napplet:profile/open?pubkey=${encodeURIComponent(pubkey)}`)');
+    expect(source.identityFlow).toContain('published NAP-INTENT target');
+
+    for (const media of [source.feedMedia, source.profileMedia]) {
+      expect(media).toContain('resourceBytes');
+      expect(media).toContain('URL.createObjectURL(blob)');
+      expect(media).toContain('URL.revokeObjectURL(url)');
+    }
+    expect(source.resourceDemo).toContain('@napplet/core@0.29.0');
+    expect(source.resourceDemo).toContain('URL.createObjectURL(blob)');
+    expect(source.resourceDemo).toContain('URL.revokeObjectURL(currentObjectUrl)');
+    expect(source.themeBroadcast).toContain('theme.napplet?.theme?.get()');
+    expect(source.themeBroadcast).toContain('changes: target.__profileThemeChanges ?? []');
+    expect(source.themeBroadcast).toContain("title: 'Dark'");
   });
 
   it('keeps fake demo sources retained but out of the active playground registry', () => {
