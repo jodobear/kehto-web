@@ -291,7 +291,7 @@ describe('NIP-5D conformance static guards', () => {
     const pajaIntent = [
       sourceBetween(
         paja,
-        'function createDevIntentAvailability',
+        'interface PajaIntentHost',
         'function createDevCvmTransport',
       ),
       sourceBetween(
@@ -349,9 +349,12 @@ describe('NIP-5D conformance static guards', () => {
     expect(removeComments(pajaIntent), 'Paja development intent simulator').not.toMatch(
       forbiddenCanonicalField,
     );
-    expect(paja).toContain("const DEV_INTENT_CONVENTION = 'napplet:paja-target/open'");
-    expect(pajaIntent).toContain('contracts: [{ convention: DEV_INTENT_CONVENTION }]');
-    expect(pajaIntent).toContain('retained: {');
+    expect(paja).toContain('InstalledNappletCatalog');
+    expect(paja).toContain('BrowserIntentController');
+    expect(paja).toContain('createCatalogIntentResolver');
+    expect(pajaIntent).toContain('catalog: new InstalledNappletCatalog()');
+    expect(pajaIntent).toContain('controller: new BrowserIntentController(');
+    expect(paja).not.toContain('DEV_INTENT');
 
     for (const file of activeArchetypeMetadataFiles) {
       const source = removeComments(readRepoFile(file));

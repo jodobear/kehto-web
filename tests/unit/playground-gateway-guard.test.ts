@@ -468,7 +468,7 @@ describe('playground gateway artifact guard', () => {
     expect(shellHost).toContain('initialTheme?: Theme,');
     expect(main).toContain('getPersistedPlaygroundTheme');
     expect(main).toContain('bootShell((notifications) => {');
-    expect(main).toContain('}, initialTheme);');
+    expect(main).toContain('}, initialTheme, intentService);');
     expect(main).not.toContain("data.type === 'shell.ready'");
     expect(main).not.toContain('broadcastCurrentTheme');
     expect(preferences).toContain('initialTheme?: PlaygroundTheme;');
