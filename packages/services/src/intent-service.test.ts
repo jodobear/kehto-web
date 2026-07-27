@@ -6,8 +6,13 @@
  * availability calls, and policy-aware live-session change broadcasts.
  */
 
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NappletMessage } from '@napplet/core';
+import type {
+  IntentAvailability,
+  IntentRequest,
+} from '@napplet/core';
 import type { ServiceRuntimeContext } from '@kehto/runtime';
 
 import { createIntentService } from './intent-service.js';
@@ -16,10 +21,6 @@ import type {
   IntentResolverOutcome,
   IntentRetainedDelivery,
 } from './intent-service.js';
-import type {
-  IntentAvailability,
-  IntentRequest,
-} from './intent-types.js';
 
 const WINDOW = 'win-1';
 const SENDER = 'source-dtag';
@@ -111,6 +112,13 @@ async function flushPromises(): Promise<void> {
 }
 
 describe('createIntentService', () => {
+  it('uses the released canonical intent declarations instead of the local mirror', () => {
+    const source = readFileSync(new URL('./intent-service.ts', import.meta.url), 'utf8');
+
+    expect(source).toContain("from '@napplet/core'");
+    expect(source).not.toContain("from './intent-types.js'");
+  });
+
   it('throws when resolver is missing', () => {
     // @ts-expect-error — exercising the runtime guard
     expect(() => createIntentService({})).toThrow(/resolver is required/);
