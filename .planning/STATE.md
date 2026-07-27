@@ -5,15 +5,15 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
-stopped_at: Completed 105-08-PLAN.md
-last_updated: "2026-07-27T10:01:53.937Z"
+stopped_at: Completed 105-07-PLAN.md
+last_updated: "2026-07-27T10:18:12.921Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 44
-  completed_plans: 39
+  completed_plans: 40
   percent: 67
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 105 (published-convention-adoption-and-host-flows) — EXECUTING
-Plan: 8 of 12
+Plan: 9 of 12
 Status: Ready to execute
 
 Last activity: 2026-07-27 — Phase 105 execution started
@@ -95,6 +95,7 @@ Last activity: 2026-07-27 — Phase 105 execution started
 | Phase 105 P05 | 6m | 2 tasks | 11 files |
 | Phase 105 P06 | 11min | 2 tasks | 7 files |
 | Phase 105 P08 | 20m | 2 tasks | 12 files |
+| Phase 105 P07 | 24m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -210,8 +211,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T10:01:53.925Z
-Stopped at: Completed 105-08-PLAN.md
+Last session: 2026-07-27T10:18:12.909Z
+Stopped at: Completed 105-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -298,3 +299,5 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: Paja intent selection revalidates exact installed contracts and sender-aware explicit authorization before acceptance.
 - [Phase ?]: Playground intent availability comes only from a persistent resolver-verified catalog, never the live frame map.
 - [Phase ?]: Playground intent delivery waits for the registered current shell.ready source and sends exactly once without INC.
+- [Phase ?]: Paja installs only resolver-verified manifests; source-bound readiness uses registered MessageEvent.source plus tab generation.
+- [Phase ?]: Paja retains ThemeService as the only state-before-one-push theme route.

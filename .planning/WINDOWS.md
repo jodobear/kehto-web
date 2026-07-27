@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 19
+open_count: 20
 waived_count: 0
 fixed_count: 5
-total_count: 24
-last_updated: 2026-07-27T10:01:33.694Z
+total_count: 25
+last_updated: 2026-07-27T10:18:12.404Z
 ---
 
 # Broken Windows Ledger
@@ -39,6 +39,7 @@ last_updated: 2026-07-27T10:01:33.694Z
 | 22 | 103 | unrun-verify | package.json |  | AI-slop quality gate could not run because the aislop executable is unavailable in the workspace. | open |  | 2026-07-23T21:21:32.351Z |  |
 | 23 | 102 | unmet-truth | tests/e2e/paja-single-window.spec.ts | 488 | Combined Phase 103 browser run still times out delivering the post-reload Phase 102 INC event; identity/theme proofs pass and no Phase 102 workaround was added. | open |  | 2026-07-23T22:02:35.758Z |  |
 | 24 | 105 | deviation | apps/playground/src/acl-panel.ts |  | Playground TypeScript verification remains blocked by pre-existing capability-map and direct dependency-resolution errors. | fixed |  | 2026-07-27T09:54:38.327Z | 2026-07-27T10:01:33.694Z |
+| 25 | 105 | deviation | tests/e2e/paja-single-window.spec.ts |  | Canonical INC reload assertion fails after target replacement; deferred outside Plan 105-07 pointer lifecycle scope. | open |  | 2026-07-27T10:18:12.404Z |  |
 
 ````json
 [
@@ -329,6 +330,18 @@ last_updated: 2026-07-27T10:01:33.694Z
     "reason": "",
     "recorded_at": "2026-07-27T09:54:38.327Z",
     "resolved_at": "2026-07-27T10:01:33.694Z"
+  },
+  {
+    "id": 25,
+    "kind": "deviation",
+    "phase": "105",
+    "file": "tests/e2e/paja-single-window.spec.ts",
+    "line": null,
+    "description": "Canonical INC reload assertion fails after target replacement; deferred outside Plan 105-07 pointer lifecycle scope.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-07-27T10:18:12.404Z",
+    "resolved_at": null
   }
 ]
 ````

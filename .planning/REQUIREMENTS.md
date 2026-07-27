@@ -429,7 +429,7 @@ lockfile.
 | PKG-03 | Phase 105 | Complete |
 | PKG-04 | Phase 105 | Complete |
 | IDENTITY-05 | Phase 105 | Pending |
-| THEME-04 | Phase 105 | Pending |
+| THEME-04 | Phase 105 | Complete |
 | ARCH-03 | Phase 105 | Complete |
 | BASE-03 | Phase 106 | Pending |
 | VERIFY-01 | Phase 106 | Pending |
