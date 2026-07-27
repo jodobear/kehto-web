@@ -5,15 +5,15 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
-stopped_at: Completed 105-03-PLAN.md
-last_updated: "2026-07-27T09:05:55.794Z"
+stopped_at: Completed 105-04-PLAN.md
+last_updated: "2026-07-27T09:16:44.918Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 44
-  completed_plans: 35
+  completed_plans: 36
   percent: 67
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 105 (published-convention-adoption-and-host-flows) — EXECUTING
-Plan: 4 of 12
+Plan: 5 of 12
 Status: Ready to execute
 
 Last activity: 2026-07-27 — Phase 105 execution started
@@ -91,6 +91,7 @@ Last activity: 2026-07-27 — Phase 105 execution started
 | Phase 105 P01 | 6m | 1 tasks | 14 files |
 | Phase 105-published-convention-adoption-and-host-flows P02 | 10m | 1 tasks | 11 files |
 | Phase 105 P03 | 10m | 1 tasks | 14 files |
+| Phase 105 P04 | 6m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -206,8 +207,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T09:05:55.783Z
-Stopped at: Completed 105-03-PLAN.md
+Last session: 2026-07-27T09:16:44.906Z
+Stopped at: Completed 105-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -287,3 +288,5 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: @napplet/shim 0.27.0 remains development-only and non-shell; Kehto retains its host-owned mandatory NAP-SHELL prelude.
 - [Phase ?]: During Phase 105's ordered app migration, package graph guards accept only a complete 0.28 or 0.29 line per manifest while lock snapshots require the published 0.29 line.
 - [Phase ?]: Remaining playground apps and browser fixtures use exact published 0.29.0/0.27.0/0.25.0/0.12.0 pins with a generated third lock checkpoint.
+- [Phase ?]: Package-line guards dynamically inspect active manifests, JSR maps, final lock snapshots, and frozen installed metadata.
+- [Phase ?]: Keep the Kehto-owned mandatory NAP-SHELL prelude because published core/shim 0.29.0/0.27.0 omit the generic shell API.
