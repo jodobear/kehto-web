@@ -5,8 +5,8 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
-stopped_at: Completed correction for 105-09-PLAN.md
-last_updated: "2026-07-27T10:54:43.437Z"
+stopped_at: Completed Wave 7 full-unit correction for 105-09-PLAN.md
+last_updated: "2026-07-27T11:02:32.866Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
@@ -212,8 +212,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T10:54:43.338Z
-Stopped at: Completed correction for 105-09-PLAN.md
+Last session: 2026-07-27T11:02:32.766Z
+Stopped at: Completed Wave 7 full-unit correction for 105-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -306,3 +306,4 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: Playground profile intents advertise the live intent service through the stable adapter and reuse only origin-registered, session-bound ready targets.
 - [Phase ?]: Profile picture and banner media use resourceBytes plus revocable Blob URLs; no standalone NAP-RESOURCE wire semantics were inferred.
 - [Phase ?]: Profile cold-start verification closes live frames without revoking their verified catalog records, then proves one intent delivery without INC.
+- [Phase ?]: The active playground gateway guard mirrors published intent/resource manifests and forbids legacy profile INC imports or carriers.

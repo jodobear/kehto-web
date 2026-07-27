@@ -30,6 +30,7 @@ key-files:
     - tests/e2e/identity-flow.spec.ts
     - tests/e2e/theme-broadcast.spec.ts
     - tests/unit/nip5d-conformance-guard.test.ts
+    - tests/unit/playground-gateway-guard.test.ts
 key-decisions:
   - "Use the published intent URI and target-only delivery; retain no profile INC route or subscription."
   - "Resolve profile picture and banner bytes only through resourceBytes and use one revocable Blob URL per sink."
@@ -72,7 +73,7 @@ coverage:
         status: pass
     human_judgment: false
 metrics:
-  duration: 24m
+  duration: 32m
   completed: 2026-07-27
 status: complete
 ---
@@ -83,9 +84,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 24m
+- **Duration:** 32m
 - **Started:** 2026-07-27T10:30:58Z
-- **Completed:** 2026-07-27T10:54:22Z
+- **Completed:** 2026-07-27T11:02:50Z
 - **Tasks:** 2/2
 - **Files modified:** 14
 
@@ -104,7 +105,8 @@ status: complete
 
 ## Verification
 
-- `pnpm exec vitest run tests/unit/nip5d-conformance-guard.test.ts tests/unit/profile-resource-media.test.ts` — passed (21 tests).
+- `pnpm exec vitest run tests/unit/playground-gateway-guard.test.ts tests/unit/nip5d-conformance-guard.test.ts tests/unit/profile-resource-media.test.ts` — passed (36 tests).
+- `pnpm test:unit` — passed (124 files, 1,537 tests).
 - `pnpm --filter @kehto/demo-feed build && pnpm --filter @kehto/demo-profile-viewer build && pnpm --filter @kehto/demo-resource-demo build` — passed.
 - `pnpm --filter @kehto/playground build` — passed.
 - `pnpm exec tsc -p apps/playground/tsconfig.json --noEmit` — passed.
@@ -115,7 +117,7 @@ status: complete
 ## Task Commits
 
 1. **Task 1: Invoke/receive the profile convention and own safe media URLs** — `febece0` (RED test), `1bd16c2` (feature), `275c009` (cleanup)
-2. **Task 2: Replace legacy INC browser proofs with retained intent/onDelivery** — `aab2121` (RED test), `52c5c96` (host fix), `c652c0b` (cold-target correction)
+2. **Task 2: Replace legacy INC browser proofs with retained intent/onDelivery** — `aab2121` (RED test), `52c5c96` (host fix), `c652c0b` (cold-target correction), `ff26bd6` (full-unit guard correction)
 
 ## Files Created/Modified
 
@@ -167,7 +169,15 @@ status: complete
 - **Verification:** 21 focused unit tests, three napplet builds, playground build/typecheck, and all four required Playwright specs pass.
 - **Committed in:** `c652c0b`
 
-**Total deviations:** 4 auto-fixed (3 Rule 1, 1 Rule 2). All were necessary for the plan's source-bound delivery and media-security requirements.
+**5. [Rule 1 - Bug] Update the active gateway guard from transitional INC assumptions**
+- **Found during:** Wave 7 full-unit gate
+- **Issue:** `playground-gateway-guard.test.ts` still required legacy feed/profile `inc` manifests and imports, so the full unit suite rejected the shipped published intent/resource flow.
+- **Fix:** Assert the exact published `intent`/`resource` manifest requirements, queryless profile archetype metadata, `intentInvoke`/`intentOnDelivery`, Blob-backed media controllers, and the absence of active profile INC imports/carriers.
+- **Files modified:** `tests/unit/playground-gateway-guard.test.ts`.
+- **Verification:** focused gateway/NIP-5D/media guards (36 tests) and full `pnpm test:unit` (124 files, 1,537 tests) pass.
+- **Committed in:** `ff26bd6`
+
+**Total deviations:** 5 auto-fixed (4 Rule 1, 1 Rule 2). All were necessary for the plan's source-bound delivery and media-security requirements.
 
 ## Known Stubs
 
@@ -184,5 +194,5 @@ The retained playground profile flow is ready for the remaining Phase 105 conven
 ## Self-Check: PASSED
 
 - All plan-owned sources, tests, and this summary exist.
-- All six Plan 105-09 task and correction commits exist and carry `Co-Authored-By: Codex <noreply@openai.com>`.
+- All seven Plan 105-09 task and correction commits exist and carry `Co-Authored-By: Codex <noreply@openai.com>`.
 - Stub scan found no placeholder or unwired plan-owned rendering path.
