@@ -169,6 +169,13 @@ const unsafeServiceGuidancePatterns = [
 // Planning history and changelogs retain the removed vocabulary as historical record.
 const historicalShellExclusions = ['.planning/', 'CHANGELOG.md'] as const;
 
+const publishedConventionAuthorities = Object.freeze({
+  napIntent: 'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+  napIdentityTheme: '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24',
+  publishedSource: 'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b',
+  publishedRelease: '60889f1c2476e063500c7ab6624af6abe0dbcbe5',
+});
+
 const forbiddenNappletSourcePatterns = [
   { label: 'window.nostr', pattern: /\bwindow\s*\.\s*nostr\b/ },
   { label: 'localStorage', pattern: /\blocalStorage\b/ },
@@ -250,6 +257,35 @@ function sourceBetween(source: string, start: string, end: string): string {
 }
 
 describe('NIP-5D conformance static guards', () => {
+  it('keeps released intent ownership and the host-owned NAP-SHELL prelude as positive evidence', () => {
+    const services = readRepoFile('packages/services/src/index.ts');
+    const prelude = readRepoFile('packages/shell/src/napplet-namespace.ts');
+    const publishedContract = readRepoFile('tests/unit/published-napplet-contract.test.ts');
+
+    expect(publishedConventionAuthorities).toEqual({
+      napIntent: 'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+      napIdentityTheme: '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24',
+      publishedSource: 'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b',
+      publishedRelease: '60889f1c2476e063500c7ab6624af6abe0dbcbe5',
+    });
+    for (const authority of Object.values(publishedConventionAuthorities)) {
+      expect(publishedContract, `published contract authority ${authority}`).toContain(authority);
+    }
+    expect(services).toContain("} from '@napplet/core';");
+    for (const typeName of ['IntentRequest', 'IntentContract', 'IntentResult', 'IntentDelivery']) {
+      expect(services, `published intent type ${typeName}`).toContain(typeName);
+    }
+    expect(existsSync(join(process.cwd(), 'packages/services/src/intent-types.ts'))).toBe(false);
+
+    // Published core/shim omit generic shell, so NAP-SHELL stays a Kehto-owned
+    // prelude with a live receiver, one bare ready signal, and local support.
+    expect(prelude).toContain("const domains = uniqueBareDomains(['shell', ...options.domains]);");
+    expect(prelude).toContain("if (message.type !== 'shell.init') return;");
+    expect(prelude).toContain('function supports(domain: string): boolean');
+    expect(prelude).toContain("post({ type: 'shell.ready' });");
+    expect(prelude).toContain('onReady(handler: ReadyHandler)');
+  });
+
   it('keeps test resolution on published napplet packages', () => {
     const rootPackageJson = JSON.parse(readRepoFile('package.json')) as {
       pnpm?: { overrides?: Record<string, string> };

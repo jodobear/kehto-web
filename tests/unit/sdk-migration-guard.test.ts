@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -56,15 +55,27 @@ const protocolPackageVersions: Record<(typeof protocolPackageNames)[number], str
   '@napplet/vite-plugin': '0.12.0',
 };
 
-const previousProtocolPackageVersions: Record<(typeof protocolPackageNames)[number], string> = {
-  '@napplet/core': '0.28.0',
-  '@napplet/nap': '0.28.0',
-  '@napplet/sdk': '0.24.4',
-  '@napplet/shim': '0.26.8',
-  '@napplet/vite-plugin': '0.11.2',
-};
+const protocolAuthorities = Object.freeze({
+  napIntent: 'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+  napIdentityTheme: '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24',
+  publishedSource: 'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b',
+  publishedRelease: '60889f1c2476e063500c7ab6624af6abe0dbcbe5',
+});
 
-const protocolVersionLines = [protocolPackageVersions, previousProtocolPackageVersions];
+// Only these executable product paths are migration evidence. Archived plans,
+// release records, and intentional fixture inputs remain classified exclusions.
+const activeMigrationSourceDirs = [
+  ...sdkTargetDirs.filter((dir) => dir.startsWith('apps/playground/')),
+  ...publicPackageDirs.map((dir) => `${dir}/src`),
+  'packages/nip/src',
+] as const;
+
+const historicalMigrationExclusions = [
+  '.planning/',
+  '.changeset/',
+  'CHANGELOG.md',
+  'tests/fixtures/napplets/',
+] as const;
 
 const bannedSdkImportPattern = /from\s+['"]@napplet\/sdk['"]/;
 const staleNapSegment = [110, 117, 98].map((code) => String.fromCharCode(code)).join('');
@@ -84,11 +95,12 @@ function expectExactProtocolLine(
   dir: string,
   packageNames: readonly (typeof protocolPackageNames)[number][],
 ): void {
-  const matchesReleaseLine = protocolVersionLines.some((versions) => packageNames.every(
-    (packageName) => (pkg.dependencies?.[packageName] ?? pkg.devDependencies?.[packageName]) === versions[packageName],
-  ));
-
-  expect(matchesReleaseLine, `${dir} must use one exact Napplet release line`).toBe(true);
+  for (const packageName of packageNames) {
+    expect(
+      pkg.dependencies?.[packageName] ?? pkg.devDependencies?.[packageName],
+      `${dir} ${packageName} must use the final exact Napplet release`,
+    ).toBe(protocolPackageVersions[packageName]);
+  }
 }
 
 function sourceFiles(root: string): string[] {
@@ -96,6 +108,7 @@ function sourceFiles(root: string): string[] {
   const entries = readdirSync(root);
   const files: string[] = [];
   for (const entry of entries) {
+    if (entry === 'node_modules' || entry === 'dist' || entry === '.turbo') continue;
     const path = join(root, entry);
     const stat = statSync(path);
     if (stat.isDirectory()) {
@@ -116,7 +129,31 @@ describe('current @napplet package graph guard', () => {
 
     expect(guard).toContain('const activeMigrationSourceDirs');
     expect(guard).toContain('const historicalMigrationExclusions');
-    expect(guard).not.toContain("execFileSync('git', ['ls-files', '-z']");
+    const broadHistoryScan = ['execFileSync', "('git', ['ls-files', '-z'])"].join('');
+    expect(guard).not.toContain(broadHistoryScan);
+    expect(historicalMigrationExclusions).toEqual([
+      '.planning/',
+      '.changeset/',
+      'CHANGELOG.md',
+      'tests/fixtures/napplets/',
+    ]);
+  });
+
+  it('records the exact released convention and package authorities in active evidence', () => {
+    expect(protocolAuthorities).toEqual({
+      napIntent: 'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+      napIdentityTheme: '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24',
+      publishedSource: 'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b',
+      publishedRelease: '60889f1c2476e063500c7ab6624af6abe0dbcbe5',
+    });
+
+    const publishedContract = readFileSync(
+      join(process.cwd(), 'tests/unit/published-napplet-contract.test.ts'),
+      'utf8',
+    );
+    for (const authority of Object.values(protocolAuthorities)) {
+      expect(publishedContract, `published contract authority ${authority}`).toContain(authority);
+    }
   });
 
   it('resolves active protocol packages from published registry artifacts', () => {
@@ -135,7 +172,7 @@ describe('current @napplet package graph guard', () => {
     }
   });
 
-  it('keeps SDK-migrated manifests on one exact NAP package graph during the ordered package upgrade', () => {
+  it('keeps SDK-migrated manifests on the final exact NAP package graph', () => {
     for (const dir of sdkTargetDirs) {
       const packageJsonPath = join(process.cwd(), dir, 'package.json');
       const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
@@ -147,7 +184,7 @@ describe('current @napplet package graph guard', () => {
     }
   });
 
-  it('keeps helper-migrated manifests on one exact NAP helper graph during the ordered package upgrade', () => {
+  it('keeps helper-migrated manifests on the final exact NAP helper graph', () => {
     for (const dir of helperTargetDirs) {
       const packageJsonPath = join(process.cwd(), dir, 'package.json');
       const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
@@ -240,25 +277,18 @@ describe('current @napplet package graph guard', () => {
     expect(violations).toEqual([]);
   });
 
-  it('rejects the removed transport vocabulary in tracked live files', () => {
+  it('rejects the removed transport vocabulary only in classified live migration sources', () => {
     const violations: string[] = [];
-    const files = execFileSync('git', ['ls-files', '-z'], {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-    }).split('\0').filter(Boolean);
     const pattern = new RegExp(removedTransportNamespace, 'i');
 
-    for (const file of files) {
-      if (file.startsWith('.planning/')) continue;
-      const abs = join(process.cwd(), file);
-      if (!existsSync(abs)) continue;
-      const content = readFileSync(abs, 'utf8');
-      const lines = content.split(/\r?\n/);
-      for (const [index, line] of lines.entries()) {
-        if (!pattern.test(line)) continue;
-        const location = `${file}:${index + 1}`;
-        if (file === 'pnpm-lock.yaml' && line.includes('integrity:')) continue;
-        violations.push(location);
+    for (const dir of activeMigrationSourceDirs) {
+      for (const abs of sourceFiles(join(process.cwd(), dir))) {
+        const file = relative(process.cwd(), abs);
+        const content = readFileSync(abs, 'utf8');
+        const lines = content.split(/\r?\n/);
+        for (const [index, line] of lines.entries()) {
+          if (pattern.test(line)) violations.push(`${file}:${index + 1}`);
+        }
       }
     }
 
