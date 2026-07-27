@@ -1,16 +1,50 @@
 ---
 phase: 106
-status: evidence-in-progress
-checked_at: 2026-07-27T15:54:58Z
+status: local-gates-passed
+checked_at: 2026-07-27T16:05:00Z
 authority_verdict: conformant
 tested_branch: chore/napplet-scheme-conformance
-tested_source_sha: 1302489f71a2a065bf314d729128f27d852629b4
+tested_source_sha: b2f4c2b80bd62586d28917239de6b93a299d5aa2
 ---
 
 # Phase 106 Release Checklist
 
 This checklist records Phase 106 PR-readiness evidence only. It does not
 authorize merge, release metadata creation, tagging, or publishing.
+
+## Final local release gate — validated source
+
+- **Validated branch/source:** `chore/napplet-scheme-conformance` at
+  `b2f4c2b80bd62586d28917239de6b93a299d5aa2`.
+- **Target-main synchronization:** fetched `origin/main` at
+  `dd79b04122c94ab63a08b856c377eb2e807f6644`; that commit is the merge-base
+  and an ancestor of the validated source SHA. No merge, rebase, or rewritten
+  history was needed.
+- **Authority:** `node scripts/verify-napplet-authorities.mjs --check` — exit
+  0 (`PR #89-#92 and five published packages reconciled`). The verified
+  upstream refs remain the merged `napplet/naps` master
+  `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`, NAP-INC #89 current head
+  `e0cd5848abb70a7450ed0eabfef9e8d04f4b41b3` (semantic verdict:
+  conformant), governance/web #90 `896c32c92deee68dc4d10fc1132b62df20cccb6f`,
+  open NAP-INTENT #91 `a718915ddefa2f03a0126579601f59d8bd86f7c4`, and
+  symmetric channels #92 `c5cd06f7be6d4690b303949abb26e87ff62f4729`.
+- **Build:** `pnpm build` — exit 0 (32 Turbo tasks successful).
+- **Type check:** `pnpm type-check` — exit 0 (32 build and 17 type-check
+  tasks successful).
+- **Unit tests:** `pnpm test:unit` — exit 0; 125 files / 1,571 tests passed.
+- **Focused browser E2E:** the seven-file command below — exit 0; 9 passed.
+- **Full browser E2E:** `pnpm test:e2e` — exit 0; 80 tests ran with the only
+  allowed skip being `tests/e2e/paja-runtime-pointer.spec.ts`, guarded by
+  `PAJA_LIVE_POINTER_TEST` because it requires live Nostr relays and Blossom.
+- **Docs:** `pnpm docs:check` — exit 0; TypeDoc, VitePress, and all 9 public
+  package docs passed the audit.
+- **AI-slop:** exactly `npx --yes aislop@0.12.0 scan -d` — exit 0; scanner
+  version 0.12.0, 244 files, 100/100 clean run (3 configured suppressions).
+- **Whitespace/index safety:** `git diff --check`, `git diff --quiet`, and
+  `git diff --cached --quiet` — exit 0.
+- **Changesets:** `pnpm changeset status` — exit 0; its expected minor output
+  includes the seven locked packages below (plus separately retained patch
+  entries for `@kehto/playground` and `@test/harness`).
 
 ## Authority and focused unit evidence
 
@@ -44,14 +78,26 @@ Protocol case was not part of this focused seven-file command, so there is no
 optional skip to record here. Any mandatory skip or failure would have blocked
 this checklist.
 
+## Changeset audit
+
+`.changeset/phase-105-published-package-line.md` remains byte-unchanged and
+contains exactly these minor entries: `@kehto/acl`, `@kehto/cli`,
+`@kehto/firewall`, `@kehto/paja`, `@kehto/runtime`, `@kehto/services`, and
+`@kehto/shell`. The unrelated historical changesets inspected and preserved
+unchanged are `phase-102-acl-inc`, `phase-102-runtime-inc`,
+`phase-102-services-inc`, `phase-102-shell-inc`, `phase-103-acl-identity-theme`,
+`phase-103-paja-identity-theme`, `phase-103-runtime-identity-theme`,
+`phase-103-services-identity-theme`, and `phase-103-shell-identity-theme`.
+No changeset was added, combined, edited, or deleted by Phase 106-03.
+
 ## PR and release state at this task boundary
 
 | Item | State |
 | --- | --- |
-| PR #204 URL/head/check state | Not queried or claimed by this task; final PR evidence remains pending the Plan 106-03 gate. |
-| Seven-package changeset state | Not assessed by this task; pending the Plan 106-03 release gate. |
-| Branch synchronization | Focused evidence was collected from the recorded worktree branch and source SHA above; synchronization with target `main` is not yet claimed. |
-| Full build/type/unit/docs/AI-slop gate | Not executed by this evidence task; pending the Plan 106-03 release gate. |
+| PR #204 URL/head/check state | Existing [PR #204](https://github.com/kehto/web/pull/204) was verified to target `chore/napplet-scheme-conformance`; pushed-head/check evidence remains the next task. |
+| Seven-package changeset state | Exact, preserved, and accepted by `pnpm changeset status` as recorded above. |
+| Branch synchronization | `origin/main` `dd79b04122c94ab63a08b856c377eb2e807f6644` is an ancestor of the validated source SHA; no synchronization commit was needed. |
+| Full build/type/unit/docs/AI-slop gate | Every required local gate passed on validated source `b2f4c2b80bd62586d28917239de6b93a299d5aa2`; PR push/check evidence remains pending. |
 
 ## UI audit disposition — explicit non-blocking protocol-release debt
 
