@@ -1,6 +1,6 @@
 ---
 phase: 105-published-convention-adoption-and-host-flows
-reviewed: 2026-07-27T12:34:30Z
+reviewed: 2026-07-27T12:39:07Z
 depth: standard
 files_reviewed: 92
 files_reviewed_list:
@@ -106,21 +106,21 @@ status: clean
 
 # Phase 105: Code Review Report
 
-**Reviewed:** 2026-07-27T12:34:30Z
+**Reviewed:** 2026-07-27T12:39:07Z
 **Depth:** standard
 **Files Reviewed:** 92
 **Status:** clean
 
 ## Summary
 
-Final liveness-fix re-review retains the 92-file scope and includes every change in `b9d5f07b3e289f934555249fca36443f7de6861c`. The changed host and regression-test code was reviewed against NAP-INTENT PR 91 head `a718915ddefa2f03a0126579601f59d8bd86f7c4` and NAP-IDENTITY, NAP-THEME, and NAP-SHELL master `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`; there is no standalone NAP-RESOURCE authority.
+Final integration re-review retains the 92-file scope and includes every change in `1748b2d` (`fix(105): align catalog token API vocabulary`). The changed catalog, host, and regression-test code was reviewed against NAP-INTENT PR 91 head `a718915ddefa2f03a0126579601f59d8bd86f7c4` and NAP-IDENTITY, NAP-THEME, and NAP-SHELL master `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`; there is no standalone NAP-RESOURCE authority.
 
-WR-01 remains closed: profile callbacks, timers, and subscriptions are generation-scoped. WR-02 remains closed: both controllers reject non-finite limits and cap finite retries at 1–10. The fixed catalog listeners synchronously invalidate stale retained readiness waits on install, same-identity record replacement, and removal; Paja keys record state and waiters by generation object, while playground maintains one listener per page lifecycle and removes it on `pagehide`. Rechecks occur before readiness resolution, after readiness, at controller currentness, and synchronously before `postMessage`, with no await between the final check and delivery. The focused suite passes: 34 tests across five files, including the unready-A retry-to-B host flows.
+WR-01 remains closed: profile callbacks, timers, and subscriptions are generation-scoped. WR-02 remains closed: both controllers reject non-finite limits and cap finite retries at 1–10. `validateCurrent` is a mechanical API rename: both implementations retain exact selected-record object identity plus dTag/aggregate validation, every host caller was updated, and no active legacy API caller or source-string assertion remains. The catalog listeners still synchronously invalidate stale waits on install, same-identity replacement, and removal; final delivery remains synchronous after its token check. The focused suite passes: 45 tests across six files, including the SDK migration guard.
 
 All reviewed files meet the required correctness and security standard. No findings remain.
 
 ---
 
-_Reviewed: 2026-07-27T12:34:30Z_
+_Reviewed: 2026-07-27T12:39:07Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
