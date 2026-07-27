@@ -35,7 +35,7 @@ const NO_E2E_TRIGGERS = [
   /^\.gitignore$/,
   /^\.npmrc$/,
   /^\.aislop\//,
-  /^scripts\/(?:audit-docs|copy-docs-api|sync-jsr-versions|check-changeset-deletions)\.mjs$/,
+  /^scripts\/(?:audit-docs|copy-docs-api|sync-jsr-versions|sync-package-doc-versions|check-changeset-deletions)\.mjs$/,
   /^tests\/unit\//,
 ];
 

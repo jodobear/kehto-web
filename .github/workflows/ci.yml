@@ -96,11 +96,11 @@ jobs:
         if: ${{ needs.change_scope.outputs.release_only != 'true' }}
         run: pnpm docs:check
 
-      - name: Verify generated JSR metadata is synced
+      - name: Verify generated release metadata is synced
         if: ${{ needs.change_scope.outputs.release_only == 'true' }}
         run: |
           node scripts/sync-jsr-versions.mjs
-          git diff --exit-code -- packages
+          git diff --exit-code -- packages docs/packages
 
   unit:
     name: Vitest
