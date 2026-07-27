@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -55,6 +55,16 @@ function interfaceBody(source: string, name: string): string {
 }
 
 describe('published Napplet convention contract', () => {
+  it('keeps services on published intent declarations without a competing local mirror', () => {
+    const servicesSource = join(ROOT, 'packages/services/src');
+    const activeSources = readdirSync(servicesSource)
+      .filter((entry) => entry.endsWith('.ts') && !entry.endsWith('.test.ts'))
+      .map((entry) => readFileSync(join(servicesSource, entry), 'utf8'));
+
+    expect(existsSync(join(servicesSource, 'intent-types.ts'))).toBe(false);
+    expect(activeSources.join('\n')).not.toMatch(/from ['\"]\.\/intent-types\.js['\"]/);
+  });
+
   it('compiles and imports the released intent, resource, SDK, and convention-archetype Vite surfaces', async () => {
     const [intent, resourceApi, sdk, vite] = await Promise.all([
       importInstalled('@napplet/nap', '0.29.0', 'dist/intent/index.js'),
