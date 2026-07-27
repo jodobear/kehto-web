@@ -77,6 +77,11 @@ const historicalMigrationExclusions = [
   'tests/fixtures/napplets/',
 ] as const;
 
+// Current user-facing guidance is audited independently from executable source.
+// The empty RED-phase inventory is populated by the implementation commit.
+const activeMigrationTextFiles = [] as const;
+const obsoleteActivePatterns = {} as const;
+
 const bannedSdkImportPattern = /from\s+['"]@napplet\/sdk['"]/;
 const staleNapSegment = [110, 117, 98].map((code) => String.fromCharCode(code)).join('');
 const staleNapPackage = ['@napplet', staleNapSegment].join('/');
@@ -139,6 +144,21 @@ describe('current @napplet package graph guard', () => {
       'CHANGELOG.md',
       'tests/fixtures/napplets/',
     ]);
+  });
+
+  it('classifies current guidance and a superseded design without scanning historical material as live behavior', () => {
+    expect(activeMigrationTextFiles).toContain('README.md');
+    expect(activeMigrationTextFiles).toContain('docs/reference/api.md');
+    expect(activeMigrationTextFiles).toContain('docs/superpowers/specs/2026-06-15-nap-intent-design.md');
+    expect(Object.keys(obsoleteActivePatterns)).not.toEqual([]);
+
+    const intentDesign = readFileSync(
+      join(process.cwd(), 'docs/superpowers/specs/2026-06-15-nap-intent-design.md'),
+      'utf8',
+    );
+    expect(intentDesign.startsWith('> **Superseded historical design')).toBe(true);
+    expect(intentDesign).toContain('docs/policies/NIP-5D-CONFORMANCE.md');
+    expect(intentDesign).toContain('106-AUTHORITY-REVALIDATION.md');
   });
 
   it('records the exact released convention and package authorities in active evidence', () => {
