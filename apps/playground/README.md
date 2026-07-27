@@ -75,7 +75,8 @@ The demo renders service nodes reflecting the NIP-5D service surface the runtime
 - **link** — host-owned external navigation service surface.
 - **media** — real `navigator.mediaSession` mirror (v1.4 Phase 27, `MEDIA-01..03`).
 - **notify** — notification service for direct `notify.*` envelopes.
-- **relay** — `nostr-tools` SimplePool relay pool service (`relay.publish`, `relay.subscribe`, etc).
+- **relay** — shell-signed `nostr-tools` relay publishing plus subscriptions;
+  publish replies carry the canonical signed event result.
 - **signer** — shell-side signing proxy; napplet-invisible per NIP-5D (`MUST NOT` expose `window.nostr`).
 - **storage** — per-napplet namespaced localStorage proxy.
 - **theme** — ThemeService-backed `theme.get` plus automatic
@@ -141,8 +142,13 @@ that service lookup. Its topics are opaque, queryless identities matched only
 by exact equality; topic text never selects a service handler. The runtime
 attaches the sender to an `inc.event` from the authenticated emitting endpoint,
 so host services and napplets must not fabricate INC deliveries. The target
-contract is [NAP-INC PR #89](https://github.com/napplet/naps/pull/89) and its
-[web projection PR #90](https://github.com/napplet/naps/pull/90).
+contract is merged
+[`naps/NAP-INC.md`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-INC.md)
+on `napplet/naps` master
+`6461e4b37c29dc09a20dff35d9515889c4433874`. Playground package consumers use
+an explicit callback compatibility reader because released
+`@napplet/nap@0.29.0` projects `(payload, NostrEvent)` while the NAP delivers
+one `IncEvent`.
 
 ## ACL Surface
 

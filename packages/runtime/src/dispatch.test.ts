@@ -11,7 +11,7 @@ import { createRuntime } from './runtime.js';
 import type { Runtime } from './runtime.js';
 import { createMockRuntimeAdapter, createNip5dSessionEntry, findEnvelopeResponse } from './test-utils.js';
 import type { MockRuntimeContext, SentMessage } from './test-utils.js';
-import type { NappletMessage } from '@napplet/core';
+import type { EventTemplate, NappletMessage, NostrEvent } from '@napplet/core';
 import type { RelayPoolAdapter } from './types.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ describe('runtime NAP dispatch — envelope guard', () => {
     expect(firewallEvents).not.toHaveBeenCalled();
   });
 
-  it('fails closed for sessionless INC emit, subscribe, and channel open (#89 4593ce9e301ce098fd3dad64206fcd6f144fa7af)', () => {
+  it('fails closed for sessionless INC emit, subscribe, and channel open (NAP-INC 6461e4b37c29dc09a20dff35d9515889c4433874)', () => {
     const unregisteredCtx = createMockRuntimeAdapter();
     const unregistered = createRuntime(unregisteredCtx.hooks);
 
@@ -226,6 +226,41 @@ describe('NIP-5D Envelope Dispatch', () => {
   // ─── Relay Handler ─────────────────────────────────────────────────────────
 
   describe('relay handler', () => {
+    function createPublishingRuntime(signedEvent: NostrEvent) {
+      let relayAvailable = true;
+      const publish = vi.fn();
+      const signEvent = vi.fn(async (_template: EventTemplate) => signedEvent);
+      const relayPool: RelayPoolAdapter = {
+        subscribe: () => ({ unsubscribe() { /* no-op */ } }),
+        publish,
+        selectRelayTier: () => [],
+        trackSubscription: () => { /* no-op */ },
+        untrackSubscription: () => { /* no-op */ },
+        openScopedRelay: () => { /* no-op */ },
+        closeScopedRelay: () => { /* no-op */ },
+        publishToScopedRelay: () => false,
+        isAvailable: () => relayAvailable,
+      };
+      const publishingContext = createMockRuntimeAdapter({
+        auth: {
+          getUserPubkey: () => signedEvent.pubkey,
+          getSigner: () => ({ signEvent }),
+        },
+        relayPool,
+      });
+      const publishingRuntime = createRuntime(publishingContext.hooks);
+      publishingRuntime.sessionRegistry.register(WINDOW_ID, makeSessionEntry(WINDOW_ID));
+      return {
+        ctx: publishingContext,
+        publish,
+        runtime: publishingRuntime,
+        setRelayAvailable(available: boolean) {
+          relayAvailable = available;
+        },
+        signEvent,
+      };
+    }
+
     it('relay.subscribe sends relay.eose when no relay pool available and filters are non-bus', () => {
       runtime.handleMessage(WINDOW_ID, {
         type: 'relay.subscribe',
@@ -306,8 +341,43 @@ describe('NIP-5D Envelope Dispatch', () => {
       expect((closed as any).subId).toBe('sub-1');
     });
 
-    it('relay.publish sends relay.publish.result with accepted: false when no relay pool', () => {
-      const event = {
+    it('relay.publish returns a canonical failure when no signer is configured', () => {
+      const template = {
+        created_at: Math.floor(Date.now() / 1000),
+        kind: 1,
+        tags: [],
+        content: 'hello',
+      };
+      runtime.handleMessage(WINDOW_ID, {
+        type: 'relay.publish',
+        id: 'req-pub',
+        event: template,
+      } as NappletMessage);
+
+      const result = findEnvelopeResponse(ctx.sent, 'relay.publish.result');
+      expect(result).toBeDefined();
+      expect((result as any).id).toBe('req-pub');
+      expect((result as any).ok).toBe(false);
+      expect((result as any).error).toContain('no signer');
+      expect((result as any).accepted).toBeUndefined();
+    });
+
+    it('relay.publish returns a canonical failure for a missing event template', () => {
+      runtime.handleMessage(WINDOW_ID, {
+        type: 'relay.publish',
+        id: 'req-pub-bad',
+      } as NappletMessage);
+
+      const result = findEnvelopeResponse(ctx.sent, 'relay.publish.result');
+      expect(result).toMatchObject({
+        id: 'req-pub-bad',
+        ok: false,
+        error: 'invalid event template',
+      });
+    });
+
+    it('relay.publish shell-signs the template and returns the full signed event', async () => {
+      const signedEvent = {
         id: 'a'.repeat(64),
         pubkey: 'b'.repeat(64),
         created_at: Math.floor(Date.now() / 1000),
@@ -316,27 +386,65 @@ describe('NIP-5D Envelope Dispatch', () => {
         content: 'hello',
         sig: 'c'.repeat(128),
       };
-      runtime.handleMessage(WINDOW_ID, {
-        type: 'relay.publish',
-        id: 'req-pub',
-        event,
-      } as NappletMessage);
+      const publishing = createPublishingRuntime(signedEvent);
+      const template = {
+        created_at: signedEvent.created_at,
+        kind: signedEvent.kind,
+        tags: signedEvent.tags,
+        content: signedEvent.content,
+      };
 
-      const result = findEnvelopeResponse(ctx.sent, 'relay.publish.result');
-      expect(result).toBeDefined();
-      expect((result as any).id).toBe('req-pub');
-      expect((result as any).accepted).toBe(false);
+      publishing.runtime.handleMessage(WINDOW_ID, {
+        type: 'relay.publish',
+        id: 'req-pub-signed',
+        event: template,
+      } as NappletMessage);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(publishing.signEvent).toHaveBeenCalledWith(template);
+      expect(publishing.publish).toHaveBeenCalledWith(signedEvent);
+      expect(findEnvelopeResponse(publishing.ctx.sent, 'relay.publish.result')).toEqual({
+        type: 'relay.publish.result',
+        id: 'req-pub-signed',
+        ok: true,
+        event: signedEvent,
+        eventId: signedEvent.id,
+      });
     });
 
-    it('relay.publish sends relay.publish.error for missing event', () => {
-      runtime.handleMessage(WINDOW_ID, {
-        type: 'relay.publish',
-        id: 'req-pub-bad',
-      } as NappletMessage);
+    it('relay.publish reports relay unavailability after signing without buffering', async () => {
+      const signedEvent = {
+        id: 'd'.repeat(64),
+        pubkey: 'e'.repeat(64),
+        created_at: Math.floor(Date.now() / 1000),
+        kind: 1,
+        tags: [],
+        content: 'offline',
+        sig: 'f'.repeat(128),
+      };
+      const publishing = createPublishingRuntime(signedEvent);
+      publishing.setRelayAvailable(false);
 
-      const err = findEnvelopeResponse(ctx.sent, 'relay.publish.error');
-      expect(err).toBeDefined();
-      expect((err as any).error).toContain('invalid event');
+      publishing.runtime.handleMessage(WINDOW_ID, {
+        type: 'relay.publish',
+        id: 'req-pub-offline',
+        event: {
+          created_at: signedEvent.created_at,
+          kind: signedEvent.kind,
+          tags: signedEvent.tags,
+          content: signedEvent.content,
+        },
+      } as NappletMessage);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(publishing.publish).not.toHaveBeenCalled();
+      expect(findEnvelopeResponse(publishing.ctx.sent, 'relay.publish.result')).toMatchObject({
+        id: 'req-pub-offline',
+        ok: false,
+        error: 'no relay pool available',
+      });
     });
 
     it('relay.query sends relay.query.result with events array (no count field)', () => {
@@ -353,8 +461,8 @@ describe('NIP-5D Envelope Dispatch', () => {
       expect((result as any).count).toBeUndefined();
     });
 
-    it('relay.query events contains published event after relay.publish', () => {
-      const event = {
+    it('relay.query events contains the shell-signed event after relay.publish', async () => {
+      const signedEvent = {
         id: 'd'.repeat(64),
         pubkey: 'e'.repeat(64),
         created_at: Math.floor(Date.now() / 1000),
@@ -363,23 +471,32 @@ describe('NIP-5D Envelope Dispatch', () => {
         content: 'test',
         sig: 'f'.repeat(128),
       };
-      runtime.handleMessage(WINDOW_ID, {
+      const publishing = createPublishingRuntime(signedEvent);
+      publishing.runtime.handleMessage(WINDOW_ID, {
         type: 'relay.publish',
         id: 'req-pub-2',
-        event,
+        event: {
+          created_at: signedEvent.created_at,
+          kind: signedEvent.kind,
+          tags: signedEvent.tags,
+          content: signedEvent.content,
+        },
       } as NappletMessage);
+      await Promise.resolve();
+      await Promise.resolve();
 
-      ctx.sent.length = 0;
-      runtime.handleMessage(WINDOW_ID, {
+      publishing.setRelayAvailable(false);
+      publishing.ctx.sent.length = 0;
+      publishing.runtime.handleMessage(WINDOW_ID, {
         type: 'relay.query',
         id: 'req-q-2',
         filters: [{ kinds: [1] }],
       } as NappletMessage);
 
-      const result = findEnvelopeResponse(ctx.sent, 'relay.query.result');
+      const result = findEnvelopeResponse(publishing.ctx.sent, 'relay.query.result');
       expect(Array.isArray((result as any).events)).toBe(true);
       expect((result as any).events.length).toBeGreaterThan(0);
-      expect((result as any).events.some((e: any) => e.event.id === event.id)).toBe(true);
+      expect((result as any).events.some((e: any) => e.event.id === signedEvent.id)).toBe(true);
     });
 
     it('relay.query with registered relay-pool service: service receives relay.subscribe, emits events, then relay.close is sent', async () => {
@@ -436,10 +553,6 @@ describe('NIP-5D Envelope Dispatch', () => {
     });
 
     it('relay.query deduplicates events present in both buffer and service result', async () => {
-      const ctx2 = createMockRuntimeAdapter();
-      const runtime2 = createRuntime(ctx2.hooks);
-      runtime2.sessionRegistry.register(WINDOW_ID, makeSessionEntry(WINDOW_ID));
-
       const sharedEvent = {
         id: 'dead'.repeat(16),
         pubkey: 'beef'.repeat(16),
@@ -449,16 +562,24 @@ describe('NIP-5D Envelope Dispatch', () => {
         content: 'shared',
         sig: 'cafe'.repeat(32),
       };
+      const publishing = createPublishingRuntime(sharedEvent);
 
       // Publish the event so it lands in the buffer
-      runtime2.handleMessage(WINDOW_ID, {
+      publishing.runtime.handleMessage(WINDOW_ID, {
         type: 'relay.publish',
         id: 'req-pub-dedup',
-        event: sharedEvent,
+        event: {
+          created_at: sharedEvent.created_at,
+          kind: sharedEvent.kind,
+          tags: sharedEvent.tags,
+          content: sharedEvent.content,
+        },
       } as NappletMessage);
+      await Promise.resolve();
+      await Promise.resolve();
 
       // Register a relay-pool service that also emits the same event
-      runtime2.registerService('relay-pool', {
+      publishing.runtime.registerService('relay-pool', {
         descriptor: { name: 'relay-pool', version: '1.0.0' },
         handleMessage(_wid: string, msg: NappletMessage, send: (m: NappletMessage) => void) {
           const m = msg as NappletMessage & { subId?: string };
@@ -469,8 +590,8 @@ describe('NIP-5D Envelope Dispatch', () => {
         },
       });
 
-      ctx2.sent.length = 0;
-      runtime2.handleMessage(WINDOW_ID, {
+      publishing.ctx.sent.length = 0;
+      publishing.runtime.handleMessage(WINDOW_ID, {
         type: 'relay.query',
         id: 'req-q-dedup',
         filters: [{ kinds: [1] }],
@@ -478,7 +599,7 @@ describe('NIP-5D Envelope Dispatch', () => {
 
       await Promise.resolve();
 
-      const result = findEnvelopeResponse(ctx2.sent, 'relay.query.result');
+      const result = findEnvelopeResponse(publishing.ctx.sent, 'relay.query.result');
       expect(Array.isArray((result as any).events)).toBe(true);
       // The shared event appears exactly once despite being in both buffer and service
       const matchingEvents = (result as any).events.filter((e: any) => e.event.id === sharedEvent.id);

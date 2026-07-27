@@ -37,6 +37,21 @@ The runtime is built around the current draft dispatch contract from `@napplet/c
 
 Signing is shell-mediated inside `relay.publish` / `relay.publishEncrypted` (NIP-44 default, NIP-04 opt-in). The legacy signer domain is dissolved — napplets never see a host-injected nostr object and cannot call signer-sign RPCs directly.
 
+### NAP-RELAY publish boundary
+
+The publish path follows draft [NAP-RELAY PR #2 at
+`0be8abce18beb46ca37bd4ddd042f58d30b4eedc`](https://github.com/napplet/naps/pull/2).
+A napplet submits an `EventTemplate`; the runtime obtains the active
+shell-owned signer, signs once, and gives only the resulting `NostrEvent` to
+the relay backend. Success returns exactly one correlated
+`relay.publish.result` with `ok: true`, the full signed `event`, and `eventId`.
+Signing, replay, relay, and service failures return `ok: false` plus `error`
+and are never buffered as successful local publications.
+
+The released `@napplet/nap@0.29.0` SDK accepts `EventTemplate`, while its
+`RelayPublishMessage.event` declaration still says `NostrEvent`; Kehto records
+that mismatch as upstream package drift and follows the NAP wire direction.
+
 ## Identity and theme result policy
 
 This runtime follows NAP-IDENTITY and NAP-THEME at `napplet/naps` master
@@ -85,19 +100,16 @@ post-acceptance outcome never creates a second source result.
 Phase 105 completed released package adoption and persistent installed-manifest
 controllers for the live Paja and playground hosts.
 
-## NAP-INC Draft Contract
+## NAP-INC Contract
 
-The active INC boundary follows [NAP-INC PR #89 at
-`4593ce9e301ce098fd3dad64206fcd6f144fa7af`](https://github.com/napplet/naps/pull/89),
-the [web projection PR #90 at
-`896c32c92deee68dc4d10fc1132b62df20cccb6f`](https://github.com/napplet/naps/pull/90),
-and the stacked [symmetric-channel clarification PR #92 at
-`c5cd06f7be6d4690b303949abb26e87ff62f4729`](https://github.com/napplet/naps/pull/92).
-These are unmerged draft references; this package documents their implemented
-boundary rather than becoming another protocol authority.
+The active INC boundary follows merged
+[`naps/NAP-INC.md`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-INC.md)
+on `napplet/naps` master
+`6461e4b37c29dc09a20dff35d9515889c4433874`. The document remains marked
+draft, but the merged path is the protocol authority.
 
-The projection-owned binding converts a convention query to a text payload map
-before sending `inc.emit`. Runtime `inc-handler` routing then uses an exact
+The released projection binding converts a convention query to a text payload
+map before sending `inc.emit`. Runtime `inc-handler` routing then uses an exact
 queryless topic identity, with no query-bearing normalized wire/discovery
 identity, prefix/wildcard/query-aware matching, generic or service-over-INC
 prefix dispatch, or runtime payload-kind inference. The runtime derives the

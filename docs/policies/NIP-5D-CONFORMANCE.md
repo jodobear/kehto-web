@@ -20,34 +20,58 @@ implementation authority. `RUNTIME-SPEC.md` is internal runtime guidance.
 ### Published convention authority
 
 - **NAP-INTENT:** PR #91 head `a718915ddefa2f03a0126579601f59d8bd86f7c4`.
+- **NAP-INC:** merged `naps/NAP-INC.md` on `napplet/naps` master
+  `6461e4b37c29dc09a20dff35d9515889c4433874`.
 - **NAP-IDENTITY / NAP-THEME / NAP-SHELL:** `napplet/naps` master
   `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`.
+- **NAP-RELAY:** open PR #2 at
+  `0be8abce18beb46ca37bd4ddd042f58d30b4eedc`.
 - **Published packages:** source `dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b`;
   release `60889f1c2476e063500c7ab6624af6abe0dbcbe5`; core/nap `0.29.0`, shim
   `0.27.0`, SDK `0.25.0`, and Vite plugin `0.12.0`.
 
+### Active NAP-RELAY boundary
+
+Kehto follows [NAP-RELAY PR #2 at
+`0be8abce18beb46ca37bd4ddd042f58d30b4eedc`](https://github.com/napplet/naps/pull/2).
+For `relay.publish`, a napplet supplies an unsigned `EventTemplate`; the shell
+signs it, sends only the signed event to relay services, and returns
+`relay.publish.result` with `ok`, the full signed `event`, and `eventId` on
+success or `error` on failure. Runtime, `createRelayPoolService`,
+`createCoordinatedRelay`, Paja, and the playground must consume the same signed
+event and result contract. Failed publications are not delivered through the
+runtime's successful-event buffer.
+
+The released `@napplet/nap@0.29.0` SDK accepts `EventTemplate`, but the package's
+`RelayPublishMessage.event` declaration still names `NostrEvent`. That is
+recorded upstream drift, not authority to let a napplet bypass shell signing.
+
 ### Active NAP-INC boundary
 
-NAP-INC is governed by the living [PR #89 at
-`4593ce9e301ce098fd3dad64206fcd6f144fa7af`](https://github.com/napplet/naps/pull/89),
-the web projection [PR #90 at
-`896c32c92deee68dc4d10fc1132b62df20cccb6f`](https://github.com/napplet/naps/pull/90),
-and the stacked symmetric-channel clarification [PR #92 at
-`c5cd06f7be6d4690b303949abb26e87ff62f4729`](https://github.com/napplet/naps/pull/92).
-Those PRs are draft authority, not merged text; link to them rather than copying
-their specification into this repository.
+NAP-INC is governed by merged
+[`naps/NAP-INC.md`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-INC.md)
+on `napplet/naps` master
+`6461e4b37c29dc09a20dff35d9515889c4433874`. The document remains marked
+draft, but the merged path supersedes the earlier stacked PR heads as protocol
+authority.
 
-The projection owns query-to-text-payload transposition in the shared,
-runtime-provided INC binding. Kehto runtime routing uses an exact queryless
-topic identity after that conversion. It rejects query-bearing normalized wire
-or discovery identities and must not add prefix, wildcard, or query-aware
-matching, service-over-INC prefix dispatch, synthetic senderless events, or
-runtime payload-kind inference. The runtime attaches a **runtime-attested dTag**
-to delivered events, does not accept caller `sender`, keeps payloads and IDs
+The released package projection owns query-to-text-payload transposition in the
+shared, runtime-provided INC binding. Kehto runtime routing then uses an exact
+queryless topic identity. It rejects query-bearing normalized wire or discovery
+identities and must not add prefix, wildcard, or query-aware matching,
+service-over-INC prefix dispatch, synthetic senderless events, or runtime
+payload-kind inference. The runtime attaches a **runtime-attested dTag** to
+delivered events, does not accept caller `sender`, keeps payloads and IDs
 opaque, and excludes the source endpoint from topic fan-out.
 
+Merged NAP-INC says `on(topic, callback)` delivers one `IncEvent`. Released
+`@napplet/nap@0.29.0` instead declares `(payload, NostrEvent)` and its shim
+implements that projection. Kehto's protected injected binding follows the NAP;
+package-based demo consumers explicitly bridge the callback seam. This is
+upstream package drift, not authority to replace `IncEvent`.
+
 INC channel authorization is open-only: ACL and target liveness are evaluated
-at open, with no per-message authorization. PR #92 requires equivalent handles
+at open, with no per-message authorization. The merged spec requires equivalent handles
 for opener and target, target `inc.channel.opened` before the opener result,
 `channel.onOpened`, per-handle `onClosed`, retained inbound/early/terminal
 lifecycle data in order, bounded overflow closure, and deterministic teardown.

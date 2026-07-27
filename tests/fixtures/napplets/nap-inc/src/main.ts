@@ -23,11 +23,21 @@ function fmt(err: unknown, fb: string): string {
   return err instanceof Error && err.message ? err.message : (typeof err === 'string' && err.length > 0 ? err : fb);
 }
 
+function readIncPayload(value: unknown, packageEvent?: unknown): unknown {
+  if (packageEvent !== undefined) return value;
+  if (!value || typeof value !== 'object') return value;
+  const event = value as Record<string, unknown>;
+  return typeof event.topic === 'string' && typeof event.sender === 'string'
+    ? event.payload
+    : value;
+}
+
 function init(): void {
   try {
     // incOn triggers an inc.subscribe envelope to the runtime. Runtime emits
     // inc.subscribe.result back; the SDK callback fires when inc.event matches the topic.
-    incOn(TOPIC, (payload, _event) => {
+    incOn(TOPIC, (value, packageEvent) => {
+      const payload = readIncPayload(value, packageEvent);
       const div = document.createElement('div');
       div.className = 'inc-event';
       div.textContent = typeof payload === 'string' ? payload : JSON.stringify(payload);
@@ -41,7 +51,7 @@ function init(): void {
 
 emitBtn.addEventListener('click', () => {
   try {
-    incEmit(TOPIC, [], JSON.stringify({ ts: Date.now(), src: 'nap-inc' }));
+    incEmit(TOPIC, { ts: Date.now(), src: 'nap-inc' });
   } catch (err) {
     statusEl.textContent = `emit-denied:${fmt(err, 'inc:emit')}`;
   }

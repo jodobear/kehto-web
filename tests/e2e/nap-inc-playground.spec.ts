@@ -1,7 +1,6 @@
 /**
- * Browser conformance proof for NAP-INC #89 (4593ce9e301ce098fd3dad64206fcd6f144fa7af),
- * web convention binding #90 (896c32c92deee68dc4d10fc1132b62df20cccb6f), and the
- * symmetric-channel clarification #92 (c5cd06f7be6d4690b303949abb26e87ff62f4729).
+ * Browser conformance proof for merged NAP-INC at napplet/naps master
+ * 6461e4b37c29dc09a20dff35d9515889c4433874.
  *
  * The two existing post-shim playground srcdoc frames are neutral endpoints:
  * all normal event and channel operations use window.napplet.inc. Raw envelopes

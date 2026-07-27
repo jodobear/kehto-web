@@ -306,26 +306,27 @@ describe('playground gateway artifact guard', () => {
   });
 
   it('loads napplets by content-addressed resolution into opaque-origin srcdoc iframes', () => {
+    const frameLoader = readRepoFile('apps/playground/src/playground-frame-loader.ts');
     const shellHost = readRepoFile('apps/playground/src/shell-host.ts');
     const indexHtml = readRepoFile('apps/playground/index.html');
     const main = readRepoFile('apps/playground/src/main.ts');
     const preferences = readRepoFile('apps/playground/src/main-preferences.ts');
 
-    expect(shellHost).toContain('function playgroundPath(');
-    expect(shellHost).toContain('import.meta.env.BASE_URL');
-    expect(shellHost).not.toContain('meta.env?.BASE_URL');
+    expect(frameLoader).toContain('function playgroundPath(');
+    expect(frameLoader).toContain('import.meta.env.BASE_URL');
+    expect(frameLoader).not.toContain('meta.env?.BASE_URL');
 
     // Loader resolves + verifies content-addressed bytes, then renders via srcdoc.
-    expect(shellHost).toContain('resolvePlaygroundNapplet({');
-    expect(shellHost).toContain('iframe.srcdoc = injectNappletNamespacePrelude(');
-    expect(shellHost).toContain('injectCspMeta(resolved.indexHtml, origins)');
-    expect(shellHost).toContain(
+    expect(frameLoader).toContain('resolvePlaygroundNapplet({');
+    expect(frameLoader).toContain('iframe.srcdoc = injectNappletNamespacePrelude(');
+    expect(frameLoader).toContain('injectCspMeta(resolved.indexHtml, origins)');
+    expect(frameLoader).toContain(
       'iframe.srcdoc = injectNappletNamespacePrelude(\n    injectCspMeta(resolved.indexHtml, origins)',
     );
-    expect(shellHost).toContain("iframe.sandbox.add('allow-scripts')");
-    expect(shellHost).not.toContain('allow-same-origin');
-    expect(shellHost).not.toContain('relay.runtime.sessionRegistry.register(windowId');
-    expect(shellHost).toContain(
+    expect(frameLoader).toContain("iframe.sandbox.add('allow-scripts')");
+    expect(frameLoader).not.toContain('allow-same-origin');
+    expect(frameLoader).not.toContain('relay.runtime.sessionRegistry.register(windowId');
+    expect(frameLoader).toContain(
       'originRegistry.register(iframe.contentWindow, windowId, identity);',
     );
     expect(shellHost).toContain("(event.data as NappletMessage).type === 'shell.ready'");
@@ -336,9 +337,9 @@ describe('playground gateway artifact guard', () => {
 
     // The gateway is no longer in the trust path: no gateway metadata fetch and
     // no iframe.src navigation in the loader.
-    expect(shellHost).not.toContain('iframe.src = metadata.htmlUrl');
-    expect(shellHost).not.toContain('fetchGatewayMetadata');
-    expect(shellHost).not.toContain('napplet-gateway');
+    expect(frameLoader).not.toContain('iframe.src = metadata.htmlUrl');
+    expect(frameLoader).not.toContain('fetchGatewayMetadata');
+    expect(frameLoader).not.toContain('napplet-gateway');
 
     expect(indexHtml).toContain('id="static-demo-banner"');
     expect(preferences).toContain("export const STATIC_PAGES_BASE_PATH = '/web/playground/';");
@@ -346,8 +347,8 @@ describe('playground gateway artifact guard', () => {
   });
 
   it('resolves via the relay + Blossom simulation and checks requires before rendering', () => {
+    const frameLoader = readRepoFile('apps/playground/src/playground-frame-loader.ts');
     const viteConfig = readRepoFile('apps/playground/vite.config.ts');
-    const shellHost = readRepoFile('apps/playground/src/shell-host.ts');
     const resolver = readRepoFile('apps/playground/src/napplet-resolver.ts');
 
     // In-repo relay + Blossom simulation endpoints.
@@ -365,59 +366,60 @@ describe('playground gateway artifact guard', () => {
     expect(resolver).toContain('injectCspMeta');
     expect(resolver).toContain("default-src 'none'");
     expect(resolver).toContain("frame-ancestors 'self'");
-    expect(shellHost).toContain('injectNappletNamespacePrelude');
-    expect(shellHost).toContain('getPlaygroundShellEnvironment(identity)');
-    expect(shellHost).toContain('environment.capabilities');
-    expect(shellHost).not.toContain("{ domains: ['shell', ...resolved.requires] }");
+    expect(frameLoader).toContain('injectNappletNamespacePrelude');
+    expect(frameLoader).toContain('getPlaygroundShellEnvironment(identity)');
+    expect(frameLoader).toContain('environment.capabilities');
+    expect(frameLoader).not.toContain("{ domains: ['shell', ...resolved.requires] }");
 
     // requires checked against the COMPUTED manifest before the iframe renders.
-    expect(shellHost).toContain('getMissingRequiredNaps(');
-    expect(shellHost).toContain('requires unsupported NAP capabilities');
-    expect(shellHost.indexOf('getMissingRequiredNaps(')).toBeLessThan(
-      shellHost.indexOf('iframe.srcdoc = injectNappletNamespacePrelude'),
+    expect(frameLoader).toContain('getMissingRequiredNaps(');
+    expect(frameLoader).toContain('requires unsupported NAP capabilities');
+    expect(frameLoader.indexOf('getMissingRequiredNaps(')).toBeLessThan(
+      frameLoader.indexOf('iframe.srcdoc = injectNappletNamespacePrelude'),
     );
-    expect(shellHost.indexOf('getPlaygroundShellEnvironment(identity)')).toBeLessThan(
-      shellHost.indexOf('getMissingRequiredNaps('),
+    expect(frameLoader.indexOf('getPlaygroundShellEnvironment(identity)')).toBeLessThan(
+      frameLoader.indexOf('getMissingRequiredNaps('),
     );
   });
 
   it('derives each frame environment from its trusted creation identity and live host wiring', () => {
     const demoHooks = readRepoFile('apps/playground/src/demo-hooks.ts');
-    const shellHost = readRepoFile('apps/playground/src/shell-host.ts');
+    const frameLoader = readRepoFile('apps/playground/src/playground-frame-loader.ts');
 
     expect(demoHooks).toContain('resolveShellEnvironment');
     expect(demoHooks).toContain('getPlaygroundShellEnvironment(identity: OriginIdentity)');
-    expect(shellHost).toContain('const identity = Object.freeze({ dTag, aggregateHash });');
-    expect(shellHost).toContain('const environment = getPlaygroundShellEnvironment(identity);');
-    expect(shellHost).toContain('originRegistry.register(iframe.contentWindow, windowId, identity);');
-    expect(shellHost).toContain('environment.capabilities');
-    expect(shellHost).not.toContain("{ domains: ['shell', ...resolved.requires] }");
+    expect(frameLoader).toContain('const identity = Object.freeze({ dTag, aggregateHash });');
+    expect(frameLoader).toContain('const environment = getPlaygroundShellEnvironment(identity);');
+    expect(frameLoader).toContain('originRegistry.register(iframe.contentWindow, windowId, identity);');
+    expect(frameLoader).toContain('environment.capabilities');
+    expect(frameLoader).not.toContain("{ domains: ['shell', ...resolved.requires] }");
     expect(demoHooks).not.toContain('shellCapabilities.naps');
     expect(demoHooks).not.toContain('shellCapabilities.protocols');
   });
 
   it('registers the trusted INC environment before the shared replacement-safe prelude executes', () => {
+    const frameLoader = readRepoFile('apps/playground/src/playground-frame-loader.ts');
     const shellHost = readRepoFile('apps/playground/src/shell-host.ts');
     const namespacePrelude = readRepoFile('packages/shell/src/napplet-namespace.ts');
 
-    const identity = shellHost.indexOf('const identity = Object.freeze({ dTag, aggregateHash });');
-    const environment = shellHost.indexOf('const environment = getPlaygroundShellEnvironment(identity);');
-    const registration = shellHost.indexOf('originRegistry.register(iframe.contentWindow, windowId, identity);');
-    const registrationEnvironment = shellHost.indexOf('originRegistry.setEnvironment(iframe.contentWindow, environment);');
-    const srcdoc = shellHost.indexOf('iframe.srcdoc = injectNappletNamespacePrelude(');
+    const identity = frameLoader.indexOf('const identity = Object.freeze({ dTag, aggregateHash });');
+    const environment = frameLoader.indexOf('const environment = getPlaygroundShellEnvironment(identity);');
+    const registration = frameLoader.indexOf('originRegistry.register(iframe.contentWindow, windowId, identity);');
+    const registrationEnvironment = frameLoader.indexOf('originRegistry.setEnvironment(iframe.contentWindow, environment);');
+    const srcdoc = frameLoader.indexOf('iframe.srcdoc = injectNappletNamespacePrelude(');
 
     expect(identity).toBeGreaterThanOrEqual(0);
     expect(environment).toBeGreaterThan(identity);
     expect(registration).toBeGreaterThan(environment);
     expect(registrationEnvironment).toBeGreaterThan(registration);
     expect(srcdoc).toBeGreaterThan(registrationEnvironment);
-    expect(shellHost).toContain('environment.capabilities');
+    expect(frameLoader).toContain('environment.capabilities');
 
     // INC belongs solely to the shared prelude. The playground must not grow a
     // host-specific convention parser or channel client around the bridge.
-    expect(shellHost).not.toContain('function normalizeConventionUri(');
-    expect(shellHost).not.toContain('function makeInc(');
-    expect(shellHost).not.toContain('function makeChannelHandle(');
+    expect(`${shellHost}\n${frameLoader}`).not.toContain('function normalizeConventionUri(');
+    expect(`${shellHost}\n${frameLoader}`).not.toContain('function makeInc(');
+    expect(`${shellHost}\n${frameLoader}`).not.toContain('function makeChannelHandle(');
 
     // The real shim can assign window.napplet, but the injected namespace proxy
     // merges extensions and restores the Kehto-owned INC operations.

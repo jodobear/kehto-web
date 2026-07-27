@@ -27,6 +27,10 @@ function isRuntimeOwnedIdentityOrThemeRequest(type: string): type is RuntimeOwne
   return type === 'theme.get' || type in IDENTITY_SAFE_DEFAULTS;
 }
 
+function createRuntimeOwnedResultEnvelope(type: string, id: string): NappletMessage {
+  return Object.assign({ type } as NappletMessage, { id });
+}
+
 /** Return whether a message belongs to a runtime-owned identity/theme domain. */
 export function isIdentityOrThemeMessage(message: NappletMessage): boolean {
   return message.type.startsWith('identity.') || message.type.startsWith('theme.');
@@ -74,12 +78,14 @@ export function createCanonicalDomainResult(message: NappletMessage): NappletMes
 
   const id = (message as NappletMessage & { id?: string }).id ?? '';
   if (message.type === 'theme.get') {
-    return { type: 'theme.get.result', id, theme: RUNTIME_THEME_FALLBACK } as NappletMessage;
+    return Object.assign(
+      createRuntimeOwnedResultEnvelope('theme.get.result', id),
+      { theme: RUNTIME_THEME_FALLBACK },
+    );
   }
 
-  return {
-    type: `${message.type}.result`,
-    id,
-    ...IDENTITY_SAFE_DEFAULTS[message.type],
-  } as unknown as NappletMessage;
+  return Object.assign(
+    createRuntimeOwnedResultEnvelope(`${message.type}.result`, id),
+    IDENTITY_SAFE_DEFAULTS[message.type],
+  );
 }

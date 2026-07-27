@@ -287,7 +287,12 @@ class PlaygroundRelayRuntimeImpl {
     const id = message.id ?? '';
     const event = message.event;
     if (!event) {
-      send({ type: 'relay.publish.error', id, error: 'invalid event' } as NappletMessage);
+      send({
+        type: 'relay.publish.result',
+        id,
+        ok: false,
+        error: 'invalid event',
+      } as NappletMessage);
       return;
     }
 
@@ -303,8 +308,8 @@ class PlaygroundRelayRuntimeImpl {
     const mailboxes = await this.resolveMailboxes(collectMailboxPubkeys([], event));
     const relays = this.selectPublishRelays(event, mailboxes);
     const responses = await this.publishToRelays(relays, event);
-    const accepted = responses.some((response) => response.ok);
-    const messageText = accepted
+    const ok = responses.some((response) => response.ok);
+    const error = ok
       ? undefined
       : responses.find((response) => response.message)?.message ?? 'publish failed';
 
@@ -312,11 +317,11 @@ class PlaygroundRelayRuntimeImpl {
       type: 'relay.publish.result',
       id,
       eventId: event.id,
-      accepted,
-      ok: accepted,
+      ok,
+      ...(ok ? { event } : {}),
       cached,
       relays,
-      message: messageText,
+      ...(error ? { error } : {}),
     } as NappletMessage);
   }
 

@@ -14,6 +14,7 @@
  */
 import '@napplet/shim';
 import { getMissingNapDomains } from '../../domain-availability';
+import { readIncPayload } from '../../inc-event';
 import { applyNapTheme, installNapTheme, onNapThemeChanged } from '../../shared-theme';
 import { incEmit, incOn } from '@napplet/nap/inc/sdk';
 import { storageGetItem, storageSetItem } from '@napplet/nap/storage/sdk';
@@ -104,7 +105,7 @@ async function sendMessage(): Promise<void> {
   await saveToHistory(text);
 
   try {
-    incEmit('chat:message', [], JSON.stringify({ text, timestamp: Date.now() }));
+    incEmit('chat:message', { text, timestamp: Date.now() });
     addMessage('inc send attempted -- chat:message', 'system');
   } catch (error) {
     addMessage(`inc send failed -- ${formatError(error, 'denied: inc')}`, 'system');
@@ -141,8 +142,8 @@ async function init(): Promise<void> {
 
   // Subscribe to bot replies via INC (D-03) BEFORE announcing ready, so a sender
   // that acts on the "ready" signal cannot race ahead of this subscription.
-  incOn('bot:response', (payload: unknown) => {
-    const data = payload as { text?: string };
+  incOn('bot:response', (value, packageEvent) => {
+    const data = readIncPayload(value, packageEvent) as { text?: string };
     if (data.text) {
       addMessage('inc receive -- bot:response', 'system');
       addMessage(`[bot] ${data.text}`, 'other');

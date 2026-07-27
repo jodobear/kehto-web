@@ -217,6 +217,33 @@ function validateIntentRequest(value: unknown): RequestValidation {
   };
 }
 
+function settleResolverCall<T>(
+  call: () => T | Promise<T>,
+  send: Send,
+  resultType: string,
+  id: string,
+  onValue: (value: T) => NappletMessage,
+): void {
+  let pending: Promise<T>;
+  try {
+    pending = Promise.resolve(call());
+  } catch (error) {
+    send({ type: resultType, id, error: toErrorMessage(error) } as NappletMessage);
+    return;
+  }
+  pending
+    .then((value) => send(onValue(value)))
+    .catch((error) => send({ type: resultType, id, error: toErrorMessage(error) } as NappletMessage));
+}
+
+function rejectInvoke(send: Send, id: string): void {
+  send({
+    type: 'intent.invoke.result',
+    id,
+    result: { ok: false, error: 'invoke rejected' },
+  } as NappletMessage);
+}
+
 /**
  * Create the NAP-INTENT service handler.
  *
@@ -232,31 +259,6 @@ export function createIntentService(options: IntentServiceOptions): ServiceHandl
   let runtimeContext: ServiceRuntimeContext | undefined;
   let unsubscribeChanged: (() => void) | undefined;
 
-  /**
-   * Run a resolver call and marshal its outcome onto `resultType`. The resolver
-   * method may be sync or async — `settle` normalizes it to a promise and
-   * catches a synchronous throw (e.g. a sync resolver that rejects an input)
-   * the same way it catches an async rejection.
-   */
-  function settle<T>(
-    call: () => T | Promise<T>,
-    send: Send,
-    resultType: string,
-    id: string,
-    onValue: (value: T) => NappletMessage,
-  ): void {
-    let pending: Promise<T>;
-    try {
-      pending = Promise.resolve(call());
-    } catch (err) {
-      send({ type: resultType, id, error: toErrorMessage(err) } as NappletMessage);
-      return;
-    }
-    pending
-      .then((value) => send(onValue(value)))
-      .catch((err) => send({ type: resultType, id, error: toErrorMessage(err) } as NappletMessage));
-  }
-
   function handleInvoke(windowId: string, msg: NappletMessage, send: Send): void {
     const m = msg as NappletMessage & { id?: string; request?: unknown };
     const id = m.id ?? '';
@@ -271,11 +273,7 @@ export function createIntentService(options: IntentServiceOptions): ServiceHandl
     }
     const sender = runtimeContext?.resolveDTag(windowId);
     if (!sender) {
-      send({
-        type: 'intent.invoke.result',
-        id,
-        result: { ok: false, error: 'invoke rejected' },
-      } as NappletMessage);
+      rejectInvoke(send, id);
       return;
     }
 
@@ -283,11 +281,7 @@ export function createIntentService(options: IntentServiceOptions): ServiceHandl
     try {
       pending = Promise.resolve(resolver.invoke(validation.request, { sender }));
     } catch {
-      send({
-        type: 'intent.invoke.result',
-        id,
-        result: { ok: false, error: 'invoke rejected' },
-      } as NappletMessage);
+      rejectInvoke(send, id);
       return;
     }
     void pending.then(
@@ -296,11 +290,7 @@ export function createIntentService(options: IntentServiceOptions): ServiceHandl
           outcome.result.ok
           && (!('retained' in outcome) || typeof outcome.retained.start !== 'function')
         ) {
-          send({
-            type: 'intent.invoke.result',
-            id,
-            result: { ok: false, error: 'invoke rejected' },
-          } as NappletMessage);
+          rejectInvoke(send, id);
           return;
         }
         send({
@@ -319,11 +309,7 @@ export function createIntentService(options: IntentServiceOptions): ServiceHandl
         }
       },
       () => {
-        send({
-          type: 'intent.invoke.result',
-          id,
-          result: { ok: false, error: 'invoke rejected' },
-        } as NappletMessage);
+        rejectInvoke(send, id);
       },
     ).catch(() => {
       // Adapter send failures must not manufacture a second source result.
@@ -338,7 +324,7 @@ export function createIntentService(options: IntentServiceOptions): ServiceHandl
       return;
     }
     const archetype = m.archetype;
-    settle(
+    settleResolverCall(
       () => resolver.available(archetype),
       send, 'intent.available.result', id,
       (availability) => ({ type: 'intent.available.result', id, availability } as NappletMessage),
@@ -348,7 +334,7 @@ export function createIntentService(options: IntentServiceOptions): ServiceHandl
   function handleHandlers(msg: NappletMessage, send: Send): void {
     const m = msg as NappletMessage & { id?: string };
     const id = m.id ?? '';
-    settle(
+    settleResolverCall(
       () => resolver.handlers(),
       send, 'intent.handlers.result', id,
       (handlers) => ({ type: 'intent.handlers.result', id, handlers } as NappletMessage),

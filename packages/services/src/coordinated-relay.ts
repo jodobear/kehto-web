@@ -65,11 +65,57 @@ interface TrackedSub {
 }
 
 type RelayServiceMessage = NappletMessage & {
+  id?: unknown;
   subId?: unknown;
   filters?: unknown;
   event?: unknown;
   relay?: unknown;
 };
+
+function publishCoordinatedEvent(
+  options: CoordinatedRelayOptions,
+  relayMessage: RelayServiceMessage,
+  send: (message: NappletMessage) => void,
+): void {
+  const id = typeof relayMessage.id === 'string' ? relayMessage.id : '';
+  const event = relayMessage.event as NostrEvent | undefined;
+  if (!event || typeof event !== 'object') {
+    send({ type: 'relay.publish.result', id, ok: false, error: 'invalid event' } as NappletMessage);
+    return;
+  }
+  if (!options.relayPool.isAvailable()) {
+    send({
+      type: 'relay.publish.result',
+      id,
+      ok: false,
+      error: 'no relay pool available',
+    } as NappletMessage);
+    return;
+  }
+
+  void (async (): Promise<void> => {
+    try {
+      await options.relayPool.publish(event);
+      if (options.cache.isAvailable()) {
+        try { options.cache.store(event); } catch { /* cache storage is best-effort */ }
+      }
+      send({
+        type: 'relay.publish.result',
+        id,
+        ok: true,
+        event,
+        eventId: event.id,
+      } as NappletMessage);
+    } catch (error) {
+      send({
+        type: 'relay.publish.result',
+        id,
+        ok: false,
+        error: error instanceof Error && error.message ? error.message : 'publish failed',
+      } as NappletMessage);
+    }
+  })();
+}
 
 /**
  * Create a coordinated relay service that combines relay pool and cache
@@ -218,15 +264,7 @@ export function createCoordinatedRelay(options: CoordinatedRelayOptions): Servic
       }
 
       if (message.type === 'relay.publish') {
-        const event = relayMessage.event as NostrEvent | undefined;
-        if (!event || typeof event !== 'object') return;
-        // Publish to relay pool
-        if (options.relayPool.isAvailable()) {
-          options.relayPool.publish(event);
-        }
-        if (options.cache.isAvailable()) {
-          try { options.cache.store(event); } catch { /* best-effort */ }
-        }
+        publishCoordinatedEvent(options, relayMessage, send);
         return;
       }
     },

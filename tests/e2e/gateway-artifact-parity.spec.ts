@@ -29,9 +29,9 @@ const expectedRequires: Record<(typeof expectedNapplets)[number], readonly strin
   chat: ['inc', 'storage', 'relay', 'theme'],
   composer: ['relay', 'theme'],
   'cvm-relatr': ['cvm', 'theme'],
-  feed: ['identity', 'relay', 'inc', 'theme'],
+  feed: ['identity', 'intent', 'relay', 'resource', 'theme'],
   preferences: ['storage', 'theme'],
-  'profile-viewer': ['inc', 'relay', 'theme'],
+  'profile-viewer': ['intent', 'relay', 'resource', 'theme'],
   'resource-demo': ['resource', 'theme'],
   toaster: ['notify', 'theme'],
 };

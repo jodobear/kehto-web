@@ -27,19 +27,16 @@ Local stubs (redirect to upstream): [`specs/NIP-5D.md`](specs/NIP-5D.md),
 
 Current-state delta inventory: `.planning/NIP-5D-2303-DELTA-AUDIT.md`
 
-## NAP-INC Draft Boundary
+## NAP-INC Boundary
 
-NAP-INC remains a living draft, not a Kehto-local normative copy. Active INC
-guidance is pinned to [NAP-INC PR #89 at
-`4593ce9e301ce098fd3dad64206fcd6f144fa7af`](https://github.com/napplet/naps/pull/89),
-the [web projection PR #90 at
-`896c32c92deee68dc4d10fc1132b62df20cccb6f`](https://github.com/napplet/naps/pull/90),
-and its stacked [symmetric-channel clarification PR #92 at
-`c5cd06f7be6d4690b303949abb26e87ff62f4729`](https://github.com/napplet/naps/pull/92).
-They are drafts; this reference records the implemented boundary and must be
-re-audited if any of those heads change.
+NAP-INC remains marked draft, not a Kehto-local normative copy. Active INC
+guidance is pinned to merged
+[`naps/NAP-INC.md`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-INC.md)
+on `napplet/naps` master
+`6461e4b37c29dc09a20dff35d9515889c4433874`. This reference records the
+implemented boundary and must be re-audited when that source changes.
 
-**Projection-owned query-to-text-payload transposition** occurs only in the
+**Published-projection query-to-text-payload transposition** occurs only in the
 runtime-provided `window.napplet.inc` binding. A convention URI query becomes a
 text payload map before the wire message is emitted; the runtime receives only
 the stable identity. Runtime routing is exact queryless topic identity lookup:

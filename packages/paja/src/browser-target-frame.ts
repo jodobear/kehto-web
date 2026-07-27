@@ -20,6 +20,9 @@ export function resolvePajaFrameEnvironment(
   hooks: ShellAdapter,
   identity: OriginIdentity,
 ): PajaShellEnvironment {
+  if (!identity.dTag || !identity.aggregateHash) {
+    throw new Error('Paja frame identity requires a dTag and aggregate hash');
+  }
   return resolveShellEnvironment(hooks, identity);
 }
 

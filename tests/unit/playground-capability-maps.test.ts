@@ -14,9 +14,12 @@ describe('playground capability maps', () => {
   });
 
   it('keeps the shell-host ACL snapshot exhaustive for the Capability union', () => {
-    const shellHost = readFileSync(new URL('../../apps/playground/src/shell-host.ts', import.meta.url), 'utf8');
+    const accessControls = readFileSync(
+      new URL('../../apps/playground/src/playground-access-controls.ts', import.meta.url),
+      'utf8',
+    );
 
-    expect(shellHost).toContain("'dm:read': hasCapability('dm:read')");
-    expect(shellHost).toContain("'dm:write': hasCapability('dm:write')");
+    expect(accessControls).toContain("'dm:read': hasCapability('dm:read')");
+    expect(accessControls).toContain("'dm:write': hasCapability('dm:write')");
   });
 });

@@ -18,7 +18,7 @@ export interface ProfileLoadControllerOptions<TEvent> {
   onEmpty(pubkey: string): void;
 }
 
-export interface ProfileLoadController<TEvent> {
+export interface ProfileLoadController {
   load(pubkey: string): void;
   clear(): void;
 }
@@ -30,7 +30,7 @@ export interface ProfileLoadController<TEvent> {
  */
 export function createProfileLoadController<TEvent>(
   options: ProfileLoadControllerOptions<TEvent>,
-): ProfileLoadController<TEvent> {
+): ProfileLoadController {
   let generation = 0;
   let activeSubscription: ProfileLoadSubscription | null = null;
   let activeTimer: number | null = null;

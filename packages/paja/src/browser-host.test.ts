@@ -151,6 +151,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
 
   it('keeps Paja wired to real relay, outbox, and identity bootstrap paths', () => {
     const adapterSource = readFileSync(new URL('./browser-adapter.ts', import.meta.url), 'utf8');
+    const intentSource = readFileSync(new URL('./browser-intent-host.ts', import.meta.url), 'utf8');
     const relaySource = readFileSync(new URL('./browser-relay-runtime.ts', import.meta.url), 'utf8');
     const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
 
@@ -163,15 +164,16 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(relaySource).toContain('async function getBootstrapRelayUrls(');
     expect(relaySource).toContain('...await getSignerRelayUrls(signerProvider, \'read\'),');
     expect(relaySource).toContain('backend.query(await getBootstrapRelayUrls(getSimulation, signerProvider), [{');
-    expect(hostSource).toContain('...getPajaRelayUrls(context.runtime.currentSimulation),');
+    expect(intentSource).toContain('...getPajaRelayUrls(context.runtime.currentSimulation),');
     expect(hostSource).toContain('if (hasNip07Signer()) void state.connectNip07();');
   });
 
   it('clears stale single-frame ownership before target reload readiness transitions', () => {
+    const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
     const targetSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
 
-    expect(source).toContain('runtime.currentWindowId = null;');
+    expect(runtimeSource).toContain('runtime.currentWindowId = null;');
     expect(source).toContain('unregisterSingleFrameWindow(bridge, runtime, windowId);');
     expect(source).toContain('const isCurrentGeneration = () => state.generation === generation;');
     expect(source).toContain('const registeredWindowId = source ? originRegistry.getWindowId(source) ?? null : null;');
@@ -210,7 +212,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
   it('does not reuse a same-dTag tab after its installed aggregate is replaced', () => {
     const installed = { dTag: 'profile-viewer', aggregateHash: 'verified-new' };
     const staleLiveTab = { dTag: 'profile-viewer', aggregateHash: 'verified-old' };
-    const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('./browser-intent-host.ts', import.meta.url), 'utf8');
 
     expect(matchesInstalledNappletRecord(installed, staleLiveTab)).toBe(false);
     expect(source).toContain('closeRuntimeTab(state, context, stale.id)');
@@ -218,7 +220,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
   });
 
   it('uses the selected catalog record after cold resolution without reinstalling it', () => {
-    const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('./browser-intent-host.ts', import.meta.url), 'utf8');
     const coldLoad = source.slice(source.indexOf('async openOrReuse(params)'), source.indexOf('waitForReady(generation)'));
 
     expect(coldLoad).toContain('context.runtime.catalog.validateCurrent(record, resolved)');

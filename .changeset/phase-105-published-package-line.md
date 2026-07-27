@@ -15,3 +15,10 @@ retained acceptance-before-delivery behavior; Paja publishes the corresponding
 host flow. Shell is included because its published peer manifest changed while
 Kehto retains the host-owned mandatory NAP-SHELL prelude for the released
 core/shim omission; this changeset does not publish packages locally.
+Runtime and services also complete the NAP-RELAY publish boundary: the shell
+signs event templates, relay backends receive the signed event, and successful
+results return the full event through canonical `ok` / `event` / `eventId`
+fields.
+Shell keeps the merged NAP-INC `IncEvent` callback contract; package-based demo
+consumers bridge the released 0.29.0 `(payload, NostrEvent)` projection as
+documented upstream drift.

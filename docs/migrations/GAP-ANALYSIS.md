@@ -79,8 +79,8 @@ drop any non-array message — see Section 4 for the full silent failure invento
 | `IDENTITY` | `["IDENTITY", {"pubkey":"...","privkey":"...","dTag":"chat","aggregateHash":"..."}]` | *(eliminated)* | N/A |
 | `AUTH` challenge | `["AUTH", "challenge-uuid"]` | *(eliminated)* | N/A |
 | `EVENT` deliver | `["EVENT", "sub-1", {"kind":1,...}]` | `relay.event` | `{"type":"relay.event","subId":"uuid","event":{...}}` |
-| `OK` accepted | `["OK", "event-id", true, ""]` | `relay.publish.result` | `{"type":"relay.publish.result","id":"uuid","accepted":true}` |
-| `OK` rejected | `["OK", "event-id", false, "blocked: relay:write capability denied"]` | `relay.publish.result` | `{"type":"relay.publish.result","id":"uuid","accepted":false,"message":"blocked: relay:write capability denied"}` |
+| `OK` accepted | `["OK", "event-id", true, ""]` | `relay.publish.result` | `{"type":"relay.publish.result","id":"uuid","ok":true,"event":{...},"eventId":"event-id"}` |
+| `OK` rejected | `["OK", "event-id", false, "blocked: relay:write capability denied"]` | `relay.publish.result` | `{"type":"relay.publish.result","id":"uuid","ok":false,"error":"blocked: relay:write capability denied"}` |
 | `EOSE` | `["EOSE", "sub-1"]` | `relay.eose` | `{"type":"relay.eose","subId":"uuid"}` |
 | `CLOSED` | `["CLOSED", "sub-1", ""]` | `relay.closed` | `{"type":"relay.closed","subId":"uuid","message":""}` |
 | `COUNT` result | `["COUNT", "count-1", {"count":42}]` | `relay.query.result` | `{"type":"relay.query.result","id":"uuid","count":42}` (**superseded** — canonical contract is `events: NostrEvent[]`, not `count`; see issue #94) |

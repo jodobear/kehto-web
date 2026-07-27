@@ -41,8 +41,7 @@ import {
   type UploadResult,
   type UploadStatus,
 } from '@kehto/services';
-import type { Theme } from '@napplet/nap/theme/types';
-import type { ThemeChangedMessage } from '@napplet/nap/theme/types';
+import type { Theme, ThemeChangedMessage } from '@napplet/nap/theme/types';
 import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools/pure';
 
 import {

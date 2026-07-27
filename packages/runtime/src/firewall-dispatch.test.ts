@@ -268,8 +268,9 @@ describe('firewall integration — RUNTIME-04 flag dispatches and audits', () =>
     // Message 1: within budget — dispatches, no audit
     runtime2.handleMessage(WINDOW_ID_2, makePublish(0));
     const result1 = findEnvelopeResponse(ctx2.sent, 'relay.publish.result');
-    // relay.publish dispatches but returns accepted:false (no relay pool) — that's fine,
-    // the important thing is there is NO error envelope (i.e., message was dispatched).
+    // relay.publish dispatches and returns a canonical handler result. The important
+    // distinction is that there is no outer firewall error envelope.
+    expect(result1).toMatchObject({ ok: false, error: 'no signer configured' });
     const err1 = findEnvelopeResponse(ctx2.sent, 'relay.publish.error');
     expect(err1, 'Message 1 should dispatch — no firewall error').toBeUndefined();
 

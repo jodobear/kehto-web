@@ -514,9 +514,13 @@ Each factory returns a `ServiceHandler` registrable via `runtime.registerService
 - `createNotifyService` — canonical direct `notify.*` envelopes.
 
 ### Relay NAP
-- `createRelayPoolService` — `relay.publish`, `relay.publishEncrypted`, `relay.subscribe` fan-out (`relay:read` / `relay:write`).
+- `createRelayPoolService` — `relay.publish`, `relay.publishEncrypted`,
+  `relay.subscribe` fan-out (`relay:read` / `relay:write`). Publish handlers
+  receive only runtime-signed events and settle with canonical
+  `{ ok, event, eventId }` or `{ ok: false, error }` result envelopes.
 - `createCacheService` — offline event cache (`cache:read` / `cache:write`).
-- `createCoordinatedRelay` — composite service that bundles relay-pool + cache with read-through behavior.
+- `createCoordinatedRelay` — composite service that bundles relay-pool + cache
+  with read-through behavior and the same canonical publish result.
 
 ### Keys NAP
 - `createKeysService` — `keys.registerAction` / `keys.unregisterAction` / `keys.forward` + `keys.bindings` / `keys.action` push envelopes (`keys:forward`). Document-level chord listener by default; implement the `HostKeysBridge` interface to swap in Electron / Tauri / OS-level backends. See [Keys Service](#keys-service) for the full contract.

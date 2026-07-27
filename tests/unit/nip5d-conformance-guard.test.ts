@@ -102,6 +102,45 @@ const relaySubscribeRoutingSurfaces = [
   },
 ] as const;
 
+const relayPublishRoutingSurfaces = [
+  {
+    file: 'packages/runtime/src/relay-handler.ts',
+    markers: [
+      'const signed = await signEvent(eventTemplate);',
+      "{ type: 'relay.publish', id, event: signed }",
+      "type: 'relay.publish.result', id, ok: true, event, eventId: event.id",
+    ],
+  },
+  {
+    file: 'packages/services/src/relay-pool-service.ts',
+    markers: ["publishEvent(relayMessage, 'relay.publish.result', send);", 'eventId: event.id'],
+  },
+  {
+    file: 'packages/services/src/coordinated-relay.ts',
+    markers: ['publishCoordinatedEvent(options, relayMessage, send);', 'eventId: event.id'],
+  },
+  {
+    file: 'apps/playground/src/playground-relay-service.ts',
+    markers: ['...(ok ? { event } : {})', '...(error ? { error } : {})'],
+  },
+  {
+    file: 'packages/runtime/src/dispatch.test.ts',
+    markers: ['shell-signs the template and returns the full signed event', 'accepted).toBeUndefined()'],
+  },
+  {
+    file: 'packages/services/src/relay-pool-service.test.ts',
+    markers: ['returns the canonical signed event after relay.publish succeeds', 'eventId: event.id'],
+  },
+  {
+    file: 'packages/services/src/coordinated-relay.test.ts',
+    markers: ['publishes, caches, and returns the canonical signed event result', 'eventId: event.id'],
+  },
+  {
+    file: 'tests/unit/playground-relay-service.test.ts',
+    markers: ["not.toHaveProperty('accepted')", "not.toHaveProperty('message')"],
+  },
+] as const;
+
 const rawListenerTypeGuards: Record<string, readonly string[]> = {
   'apps/playground/src/theme.ts': ["data.type !== 'theme.changed'"],
   'apps/playground/napplets/common-demo/src/main.ts': ['msg.type !== resultType'],
@@ -172,6 +211,7 @@ const historicalShellExclusions = ['.planning/', 'CHANGELOG.md'] as const;
 const publishedConventionAuthorities = Object.freeze({
   napIntent: 'a718915ddefa2f03a0126579601f59d8bd86f7c4',
   napIdentityTheme: '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24',
+  napRelayDraft: '0be8abce18beb46ca37bd4ddd042f58d30b4eedc',
   publishedSource: 'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b',
   publishedRelease: '60889f1c2476e063500c7ab6624af6abe0dbcbe5',
 });
@@ -265,6 +305,7 @@ describe('NIP-5D conformance static guards', () => {
     expect(publishedConventionAuthorities).toEqual({
       napIntent: 'a718915ddefa2f03a0126579601f59d8bd86f7c4',
       napIdentityTheme: '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24',
+      napRelayDraft: '0be8abce18beb46ca37bd4ddd042f58d30b4eedc',
       publishedSource: 'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b',
       publishedRelease: '60889f1c2476e063500c7ab6624af6abe0dbcbe5',
     });
@@ -568,6 +609,26 @@ describe('NIP-5D conformance static guards', () => {
     }
   });
 
+  it('keeps NAP-RELAY publish signing and canonical results wired through every host surface', () => {
+    const relayTypes = readRepoFile(`${installedNapDist}/relay/types.d.ts`);
+
+    expect(interfaceFieldNames(relayTypes, 'RelayPublishMessage')).toEqual(['id', 'event']);
+    expect(interfaceFieldNames(relayTypes, 'RelayPublishResultMessage')).toEqual([
+      'id',
+      'ok',
+      'event',
+      'eventId',
+      'error',
+    ]);
+
+    for (const { file, markers } of relayPublishRoutingSurfaces) {
+      const source = readRepoFile(file);
+      for (const marker of markers) {
+        expect(source, `${file} missing ${marker}`).toContain(marker);
+      }
+    }
+  });
+
   it('keeps handleRelayQuery wired to RelayEventResult query results', () => {
     const relayHandlerSrc = readRepoFile('packages/runtime/src/relay-handler.ts');
     const relayTypes = readRepoFile(`${installedNapDist}/relay/types.d.ts`);
@@ -687,18 +748,14 @@ describe('NIP-5D conformance static guards', () => {
     expect(queryResultFields, 'RelayQueryResultMessage must not declare count').not.toContain('count');
   });
 
-  it('pins active INC guidance to the draft authority and implemented routing boundary', () => {
+  it('pins active INC guidance to merged authority and the implemented routing boundary', () => {
     const docs = [
       'RUNTIME-SPEC.md',
       'docs/policies/NIP-5D-CONFORMANCE.md',
       'packages/runtime/README.md',
       'packages/shell/README.md',
     ] as const;
-    const exactHeads = [
-      '4593ce9e301ce098fd3dad64206fcd6f144fa7af',
-      '896c32c92deee68dc4d10fc1132b62df20cccb6f',
-      'c5cd06f7be6d4690b303949abb26e87ff62f4729',
-    ] as const;
+    const exactHeads = ['6461e4b37c29dc09a20dff35d9515889c4433874'] as const;
 
     for (const file of docs) {
       const source = readRepoFile(file);
@@ -716,12 +773,14 @@ describe('NIP-5D conformance static guards', () => {
     const incHandler = readRepoFile('packages/runtime/src/inc-handler.ts');
     const namespace = readRepoFile('packages/shell/src/napplet-namespace.ts');
 
-    expect(runtimeSpec).toContain('Projection-owned query-to-text-payload transposition');
+    expect(runtimeSpec).toContain('Published-projection query-to-text-payload transposition');
     expect(policy).toContain('kehto/web#203');
     expect(policy).toContain('https://github.com/kehto/web/issues/203#issuecomment-5060904495');
+    expect(policy).toContain('Merged NAP-INC says `on(topic, callback)` delivers one `IncEvent`');
     expect(runtimeReadme).toContain('open-time authorization');
     expect(shellReadme).toContain('target `inc.channel.opened` before the opener result');
     expect(shellReadme).toContain('`channel.list()` is informational only');
+    expect(shellReadme).toContain('`(payload, NostrEvent)` callback');
 
     expect(incHandler).toContain('const subscribers = state.subscriptions.get(topic);');
     expect(incHandler).toContain('sessionRegistry.getEntryByWindowId(windowId)?.dTag');

@@ -7,7 +7,9 @@ import type { Nip5aManifestOptions } from '../../node_modules/.pnpm/@napplet+vit
 
 const ROOT = process.cwd();
 const NAP_INTENT_REF = 'a718915ddefa2f03a0126579601f59d8bd86f7c4';
+const NAP_INC_REF = '6461e4b37c29dc09a20dff35d9515889c4433874';
 const NAP_SHELL_REF = '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24';
+const NAP_RELAY_REF = '0be8abce18beb46ca37bd4ddd042f58d30b4eedc';
 const SOURCE_REF = 'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b';
 const RELEASE_REF = '60889f1c2476e063500c7ab6624af6abe0dbcbe5';
 
@@ -85,9 +87,11 @@ describe('published Napplet convention contract', () => {
   });
 
   it('records the exact NAP, source, and release evidence used for the published contract', () => {
-    expect([NAP_INTENT_REF, NAP_SHELL_REF, SOURCE_REF, RELEASE_REF]).toEqual([
+    expect([NAP_INTENT_REF, NAP_INC_REF, NAP_SHELL_REF, NAP_RELAY_REF, SOURCE_REF, RELEASE_REF]).toEqual([
       'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+      '6461e4b37c29dc09a20dff35d9515889c4433874',
       '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24',
+      '0be8abce18beb46ca37bd4ddd042f58d30b4eedc',
       'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b',
       '60889f1c2476e063500c7ab6624af6abe0dbcbe5',
     ]);
@@ -118,5 +122,27 @@ describe('published Napplet convention contract', () => {
     expect(global, 'upstream package drift: core NappletGlobal omits mandatory shell').not.toMatch(/\bshell\s*\??:/);
     expect(napDomain, 'upstream package drift: core NapDomain omits mandatory shell').not.toContain("'shell'");
     expect(shim, 'upstream package drift: shim exports no generic shell API').not.toMatch(/\bShell(?:Api|Environment|Capabilities)\b/);
+  });
+
+  it('labels the released relay request declaration as upstream drift from the NAP-RELAY draft', () => {
+    const relayTypes = packageText('@napplet/nap', '0.29.0', 'dist/relay/types.d.ts');
+    const relaySdk = packageText('@napplet/nap', '0.29.0', 'dist/relay/sdk.d.ts');
+
+    expect(
+      interfaceBody(relayTypes, 'RelayPublishMessage'),
+      `upstream package drift at NAP-RELAY ${NAP_RELAY_REF}: shell receives an EventTemplate`,
+    ).toContain('event: NostrEvent;');
+    expect(relaySdk).toContain('relayPublish(template: EventTemplate');
+  });
+
+  it('labels the released INC callback declaration as upstream drift from merged NAP-INC', () => {
+    const incSdk = packageText('@napplet/nap', '0.29.0', 'dist/inc/sdk.d.ts');
+    const namespace = readFileSync(join(ROOT, 'packages/shell/src/napplet-namespace.ts'), 'utf8');
+
+    expect(
+      incSdk,
+      `upstream package drift at NAP-INC ${NAP_INC_REF}: the callback receives one IncEvent`,
+    ).toContain('callback: (payload: unknown, event: NostrEvent) => void');
+    expect(namespace).toContain('on(topic: string, callback: (event: IncEvent) => void)');
   });
 });

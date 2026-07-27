@@ -4,8 +4,7 @@ import { renderNappletNamespacePrelude } from '../../packages/shell/src/napplet-
 import { createRuntime } from '../../packages/runtime/src/runtime.js';
 import { createMockRuntimeAdapter, createNip5dSessionEntry } from '../../packages/runtime/src/test-utils.js';
 
-const NAP_INC_HEAD = '4593ce9e301ce098fd3dad64206fcd6f144fa7af';
-const WEB_PROJECTION_HEAD = '896c32c92deee68dc4d10fc1132b62df20cccb6f';
+const NAP_INC_MASTER = '6461e4b37c29dc09a20dff35d9515889c4433874';
 
 type Message = { type: string; [key: string]: unknown };
 type Listener = (event: { source: unknown; data: Message }) => void;
@@ -40,7 +39,7 @@ function runPrelude(target: ReturnType<typeof createPreludeWindow>): void {
 }
 
 describe('NAP-INC canonical event tracer', () => {
-  it(`transposes before the wire and preserves exact routing (#89 ${NAP_INC_HEAD}; #90 ${WEB_PROJECTION_HEAD})`, () => {
+  it(`transposes before the wire and preserves exact routing (NAP-INC ${NAP_INC_MASTER})`, () => {
     const sourcePrelude = createPreludeWindow();
     runPrelude(sourcePrelude);
     const inc = sourcePrelude.napplet?.inc as { emit: (topic: string, payload?: unknown) => void };

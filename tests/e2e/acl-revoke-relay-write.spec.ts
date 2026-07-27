@@ -53,9 +53,9 @@ test('revoking relay:write on composer denies next publish (denial visible in st
   });
 
   // Phase 1 (control): publish should NOT be in the explicit-denial path.
-  // The demo's stub relay pool returns accepted:false but with `message: 'no relay pool available'`
-  // (no `error`), so relayPublish resolves and composer status becomes 'published: unknown'.
-  // We DO NOT assert the success outcome strictly — just that we're not already denied.
+  // A configured playground signer and relay service return the canonical signed-event
+  // result. We do not assert relay availability strictly here; the control only proves
+  // the request is not already in the explicit ACL-denial path.
   await composerFrame.locator('#composer-input').fill('phase 1 control publish');
   await composerFrameDirect.evaluate(() => {
     (document.getElementById('composer-publish-btn') as HTMLButtonElement | null)?.click();

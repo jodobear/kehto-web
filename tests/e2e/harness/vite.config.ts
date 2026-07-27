@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
+import { injectNappletNamespacePrelude } from '@kehto/shell';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -11,6 +12,15 @@ const mimeTypes: Record<string, string> = {
   '.css': 'text/css',
   '.json': 'application/json',
   '.svg': 'image/svg+xml',
+};
+
+const fixtureDomains: Readonly<Record<string, readonly string[]>> = {
+  'nap-identity': ['identity'],
+  'nap-inc': ['inc'],
+  'nap-notify': ['notify'],
+  'nap-relay': ['relay'],
+  'nap-storage': ['storage'],
+  'nap-theme': ['theme'],
 };
 
 function serveNappletFile(req: IncomingMessage, res: ServerResponse, next: () => void): void {
@@ -28,6 +38,13 @@ function serveNappletFile(req: IncomingMessage, res: ServerResponse, next: () =>
     // CORS headers required for sandboxed iframes (origin: null) to load scripts
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
+    if (ext === '.html') {
+      const html = fs.readFileSync(fullPath, 'utf8');
+      res.end(injectNappletNamespacePrelude(html, {
+        domains: fixtureDomains[nappletName] ?? [],
+      }));
+      return;
+    }
     fs.createReadStream(fullPath).pipe(res);
   } else {
     res.statusCode = 404;

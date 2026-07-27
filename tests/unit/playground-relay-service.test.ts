@@ -365,9 +365,12 @@ describe('playground relay service', () => {
       type: 'relay.publish.result',
       id: 'publish-a',
       eventId: note.id,
-      accepted: true,
+      ok: true,
+      event: note,
       cached: true,
     });
+    expect(sends[0]).not.toHaveProperty('accepted');
+    expect(sends[0]).not.toHaveProperty('message');
   });
 
   it('does not report publish acceptance when relays reject despite local cache storage', async () => {
@@ -387,9 +390,11 @@ describe('playground relay service', () => {
     expect(sends[0]).toMatchObject({
       type: 'relay.publish.result',
       id: 'publish-b',
-      accepted: false,
+      ok: false,
       cached: true,
-      message: 'blocked',
+      error: 'blocked',
     });
+    expect(sends[0]).not.toHaveProperty('accepted');
+    expect(sends[0]).not.toHaveProperty('message');
   });
 });

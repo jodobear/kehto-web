@@ -14,8 +14,9 @@ are opaque, queryless identities matched only by exact equality, and an
 `inc.emit` is owned by the INC runtime rather than a generic service handler.
 The runtime attaches the sender to delivered INC events from the authenticated
 endpoint; a service must not fabricate such deliveries. Follow the living
-[NAP-INC PR #89](https://github.com/napplet/naps/pull/89) and [web projection
-PR #90](https://github.com/napplet/naps/pull/90) for protocol details.
+[`naps/NAP-INC.md`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-INC.md)
+at `napplet/naps` master
+`6461e4b37c29dc09a20dff35d9515889c4433874` for protocol details.
 
 ## Prerequisites
 

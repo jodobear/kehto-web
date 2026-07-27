@@ -13,6 +13,7 @@
  */
 import '@napplet/shim';
 import { getMissingNapDomains } from '../../domain-availability';
+import { readIncPayload } from '../../inc-event';
 import { applyNapTheme, installNapTheme, onNapThemeChanged } from '../../shared-theme';
 import { incEmit, incOn } from '@napplet/nap/inc/sdk';
 import { storageGetItem, storageSetItem } from '@napplet/nap/storage/sdk';
@@ -127,10 +128,10 @@ function handleTeachCommand(text: string): boolean {
   updateRulesDisplay();
 
   // Acknowledge the teach command
-  incEmit('bot:response', [], JSON.stringify({
+  incEmit('bot:response', {
     text: `learned! I'll respond "${response}" when I hear "${trigger}"`,
     timestamp: Date.now(),
-  }));
+  });
 
   return true;
 }
@@ -169,10 +170,10 @@ function handleChatMessage(payload: unknown): void {
 
   // Emit response to chat via INC (exercises sign:event for the emit)
   try {
-    incEmit('bot:response', [], JSON.stringify({
+    incEmit('bot:response', {
       text: response,
       timestamp: Date.now(),
-    }));
+    });
     log('inc bot:response sent', 'info');
   } catch (error) {
     log(`inc response failed -- ${formatError(error, 'denied: relay:write')}`, 'error');
@@ -190,7 +191,9 @@ async function init(): Promise<void> {
 
   // Wire the INC subscription per D-02 BEFORE announcing ready, so a chat sender
   // that acts on the bot's "ready" signal cannot race ahead of this subscription.
-  incOn('chat:message', handleChatMessage);
+  incOn('chat:message', (value, packageEvent) => {
+    handleChatMessage(readIncPayload(value, packageEvent));
+  });
   log('subscribed to inc chat:message topic', 'info');
 
   statusEl.textContent = 'ready';

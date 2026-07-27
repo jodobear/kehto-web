@@ -36,16 +36,14 @@ Current draft behaviors this package enforces:
 
 ### NAP-INC binding and channel contract
 
-The injected INC binding tracks [NAP-INC PR #89 at
-`4593ce9e301ce098fd3dad64206fcd6f144fa7af`](https://github.com/napplet/naps/pull/89),
-the [web projection PR #90 at
-`896c32c92deee68dc4d10fc1132b62df20cccb6f`](https://github.com/napplet/naps/pull/90),
-and the stacked [symmetric-channel clarification PR #92 at
-`c5cd06f7be6d4690b303949abb26e87ff62f4729`](https://github.com/napplet/naps/pull/92).
-They are draft living references, so this package links to them rather than
-copying normative protocol text.
+The injected INC binding follows merged
+[`naps/NAP-INC.md`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-INC.md)
+on `napplet/naps` master
+`6461e4b37c29dc09a20dff35d9515889c4433874`. The specification remains marked
+draft, but its merged path is the protocol authority.
 
-`window.napplet.inc` alone owns projection-side query-to-text-payload
+The released package projection and `window.napplet.inc` binding own
+query-to-text-payload
 transposition: it converts a convention URI query before emitting a stable,
 exact queryless topic identity. Subscriptions reject query-bearing identities.
 The binding never creates a normalized query-bearing wire/discovery identity,
@@ -53,6 +51,11 @@ does not do prefix/wildcard/query-aware matching or service-over-INC prefix
 dispatch, and does not infer payload kinds. Runtime delivery supplies the
 **runtime-attested dTag**; no caller sender is accepted, topic source exclusion
 is runtime-owned, and IDs and payloads are opaque.
+
+Merged NAP-INC delivers one `IncEvent` to `on(topic, callback)`. Released
+`@napplet/nap@0.29.0` instead declares and implements a
+`(payload, NostrEvent)` callback. The protected binding follows the NAP;
+package-based consumers must bridge that upstream callback drift.
 
 For channels, runtime ACL checks are open-only rather than per-message. The
 target `inc.channel.opened` before the opener result creates an equivalent target

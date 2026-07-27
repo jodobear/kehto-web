@@ -472,7 +472,7 @@ function createRuntimeInstance(context: RuntimeInstanceContext): Runtime {
       eventBuffer.bufferAndDeliver(createInjectedEvent(hooks, topic, payload), null);
     },
     destroy(): void {
-      for (const name of [...attachedServices.keys()]) detachService(name);
+      for (const name of attachedServices.keys()) detachService(name);
       manifestCache.persist();
       aclState.persist();
       firewallState.persist();

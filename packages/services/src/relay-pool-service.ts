@@ -59,8 +59,9 @@ export interface RelayPoolServiceOptions {
    * Publish an event to relays.
    *
    * @param event - The event to publish
+   * @returns Nothing, or a promise that settles when the publish request completes
    */
-  publish(event: NostrEvent): void;
+  publish(event: NostrEvent): void | Promise<void>;
 
   /**
    * Select relay URLs appropriate for the given filters.
@@ -85,6 +86,7 @@ interface TrackedSubscription {
 }
 
 type RelayServiceMessage = NappletMessage & {
+  id?: unknown;
   subId?: unknown;
   filters?: unknown;
   event?: unknown;
@@ -117,6 +119,43 @@ type RelayServiceMessage = NappletMessage & {
  */
 export function createRelayPoolService(options: RelayPoolServiceOptions): ServiceHandler {
   const tracked = new Map<string, TrackedSubscription>();
+
+  function publishEvent(
+    relayMessage: RelayServiceMessage,
+    resultType: 'relay.publish.result' | 'relay.publishEncrypted.result',
+    send: (msg: NappletMessage) => void,
+  ): void {
+    const id = typeof relayMessage.id === 'string' ? relayMessage.id : '';
+    const event = relayMessage.event as NostrEvent | undefined;
+    if (!event || typeof event !== 'object') {
+      send({ type: resultType, id, ok: false, error: 'invalid event' } as NappletMessage);
+      return;
+    }
+    if (!options.isAvailable()) {
+      send({ type: resultType, id, ok: false, error: 'no relay pool available' } as NappletMessage);
+      return;
+    }
+
+    void (async (): Promise<void> => {
+      try {
+        await options.publish(event);
+        send({
+          type: resultType,
+          id,
+          ok: true,
+          event,
+          eventId: event.id,
+        } as NappletMessage);
+      } catch (error) {
+        send({
+          type: resultType,
+          id,
+          ok: false,
+          error: error instanceof Error && error.message ? error.message : 'publish failed',
+        } as NappletMessage);
+      }
+    })();
+  }
 
   return {
     descriptor: {
@@ -191,18 +230,12 @@ export function createRelayPoolService(options: RelayPoolServiceOptions): Servic
       }
 
       if (message.type === 'relay.publish') {
-        const event = relayMessage.event as NostrEvent | undefined;
-        if (event && typeof event === 'object' && options.isAvailable()) {
-          options.publish(event);
-        }
+        publishEvent(relayMessage, 'relay.publish.result', send);
         return;
       }
 
       if (message.type === 'relay.publishEncrypted') {
-        const event = relayMessage.event as NostrEvent | undefined;
-        if (event && typeof event === 'object' && options.isAvailable()) {
-          options.publish(event);
-        }
+        publishEvent(relayMessage, 'relay.publishEncrypted.result', send);
         return;
       }
     },
