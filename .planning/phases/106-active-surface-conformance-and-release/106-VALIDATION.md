@@ -40,13 +40,13 @@ created: 2026-07-27
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 106-01-01 | 01 | 1 | VERIFY-06 | T-106-01 | Mutable upstream and registry authorities cannot drift without a recorded semantic verdict. | external integration | `node scripts/verify-napplet-authorities.mjs --check` | ❌ W0 | ⬜ pending |
+| 106-01-01 | 01 | 1 | VERIFY-06 | T-106-01 | Mutable upstream and registry authorities cannot drift without a recorded semantic verdict. | external integration | `node scripts/verify-napplet-authorities.mjs --check` | ❌ W0 script + authority record | ⬜ pending |
 | 106-01-02 | 01 | 1 | BASE-03, VERIFY-02 | T-106-02 | Live sources reject obsolete shapes while classified historical evidence remains untouched. | unit/static | `pnpm exec vitest run tests/unit/sdk-migration-guard.test.ts tests/unit/nip5d-conformance-guard.test.ts tests/unit/playground-gateway-guard.test.ts` | ✅ | ⬜ pending |
-| 106-01-03 | 01 | 1 | VERIFY-01 | T-106-03 | Negative wire shapes, source/session isolation, sender spoofing, and query drift fail closed. | unit/integration | focused nine-file Vitest command from Test Infrastructure | ✅ | ⬜ pending |
+| 106-01-03 | 01 | 1 | VERIFY-01 | T-106-03 | Negative wire shapes, source/session isolation, sender spoofing, and query drift fail closed with one evidence row per completed Phase 101-105 requirement. | unit/integration + evidence matrix | focused nine-file Vitest command from Test Infrastructure plus matrix completeness check | ❌ W0 matrix | ⬜ pending |
 | 106-02-01 | 02 | 2 | VERIFY-03 | T-106-04 | Real Paja and playground paths preserve trusted startup, exact routing, resource mediation, and atomic theme delivery. | E2E | `pnpm test:e2e -- tests/e2e/napplet-auth.spec.ts tests/e2e/inc-roundtrip.spec.ts tests/e2e/nap-inc-playground.spec.ts tests/e2e/identity-flow.spec.ts tests/e2e/theme-broadcast.spec.ts tests/e2e/playground-profile-intent.spec.ts tests/e2e/profile-open.spec.ts` | ✅ | ⬜ pending |
-| 106-02-02 | 02 | 2 | VERIFY-03, VERIFY-04 | — | Phase 105 visual risks receive an explicit fix-or-defer disposition backed by desktop/mobile evidence. | browser/manual review | `test -f .planning/phases/106-active-surface-conformance-and-release/106-RELEASE-CHECKLIST.md` | ❌ W0 | ⬜ pending |
+| 106-02-02 | 02 | 2 | VERIFY-03, VERIFY-04 | T-106-09 | Phase 105 visual risks receive the locked explicit non-blocking Kehto-maintainer follow-up disposition backed by desktop/mobile evidence. | static evidence + judgment review | positive checklist assertions for audit link, 12/24 score, owner, rationale, and PR/release boundary | ❌ W0 | ⬜ pending |
 | 106-03-01 | 03 | 3 | VERIFY-04, VERIFY-05 | T-106-05 | Only a fully gated branch with complete shipped-output changesets can reach PR readiness. | release gate | `pnpm build && pnpm type-check && pnpm test:unit && pnpm test:e2e && pnpm docs:check && npx --yes aislop@0.12.0 scan -d && git diff --check && pnpm changeset status` | ✅ | ⬜ pending |
-| 106-03-02 | 03 | 3 | VERIFY-05 | T-106-05 | PR and eventual release evidence refer to the exact pushed SHA; release tagging remains outside this branch task. | external integration/manual | `gh pr checks 204 --watch` | ✅ | ⬜ pending |
+| 106-03-02 | 03 | 3 | VERIFY-05 | T-106-11, T-106-13 | The checklist records the validated pushed evidence SHA, and PR #204 records/checks the exact final head; merge/tag/publish remain outside execution. | external integration | exact branch/head/mergeability assertions plus `gh pr checks 204 --required` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -55,6 +55,8 @@ created: 2026-07-27
 ## Wave 0 Requirements
 
 - [ ] `scripts/verify-napplet-authorities.mjs` — reproducible GitHub/npm/JSR authority and published-package drift report for VERIFY-06
+- [ ] `106-AUTHORITY-REVALIDATION.md` — immutable PR/package facts and clause-level semantic verdicts consumed by `--check`
+- [ ] `106-CONFORMANCE-MATRIX.md` — one focused-evidence row per completed Phase 101-105 requirement
 - [ ] `.planning/phases/106-active-surface-conformance-and-release/106-RELEASE-CHECKLIST.md` — exact command results, allowed E2E skip, changeset status, pushed SHA/CI evidence, and Phase 105 UI-risk disposition
 
 ---
@@ -64,8 +66,8 @@ created: 2026-07-27
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | Semantic meaning of upstream NAP text matches Kehto behavior | VERIFY-06 | A text diff can identify changed clauses but cannot responsibly infer protocol equivalence. | Record each PR’s immutable ref and state, compare the changed NAP sections, and classify Kehto as conformant, repaired, deferred spec gap, or blocked. |
-| Phase 105 UI warning disposition | VERIFY-03, VERIFY-04 | Whether the documented visual debt blocks this protocol release is a product-scope decision. | Link `105-UI-REVIEW.md`; either close release-blocking findings or record an owned follow-up and explicit non-blocking rationale. |
-| Exact pushed commit and GitHub checks | VERIFY-05 | PR mergeability and CI status exist outside the local repository. | Push the branch, inspect PR #204 at the pushed SHA, wait for required checks, and record the URL/status in the release checklist. |
+| Phase 105 UI warning wording | VERIFY-03, VERIFY-04 | The locked non-blocking disposition is judgment-tier transparency evidence and must not be restated as a visual pass. | Link `105-UI-REVIEW.md`, retain its 12/24 findings, and confirm the checklist/PR assign a separate post-merge follow-up to Kehto maintainers with protocol-conformance rationale. |
+| Exact pushed commit and GitHub checks | VERIFY-05 | PR mergeability and CI status exist outside the local repository. | Push the branch, inspect PR #204 at each pushed SHA, record the validated evidence SHA/CI in the checklist, then record the exact final head and check URLs in the PR body without making another repository mutation. |
 
 ---
 

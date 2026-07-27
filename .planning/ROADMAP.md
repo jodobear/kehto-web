@@ -323,7 +323,19 @@ users rely on.
   5. The exact upstream draft heads and published npm/JSR artifacts are revalidated; any drift is reported and reconciled rather than silently inferred.
   6. Build, type-check, unit, relevant and full E2E, docs, AI-slop, and diff gates pass; changesets cover every changed published Kehto package and the branch is ready for its concise PR.
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+**Wave 1**
+
+- [ ] 106-01-PLAN.md — Revalidate mutable NAP/package authority, enforce classified active surfaces, and map focused contract evidence.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 106-02-PLAN.md — Prove real Paja/playground host flows and record the explicit non-blocking UI follow-up.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 106-03-PLAN.md — Run final release gates, preserve exact changesets, and make existing PR #204 green and mergeable.
 
 ## Progress
 
