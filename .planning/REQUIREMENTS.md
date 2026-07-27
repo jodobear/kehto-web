@@ -426,7 +426,7 @@ lockfile.
 | ARCH-04 | Phase 104 | Complete |
 | PKG-01 | Phase 105 | Complete |
 | PKG-02 | Phase 105 | Complete |
-| PKG-03 | Phase 105 | Pending |
+| PKG-03 | Phase 105 | Complete |
 | PKG-04 | Phase 105 | Complete |
 | IDENTITY-05 | Phase 105 | Pending |
 | THEME-04 | Phase 105 | Pending |
