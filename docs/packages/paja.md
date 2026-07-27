@@ -154,7 +154,9 @@ The console includes:
   is available, can connect to a bunker/NIP-46 URI, and only uses the generated
   development signer when the Dev signer button is selected. Every request to
   sign an event or publish an event opens a browser confirmation prompt. Paja
-  has no bypass list or allow-once whitelist.
+  has no bypass list or allow-once whitelist. A denied prompt or a live publish
+  with no accepting relay returns a canonical failure and does not enter
+  Paja's in-memory relay view.
 - **Messages** — inbound and outbound envelopes are logged with a text filter,
   including Paja system events such as interface changes, ACL changes, signer
   connection changes, signing/publish confirmations, and visible details for

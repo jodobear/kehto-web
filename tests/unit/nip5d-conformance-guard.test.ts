@@ -128,6 +128,14 @@ const relayPublishRoutingSurfaces = [
     markers: ['if (!ok) {', 'ok: true,', 'eventId: event.id'],
   },
   {
+    file: 'packages/paja/src/browser-relay-runtime.ts',
+    markers: [
+      'const attempt = await attemptPublish(relayUrls, event);',
+      'if (attempt.error) throw new Error(attempt.error);',
+      'retainPublishedEvent(event);',
+    ],
+  },
+  {
     file: 'packages/runtime/src/dispatch.test.ts',
     markers: ['shell-signs the template and returns the full signed event', 'accepted).toBeUndefined()'],
   },
@@ -142,6 +150,13 @@ const relayPublishRoutingSurfaces = [
   {
     file: 'tests/unit/playground-relay-service.test.ts',
     markers: ["not.toHaveProperty('accepted')", "not.toHaveProperty('message')"],
+  },
+  {
+    file: 'packages/paja/src/browser-relay-runtime.test.ts',
+    markers: [
+      'returns a canonical failure and retains nothing when confirmation is denied',
+      'reports all-live-relay rejection without retaining service or outbox events',
+    ],
   },
 ] as const;
 

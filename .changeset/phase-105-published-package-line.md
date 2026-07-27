@@ -20,7 +20,9 @@ signs event templates, relay backends receive the signed event, and successful
 results return the full event through canonical `ok` / `event` / `eventId`
 fields. Async relay settlement now precedes success, rejected publishes never
 enter host caches, and failed pending replay reservations are released for
-deterministic retry while concurrent duplicates remain blocked.
+deterministic retry while concurrent duplicates remain blocked. Paja likewise
+retains and fans out an event only after user authorization and, in live mode,
+at least one relay acknowledgement.
 Shell keeps the merged NAP-INC `IncEvent` callback contract; package-based demo
 consumers bridge the released 0.29.0 `(payload, NostrEvent)` projection as
 documented upstream drift.
