@@ -1,0 +1,112 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import type { IntentRequest } from '../../node_modules/.pnpm/@napplet+nap@0.29.0/node_modules/@napplet/nap/dist/intent/index.js';
+import type { Nip5aManifestOptions } from '../../node_modules/.pnpm/@napplet+vite-plugin@0.12.0_typescript@5.9.3_vite@6.4.2_jiti@2.6.1_yaml@2.8.3_/node_modules/@napplet/vite-plugin/dist/index.js';
+
+const ROOT = process.cwd();
+const NAP_INTENT_REF = 'a718915ddefa2f03a0126579601f59d8bd86f7c4';
+const NAP_SHELL_REF = '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24';
+const SOURCE_REF = 'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b';
+const RELEASE_REF = '60889f1c2476e063500c7ab6624af6abe0dbcbe5';
+
+const PACKAGE_MATRIX = {
+  '@napplet/core': ['0.29.0', 'packages/core'],
+  '@napplet/nap': ['0.29.0', 'packages/nap'],
+  '@napplet/shim': ['0.27.0', 'packages/shim'],
+  '@napplet/sdk': ['0.25.0', 'packages/sdk'],
+  '@napplet/vite-plugin': ['0.12.0', 'packages/vite-plugin'],
+} as const;
+
+const REQUEST = {
+  archetype: 'profile',
+  action: 'open',
+  convention: 'napplet:profile/open',
+  payload: { pubkey: 'abc123' },
+} satisfies IntentRequest;
+
+const MANIFEST_OPTIONS = {
+  nappletType: 'profile-viewer',
+  archetypes: [{ slug: 'profile', convention: 'napplet:profile/open', eventKinds: [0] }],
+} satisfies Nip5aManifestOptions;
+
+function installedPackagePath(name: string, version: string): string {
+  const escaped = name.replace('@', '').replace('/', '+');
+  const packageDir = readdirSync(join(ROOT, 'node_modules/.pnpm'))
+    .find((entry) => entry.startsWith(`@${escaped}@${version}`));
+  expect(packageDir, `installed ${name}@${version}`).toBeTruthy();
+  return join(ROOT, 'node_modules/.pnpm', packageDir ?? '', 'node_modules', name);
+}
+
+function packageText(name: string, version: string, path: string): string {
+  return readFileSync(join(installedPackagePath(name, version), path), 'utf8');
+}
+
+function importInstalled(name: string, version: string, path: string): Promise<Record<string, unknown>> {
+  return import(pathToFileURL(join(installedPackagePath(name, version), path)).href) as Promise<Record<string, unknown>>;
+}
+
+function interfaceBody(source: string, name: string): string {
+  const start = source.indexOf(`interface ${name}`);
+  expect(start, `missing ${name}`).toBeGreaterThanOrEqual(0);
+  const end = source.indexOf('\n}', start);
+  return source.slice(start, end + 2);
+}
+
+describe('published Napplet convention contract', () => {
+  it('compiles and imports the released intent, resource, SDK, and convention-archetype Vite surfaces', async () => {
+    const [intent, resourceApi, sdk, vite] = await Promise.all([
+      importInstalled('@napplet/nap', '0.29.0', 'dist/intent/index.js'),
+      importInstalled('@napplet/nap', '0.29.0', 'dist/resource/index.js'),
+      importInstalled('@napplet/sdk', '0.25.0', 'dist/index.js'),
+      importInstalled('@napplet/vite-plugin', '0.12.0', 'dist/index.js'),
+    ]);
+
+    expect(REQUEST).toMatchObject({ convention: 'napplet:profile/open' });
+    expect(typeof intent.intentInvoke).toBe('function');
+    expect(typeof intent.intentOnDelivery).toBe('function');
+    expect(typeof resourceApi.resourceBytes).toBe('function');
+    expect(typeof sdk.resource).toBe('object');
+    expect(typeof vite.nip5aManifest).toBe('function');
+    expect(MANIFEST_OPTIONS.archetypes).toEqual([
+      { slug: 'profile', convention: 'napplet:profile/open', eventKinds: [0] },
+    ]);
+  });
+
+  it('records the exact NAP, source, and release evidence used for the published contract', () => {
+    expect([NAP_INTENT_REF, NAP_SHELL_REF, SOURCE_REF, RELEASE_REF]).toEqual([
+      'a718915ddefa2f03a0126579601f59d8bd86f7c4',
+      '5ac0490461ca6fec2f0d2e45b4835cf9bc08de24',
+      'dd7b3a728eb9c838b7218fcec7bb7bb00e7cc88b',
+      '60889f1c2476e063500c7ab6624af6abe0dbcbe5',
+    ]);
+  });
+
+  it('keeps every audited package on its official repository lineage without postinstall', () => {
+    for (const [name, [version, directory]] of Object.entries(PACKAGE_MATRIX)) {
+      const metadata = JSON.parse(packageText(name, version, 'package.json')) as {
+        name: string;
+        version: string;
+        repository?: { url?: string; directory?: string };
+        scripts?: Record<string, string>;
+      };
+      expect(metadata.name).toBe(name);
+      expect(metadata.version).toBe(version);
+      expect(metadata.repository?.url).toContain('github.com/sandwichfarm/napplet');
+      expect(metadata.repository?.directory).toBe(directory);
+      expect(metadata.scripts?.postinstall, `${name} may not run install-time code`).toBeUndefined();
+    }
+  });
+
+  it('labels the generic core/shim shell omission as upstream package drift', () => {
+    const core = packageText('@napplet/core', '0.29.0', 'dist/index.d.ts');
+    const shim = packageText('@napplet/shim', '0.27.0', 'dist/index.d.ts');
+    const global = interfaceBody(core, 'NappletGlobal');
+    const napDomain = core.slice(core.indexOf('type NapDomain'), core.indexOf('declare const NAP_DOMAINS'));
+
+    expect(global, 'upstream package drift: core NappletGlobal omits mandatory shell').not.toMatch(/\bshell\s*\??:/);
+    expect(napDomain, 'upstream package drift: core NapDomain omits mandatory shell').not.toContain("'shell'");
+    expect(shim, 'upstream package drift: shim exports no generic shell API').not.toMatch(/\bShell(?:Api|Environment|Capabilities)\b/);
+  });
+});
