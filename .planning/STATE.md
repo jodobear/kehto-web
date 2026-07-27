@@ -5,8 +5,8 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
-stopped_at: Completed 105-09-PLAN.md
-last_updated: "2026-07-27T10:45:51.736Z"
+stopped_at: Completed correction for 105-09-PLAN.md
+last_updated: "2026-07-27T10:54:43.437Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
@@ -212,8 +212,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T10:45:51.724Z
-Stopped at: Completed 105-09-PLAN.md
+Last session: 2026-07-27T10:54:43.338Z
+Stopped at: Completed correction for 105-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -305,3 +305,4 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: Scope firewall init-burst accounting to host-attested iframe lifecycles while retaining dTag-wide rate limits.
 - [Phase ?]: Playground profile intents advertise the live intent service through the stable adapter and reuse only origin-registered, session-bound ready targets.
 - [Phase ?]: Profile picture and banner media use resourceBytes plus revocable Blob URLs; no standalone NAP-RESOURCE wire semantics were inferred.
+- [Phase ?]: Profile cold-start verification closes live frames without revoking their verified catalog records, then proves one intent delivery without INC.

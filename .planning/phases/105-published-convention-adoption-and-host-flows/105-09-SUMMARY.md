@@ -23,10 +23,13 @@ key-files:
   modified:
     - apps/playground/napplets/feed/src/main.ts
     - apps/playground/napplets/profile-viewer/src/main.ts
+    - apps/playground/napplets/profile-viewer/vite.config.ts
     - apps/playground/src/shell-host.ts
+    - apps/playground/src/main.ts
     - tests/e2e/profile-open.spec.ts
     - tests/e2e/identity-flow.spec.ts
     - tests/e2e/theme-broadcast.spec.ts
+    - tests/unit/nip5d-conformance-guard.test.ts
 key-decisions:
   - "Use the published intent URI and target-only delivery; retain no profile INC route or subscription."
   - "Resolve profile picture and banner bytes only through resourceBytes and use one revocable Blob URL per sink."
@@ -37,11 +40,11 @@ patterns-established:
 requirements-completed: [PKG-03, IDENTITY-05, THEME-04, ARCH-03]
 coverage:
   - id: D1
-    description: "Feed invokes the published profile URI and the target receives one runtime-attested delivery after source teardown."
+    description: "Feed invocation cold-starts the verified profile handler and sends one runtime-attested delivery after its source closes, without an INC carrier."
     requirement: ARCH-03
     verification:
       - kind: e2e
-        ref: tests/e2e/playground-profile-intent.spec.ts#accepts the feed profile convention before its source closes and delivers once to the ready profile target
+        ref: tests/e2e/playground-profile-intent.spec.ts#accepts the feed profile convention before its source closes and cold-starts one profile delivery without INC
         status: pass
     human_judgment: false
   - id: D2
@@ -69,7 +72,7 @@ coverage:
         status: pass
     human_judgment: false
 metrics:
-  duration: 13m
+  duration: 24m
   completed: 2026-07-27
 status: complete
 ---
@@ -80,9 +83,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 13m
+- **Duration:** 24m
 - **Started:** 2026-07-27T10:30:58Z
-- **Completed:** 2026-07-27T10:44:05Z
+- **Completed:** 2026-07-27T10:54:22Z
 - **Tasks:** 2/2
 - **Files modified:** 14
 
@@ -90,7 +93,7 @@ status: complete
 
 - Replaced feed/profile `profile:open` INC traffic with the released `intentInvoke`/`intentOnDelivery` profile convention, including queryless profile manifest metadata.
 - Added stale-safe feed avatar and profile picture/banner controllers that fetch through `resourceBytes`, assign only Blob URLs, and revoke every owned URL on replacement, denial/error, clear, and pagehide.
-- Migrated the profile, identity, and theme browser proofs and added a focused acceptance-before-source-teardown retained-delivery proof.
+- Migrated the profile, identity, and theme browser proofs and added a focused cold-target retained-delivery proof: it closes the profile before invocation, closes the feed after acceptance, observes one target delivery, and rejects an INC carrier.
 - Repaired frozen shell intent advertisement and reused a current trusted ready target without weakening origin/session checks.
 
 ## NAP Authority
@@ -101,7 +104,7 @@ status: complete
 
 ## Verification
 
-- `pnpm exec vitest run tests/unit/profile-resource-media.test.ts` — passed (8 tests).
+- `pnpm exec vitest run tests/unit/nip5d-conformance-guard.test.ts tests/unit/profile-resource-media.test.ts` — passed (21 tests).
 - `pnpm --filter @kehto/demo-feed build && pnpm --filter @kehto/demo-profile-viewer build && pnpm --filter @kehto/demo-resource-demo build` — passed.
 - `pnpm --filter @kehto/playground build` — passed.
 - `pnpm exec tsc -p apps/playground/tsconfig.json --noEmit` — passed.
@@ -112,13 +115,14 @@ status: complete
 ## Task Commits
 
 1. **Task 1: Invoke/receive the profile convention and own safe media URLs** — `febece0` (RED test), `1bd16c2` (feature), `275c009` (cleanup)
-2. **Task 2: Replace legacy INC browser proofs with retained intent/onDelivery** — `aab2121` (RED test), `52c5c96` (host fix)
+2. **Task 2: Replace legacy INC browser proofs with retained intent/onDelivery** — `aab2121` (RED test), `52c5c96` (host fix), `c652c0b` (cold-target correction)
 
 ## Files Created/Modified
 
 - `apps/playground/napplets/feed/src/main.ts` and `profile-media.ts` — published profile invocation and safe avatar rendering.
 - `apps/playground/napplets/profile-viewer/src/main.ts`, `profile-media.ts`, and `index.html` — early target delivery receiver plus Blob-backed picture/banner rendering.
-- `apps/playground/src/shell-host.ts` — stable live intent advertisement and trusted ready-target reuse.
+- `apps/playground/napplets/profile-viewer/vite.config.ts` and `tests/unit/nip5d-conformance-guard.test.ts` — manifest requires match the released intent/resource use and preserve a static regression assertion.
+- `apps/playground/src/shell-host.ts` and `main.ts` — trusted ready-target reuse plus live-frame close/test-observation seams that retain verified catalog authority.
 - `tests/unit/profile-resource-media.test.ts` — resource bytes, stale completion, denial, and URL revocation vectors.
 - `tests/e2e/playground-profile-intent.spec.ts`, `profile-open.spec.ts`, `identity-flow.spec.ts`, and `theme-broadcast.spec.ts` — deterministic browser evidence for the retained convention and theme behavior.
 
@@ -155,7 +159,15 @@ status: complete
 - **Verification:** source-teardown focused E2E passes exactly once.
 - **Committed in:** `52c5c96`
 
-**Total deviations:** 3 auto-fixed (2 Rule 1, 1 Rule 2). All were necessary for the plan's source-bound delivery and media-security requirements.
+**4. [Rule 1 - Bug] Correct stale profile manifest metadata and cold-target proof**
+- **Found during:** Post-plan acceptance inspection
+- **Issue:** The profile manifest still declared legacy `inc` requirements, and the focused browser test had loaded the target before invocation, so it did not prove retained cold-start delivery.
+- **Fix:** Declared `intent`, `relay`, `resource`, and `theme`; updated the static manifest guard; added lifecycle-safe close handling and an E2E that closes the verified target before invocation, closes the source after acceptance, observes exactly one `intent.deliver`, and rejects INC envelopes.
+- **Files modified:** profile Vite config, conformance guard, playground host/bootstrap, focused Playwright spec.
+- **Verification:** 21 focused unit tests, three napplet builds, playground build/typecheck, and all four required Playwright specs pass.
+- **Committed in:** `c652c0b`
+
+**Total deviations:** 4 auto-fixed (3 Rule 1, 1 Rule 2). All were necessary for the plan's source-bound delivery and media-security requirements.
 
 ## Known Stubs
 
@@ -172,5 +184,5 @@ The retained playground profile flow is ready for the remaining Phase 105 conven
 ## Self-Check: PASSED
 
 - All plan-owned sources, tests, and this summary exist.
-- All five Plan 105-09 task commits exist and carry `Co-Authored-By: Codex <noreply@openai.com>`.
+- All six Plan 105-09 task and correction commits exist and carry `Co-Authored-By: Codex <noreply@openai.com>`.
 - Stub scan found no placeholder or unwired plan-owned rendering path.
