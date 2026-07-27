@@ -41,9 +41,9 @@ const expectedRequires: Record<(typeof playgroundNapplets)[number], readonly str
   chat: ['inc', 'storage', 'relay', 'theme'],
   composer: ['relay', 'theme'],
   'cvm-relatr': ['cvm', 'theme'],
-  feed: ['identity', 'relay', 'inc', 'theme'],
+  feed: ['identity', 'intent', 'relay', 'resource', 'theme'],
   preferences: ['storage', 'theme'],
-  'profile-viewer': ['inc', 'relay', 'theme'],
+  'profile-viewer': ['intent', 'relay', 'resource', 'theme'],
   'resource-demo': ['resource', 'theme'],
   toaster: ['notify', 'theme'],
 };
@@ -348,7 +348,7 @@ describe('playground gateway artifact guard', () => {
     expect(relayService).toContain('eventsReceived');
   });
 
-  it('keeps the feed napplet identity-bound, following-scoped, and unseeded', () => {
+  it('keeps the feed napplet identity-bound, intent-driven, media-safe, and unseeded', () => {
     const feedSource = readRepoFile('apps/playground/napplets/feed/src/main.ts');
     const feedStore = readRepoFile('apps/playground/napplets/feed/src/feed-store.ts');
     const feedHtml = readRepoFile('apps/playground/napplets/feed/index.html');
@@ -356,11 +356,12 @@ describe('playground gateway artifact guard', () => {
     const workerRelay = readRepoFile('apps/playground/src/playground-worker-relay.ts');
 
     expect(feedSource).toContain("import { identityGetPublicKey, identityOnChanged } from '@napplet/nap/identity/sdk';");
-    expect(feedSource).toContain("import { incEmit } from '@napplet/nap/inc/sdk';");
+    expect(feedSource).toContain("import { intentInvoke } from '@napplet/nap/intent/sdk';");
+    expect(feedSource).toContain("import { resourceBytes } from '@napplet/nap/resource/sdk';");
     expect(feedSource).toContain("import { getMissingNapDomains } from '../../domain-availability';");
     expect(feedSource).toContain("import { createFeedStore, type FeedProfile } from './feed-store.js';");
     expect(feedSource).toContain("import { createFeedIdentityEventController } from './feed-identity-events.js';");
-    expect(feedSource).toContain("const REQUIRED_NAPS = ['identity', 'relay', 'inc', 'theme'] as const;");
+    expect(feedSource).toContain("const REQUIRED_NAPS = ['identity', 'intent', 'relay', 'resource', 'theme'] as const;");
     expect(feedSource).toContain('getMissingNapDomains(REQUIRED_NAPS)');
     expect(feedSource).toContain('readPublicKey: identityGetPublicKey');
     expect(feedSource).toContain('subscribeToChanges: identityOnChanged');
@@ -375,11 +376,14 @@ describe('playground gateway artifact guard', () => {
     expect(feedStore).toContain('[{ ...filter, since: Math.floor(Date.now() / 1000) }]');
     expect(feedStore).toContain('[{ kinds: [0], authors: [pubkey], limit: 1 }]');
     expect(feedStore).toContain('state.profiles.set(pubkey, profile);');
-    expect(feedSource).toContain("img.src = picture;");
+    expect(feedSource).toContain("import { createFeedProfileMediaController } from './profile-media.js';");
+    expect(feedSource).toContain('const profileMedia = createFeedProfileMediaController({ loadBytes: resourceBytes });');
     expect(feedSource).toContain("button.className = 'feed-item-author feed-profile-button feed-profile-name-button';");
     expect(feedSource).toContain("timeEl.className = 'feed-item-time';");
     expect(feedSource).toContain('formatPublishedAgo(event.created_at)');
-    expect(feedSource).toContain("incEmit('profile:open', [], JSON.stringify({ pubkey: normalized }));");
+    expect(feedSource).toContain('intentInvoke(`napplet:profile/open?pubkey=${encodeURIComponent(normalized)}`)');
+    expect(feedSource).not.toContain("from '@napplet/nap/inc/sdk'");
+    expect(feedSource).not.toContain("incEmit('profile:open'");
     expect(feedSource).toContain('renderProfileAvatarButton(event.pubkey, authorName, profile)');
     expect(feedSource).toContain('renderAuthorButton(event.pubkey, authorName)');
     expect(feedSource).not.toContain("pubkeyEl.className = 'feed-item-pubkey';");
@@ -398,18 +402,24 @@ describe('playground gateway artifact guard', () => {
     expect(existsSync('apps/playground/src/mock-relay-pool.ts')).toBe(false);
   });
 
-  it('keeps the profile demo on its transitional INC flow until Phase 105 intent wiring', () => {
+  it('keeps the profile demo on published intent delivery with resource-backed media', () => {
     const profileSource = readRepoFile('apps/playground/napplets/profile-viewer/src/main.ts');
     const profileHtml = readRepoFile('apps/playground/napplets/profile-viewer/index.html');
 
-    expect(profileSource).toContain("import { incOn } from '@napplet/nap/inc/sdk';");
+    expect(profileSource).toContain("import { intentOnDelivery } from '@napplet/nap/intent/sdk';");
     expect(profileSource).toContain("import { relaySubscribe } from '@napplet/nap/relay/sdk';");
+    expect(profileSource).toContain("import { resourceBytes } from '@napplet/nap/resource/sdk';");
     expect(profileSource).toContain("import { getMissingNapDomains } from '../../domain-availability';");
-    expect(profileSource).toContain("const REQUIRED_NAPS = ['inc', 'relay', 'theme'] as const;");
+    expect(profileSource).toContain("const REQUIRED_NAPS = ['intent', 'relay', 'resource', 'theme'] as const;");
     expect(profileSource).toContain('getMissingNapDomains(REQUIRED_NAPS)');
     expect(profileSource).toContain('const CAPABILITY_WAIT_MS = 5_000;');
-    expect(profileSource).toContain("formatError(err, 'inc or relay unavailable')");
-    expect(profileSource).toContain("incOn('profile:open'");
+    expect(profileSource).toContain("formatError(err, 'intent, relay, or resource unavailable')");
+    expect(profileSource).toContain('intentDeliverySub = intentOnDelivery((delivery: IntentDelivery) => {');
+    expect(profileSource).toContain("if (delivery.convention !== 'napplet:profile/open') return;");
+    expect(profileSource).toContain("import { createProfileMediaController } from './profile-media.js';");
+    expect(profileSource).toContain('const profileMedia = createProfileMediaController({ loadBytes: resourceBytes });');
+    expect(profileSource).not.toContain("from '@napplet/nap/inc/sdk'");
+    expect(profileSource).not.toContain("incOn('profile:open'");
     expect(profileSource).toContain('[{ kinds: [0], authors: [pubkey], limit: 1 }]');
     expect(profileSource).toContain('normalizePubkey');
     expect(profileSource).not.toContain('identityGetProfile');
