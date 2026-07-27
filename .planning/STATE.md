@@ -5,15 +5,15 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
-stopped_at: Completed 105-06-PLAN.md
-last_updated: "2026-07-27T09:40:12.223Z"
+stopped_at: Completed 105-08-PLAN.md
+last_updated: "2026-07-27T09:54:38.853Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 44
-  completed_plans: 38
+  completed_plans: 39
   percent: 67
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 105 (published-convention-adoption-and-host-flows) — EXECUTING
-Plan: 7 of 12
+Plan: 8 of 12
 Status: Ready to execute
 
 Last activity: 2026-07-27 — Phase 105 execution started
@@ -94,6 +94,7 @@ Last activity: 2026-07-27 — Phase 105 execution started
 | Phase 105 P04 | 6m | 2 tasks | 3 files |
 | Phase 105 P05 | 6m | 2 tasks | 11 files |
 | Phase 105 P06 | 11min | 2 tasks | 7 files |
+| Phase 105 P08 | 13m | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -209,8 +210,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T09:40:12.211Z
-Stopped at: Completed 105-06-PLAN.md
+Last session: 2026-07-27T09:54:38.840Z
+Stopped at: Completed 105-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -295,3 +296,5 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: NAP-INTENT values now come from released @napplet/core 0.29.0 while Kehto retains resolver and delivery policy.
 - [Phase ?]: Paja retains serializable verified manifest and pointer facts independently from browser frames.
 - [Phase ?]: Paja intent selection revalidates exact installed contracts and sender-aware explicit authorization before acceptance.
+- [Phase ?]: Playground intent availability comes only from a persistent resolver-verified catalog, never the live frame map.
+- [Phase ?]: Playground intent delivery waits for the registered current shell.ready source and sends exactly once without INC.

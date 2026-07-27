@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 19
+open_count: 20
 waived_count: 0
 fixed_count: 4
-total_count: 23
-last_updated: 2026-07-23T22:02:35.758Z
+total_count: 24
+last_updated: 2026-07-27T09:54:38.327Z
 ---
 
 # Broken Windows Ledger
@@ -38,6 +38,7 @@ last_updated: 2026-07-23T22:02:35.758Z
 | 21 | 102 | unmet-truth | tests/e2e |  | Full Playwright reached the correct Kehto preview but 7 legacy demo/fixture tests remain red until the concurrent napplet/web chase publishes and Kehto adopts the convention-capable package set in Phase 105. | open |  | 2026-07-23T19:38:51.000Z |  |
 | 22 | 103 | unrun-verify | package.json |  | AI-slop quality gate could not run because the aislop executable is unavailable in the workspace. | open |  | 2026-07-23T21:21:32.351Z |  |
 | 23 | 102 | unmet-truth | tests/e2e/paja-single-window.spec.ts | 488 | Combined Phase 103 browser run still times out delivering the post-reload Phase 102 INC event; identity/theme proofs pass and no Phase 102 workaround was added. | open |  | 2026-07-23T22:02:35.758Z |  |
+| 24 | 105 | deviation | apps/playground/src/acl-panel.ts |  | Playground TypeScript verification remains blocked by pre-existing capability-map and direct dependency-resolution errors. | open |  | 2026-07-27T09:54:38.327Z |  |
 
 ````json
 [
@@ -315,6 +316,18 @@ last_updated: 2026-07-23T22:02:35.758Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-07-23T22:02:35.758Z",
+    "resolved_at": null
+  },
+  {
+    "id": 24,
+    "kind": "deviation",
+    "phase": "105",
+    "file": "apps/playground/src/acl-panel.ts",
+    "line": null,
+    "description": "Playground TypeScript verification remains blocked by pre-existing capability-map and direct dependency-resolution errors.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-07-27T09:54:38.327Z",
     "resolved_at": null
   }
 ]
