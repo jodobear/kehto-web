@@ -68,7 +68,7 @@ import {
   type PajaCapabilityDomain,
 } from './simulation.js';
 
-interface PajaBrowserState {
+export interface PajaBrowserState {
   readonly config: PajaHostConfig;
   readonly capabilities: ShellCapabilities;
   services: string[];
@@ -132,13 +132,15 @@ interface PajaHostRuntimeState extends PajaRuntimeTabRuntime {
   currentSimulation: PajaSimulation;
   themeService: PajaThemeService | null;
   catalog: InstalledNappletCatalog;
-  readonly readyWaiters: Map<string, Set<{
+  readonly readyWaiters: Map<BrowserIntentGeneration, Set<{
     resolve(): void;
     reject(reason: Error): void;
   }>>;
+  /** Immutable selected catalog record for each retained intent generation. */
+  readonly intentRecords: WeakMap<BrowserIntentGeneration, ReturnType<InstalledNappletCatalog['get']>>;
 }
 
-interface PajaBrowserStateContext extends PajaRuntimeTabContext {
+export interface PajaBrowserStateContext extends PajaRuntimeTabContext {
   config: PajaHostConfig;
   frame: HTMLIFrameElement | null;
   stage: HTMLElement;
@@ -317,7 +319,7 @@ function unregisterSingleFrameWindow(
   if (runtime.currentWindowId === windowId) runtime.currentWindowId = null;
 }
 
-function createPajaIntentTargetOptions(
+export function createPajaIntentTargetOptions(
   getState: () => PajaBrowserState | null,
   getContext: () => PajaBrowserStateContext | null,
 ): ConstructorParameters<typeof BrowserIntentController>[0] {
@@ -343,7 +345,7 @@ function createPajaIntentTargetOptions(
         && isCurrentRuntimeTabGeneration(state, context, tab),
       );
       if (current && params.behavior?.reuse !== false) {
-        return { id: runtimeTabGenerationId(current) };
+        return bindPajaIntentGeneration(current, record, context.runtime);
       }
 
       const resolved = await resolvePajaPointer(record.pointer.value, pointerResolverOptions(context));
@@ -357,34 +359,40 @@ function createPajaIntentTargetOptions(
       if (!currentRecord) return null;
       const tab = addRuntimeTab(state, context, currentRecord.pointer.value, resolved);
       persistRuntimeTabs(state);
-      return { id: runtimeTabGenerationId(tab) };
+      return bindPajaIntentGeneration(tab, currentRecord, context.runtime);
     },
     waitForReady(generation) {
       const state = getState();
       const context = getContext();
       if (!state || !context) return Promise.reject(new Error('Paja host is not available'));
       const tab = findRuntimeTabGeneration(state, generation);
-      if (!tab || !isCurrentRuntimeTabGeneration(state, context, tab)) {
+      if (!tab || !isCurrentPajaIntentGeneration(generation, state, context, tab)) {
+        invalidatePajaIntentGeneration(generation, context.runtime);
         return Promise.reject(new Error('intent target generation is not current'));
       }
       if (tab.windowId && context.runtime.readyWindowIds.has(tab.windowId)) return undefined;
       return new Promise<void>((resolve, reject) => {
-        const waiters = context.runtime.readyWaiters.get(generation.id) ?? new Set();
+        const waiters = context.runtime.readyWaiters.get(generation) ?? new Set();
         waiters.add({ resolve, reject });
-        context.runtime.readyWaiters.set(generation.id, waiters);
+        context.runtime.readyWaiters.set(generation, waiters);
       });
     },
     isCurrent(generation) {
       const state = getState();
       const context = getContext();
       const tab = state && context ? findRuntimeTabGeneration(state, generation) : null;
-      return Boolean(tab && state && context && isCurrentRuntimeTabGeneration(state, context, tab));
+      if (!tab || !state || !context || !isCurrentPajaIntentGeneration(generation, state, context, tab)) {
+        if (context) invalidatePajaIntentGeneration(generation, context.runtime);
+        return false;
+      }
+      return true;
     },
     send(generation, delivery) {
       const state = getState();
       const context = getContext();
       const tab = state && context ? findRuntimeTabGeneration(state, generation) : null;
-      if (!state || !context || !tab || !tab.windowId || !isCurrentRuntimeTabGeneration(state, context, tab)) {
+      if (!state || !context || !tab || !tab.windowId || !isCurrentPajaIntentGeneration(generation, state, context, tab)) {
+        if (context) invalidatePajaIntentGeneration(generation, context.runtime);
         throw new Error('intent target generation is not current and ready');
       }
       const source = tab.frame.contentWindow;
@@ -437,6 +445,38 @@ function findRuntimeTabGeneration(
   return state.tabs.find((tab) => runtimeTabGenerationId(tab) === generation.id) ?? null;
 }
 
+function bindPajaIntentGeneration(
+  tab: PajaRuntimeTab,
+  record: NonNullable<ReturnType<InstalledNappletCatalog['get']>>,
+  runtime: PajaHostRuntimeState,
+): BrowserIntentGeneration {
+  const generation = { id: runtimeTabGenerationId(tab) };
+  runtime.intentRecords.set(generation, record);
+  return generation;
+}
+
+function isCurrentPajaIntentGeneration(
+  generation: BrowserIntentGeneration,
+  state: PajaBrowserState,
+  context: PajaBrowserStateContext,
+  tab: PajaRuntimeTab,
+): boolean {
+  const record = context.runtime.intentRecords.get(generation);
+  return record !== undefined
+    && context.runtime.catalog.useIfCurrent(record, tab.resolvedTarget) !== null
+    && isCurrentRuntimeTabGeneration(state, context, tab);
+}
+
+function invalidatePajaIntentGeneration(
+  generation: BrowserIntentGeneration,
+  runtime: PajaHostRuntimeState,
+): void {
+  const waiters = runtime.readyWaiters.get(generation);
+  if (!waiters) return;
+  runtime.readyWaiters.delete(generation);
+  for (const waiter of waiters) waiter.reject(new Error('intent target catalog record was replaced'));
+}
+
 function isCurrentRuntimeTabGeneration(
   state: PajaBrowserState,
   context: PajaBrowserStateContext,
@@ -450,7 +490,7 @@ function isCurrentRuntimeTabGeneration(
     && runtimeTabGenerationId(tab) === `${tab.id}:${tab.generation}`;
 }
 
-function markRuntimeTabReady(
+export function markRuntimeTabReady(
   state: PajaBrowserState,
   context: PajaBrowserStateContext,
   tab: PajaRuntimeTab,
@@ -464,9 +504,13 @@ function markRuntimeTabReady(
     || !isCurrentRuntimeTabGeneration(state, context, tab)
   ) return false;
   context.runtime.readyWindowIds.add(tab.windowId);
-  const waiters = context.runtime.readyWaiters.get(runtimeTabGenerationId(tab));
-  if (waiters) {
-    context.runtime.readyWaiters.delete(runtimeTabGenerationId(tab));
+  for (const [generation, waiters] of [...context.runtime.readyWaiters]) {
+    if (findRuntimeTabGeneration(state, generation) !== tab) continue;
+    context.runtime.readyWaiters.delete(generation);
+    if (!isCurrentPajaIntentGeneration(generation, state, context, tab)) {
+      for (const waiter of waiters) waiter.reject(new Error('intent target catalog record was replaced'));
+      continue;
+    }
     for (const waiter of waiters) waiter.resolve();
   }
   tab.status = 'ready';
@@ -479,10 +523,11 @@ function clearRuntimeTabGeneration(
   tab: PajaRuntimeTab,
   runtime: PajaHostRuntimeState,
 ): void {
-  const waiters = runtime.readyWaiters.get(runtimeTabGenerationId(tab));
-  if (!waiters) return;
-  runtime.readyWaiters.delete(runtimeTabGenerationId(tab));
-  for (const waiter of waiters) waiter.reject(new Error('intent target generation replaced'));
+  for (const [generation, waiters] of [...runtime.readyWaiters]) {
+    if (generation.id !== runtimeTabGenerationId(tab)) continue;
+    runtime.readyWaiters.delete(generation);
+    for (const waiter of waiters) waiter.reject(new Error('intent target generation replaced'));
+  }
 }
 
 /**
@@ -828,6 +873,7 @@ async function installPajaHost(): Promise<void> {
     themeService: null,
     catalog: new InstalledNappletCatalog(),
     readyWaiters: new Map(),
+    intentRecords: new WeakMap(),
     currentWindowId: null,
     readyWindowIds: new Set(),
   };
@@ -930,14 +976,16 @@ async function installPajaHost(): Promise<void> {
   if (hasNip07Signer()) void state.connectNip07();
 }
 
-try {
-  void installPajaHost().catch((error) => {
+if (typeof document !== 'undefined') {
+  try {
+    void installPajaHost().catch((error) => {
+      const statusEl = document.getElementById('lifecycle-status');
+      if (statusEl) statusEl.textContent = 'error';
+      console.error(error);
+    });
+  } catch (error) {
     const statusEl = document.getElementById('lifecycle-status');
     if (statusEl) statusEl.textContent = 'error';
     console.error(error);
-  });
-} catch (error) {
-  const statusEl = document.getElementById('lifecycle-status');
-  if (statusEl) statusEl.textContent = 'error';
-  console.error(error);
+  }
 }

@@ -4,6 +4,15 @@ import type { IntentRetentionParams } from '@kehto/services';
 import { createCatalogIntentResolver } from '@kehto/services';
 import { PlaygroundIntentController } from '../../apps/playground/src/playground-intent-controller.js';
 import {
+  bootShell,
+  createPlaygroundIntentTargetOptions,
+  getInstalledNappletCatalog,
+  getNapplets,
+  markIntentTargetReady,
+} from '../../apps/playground/src/shell-host.js';
+import { originRegistry, type ShellEnvironment } from '@kehto/shell';
+import type { NappletInfo } from '../../apps/playground/src/shell-host.js';
+import {
   InstalledNappletCatalog,
   matchesInstalledNappletRecord,
 } from '../../apps/playground/src/installed-napplet-catalog.js';
@@ -215,5 +224,63 @@ describe('PlaygroundIntentController', () => {
     const shellHost = readFileSync(new URL('../../apps/playground/src/shell-host.ts', import.meta.url), 'utf8');
     expect(shellHost).toContain('installInCatalog: false');
     expect(shellHost).toContain('acceptResolved: (identity) => installedNapplets.useIfCurrent(record, identity) !== null');
+  });
+
+  it('rejects ready A and delivers only to live B after catalog replacement', async () => {
+    const priorWindow = globalThis.window;
+    const addEventListener = vi.fn();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: { addEventListener, location: { search: '' } },
+    });
+    const catalog = getInstalledNappletCatalog();
+    const napplets = getNapplets();
+    const dTag = 'profile-viewer';
+    const makeLive = (windowId: string, aggregateHash: string) => {
+      const source = { postMessage: vi.fn() } as unknown as Window;
+      const info: NappletInfo = {
+        windowId,
+        name: dTag,
+        iframe: { contentWindow: source, remove: vi.fn() } as unknown as HTMLIFrameElement,
+        dTag,
+        aggregateHash,
+        environment: {} as ShellEnvironment,
+        identityBound: true,
+      };
+      napplets.set(windowId, info);
+      originRegistry.register(source, windowId, { dTag, aggregateHash });
+      return { info, source };
+    };
+
+    try {
+      bootShell();
+      catalog.remove(dTag);
+      napplets.clear();
+      const sourceA = makeLive('intent-a', 'aggregate-a');
+      installProfile(catalog, dTag, 'aggregate-a');
+      const controller = new PlaygroundIntentController({
+        ...createPlaygroundIntentTargetOptions(),
+        maxAttempts: 2,
+      });
+      const task = controller.retain(params()).start();
+      await Promise.resolve();
+
+      const sourceB = makeLive('intent-b', 'aggregate-b');
+      installProfile(catalog, dTag, 'aggregate-b');
+      markIntentTargetReady(sourceA.info.windowId, sourceA.source);
+      for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
+      markIntentTargetReady(sourceB.info.windowId, sourceB.source);
+      await task;
+
+      expect(catalog.get(dTag)).toMatchObject({ aggregateHash: 'aggregate-b' });
+      expect((sourceA.source as unknown as { postMessage: ReturnType<typeof vi.fn> }).postMessage).not.toHaveBeenCalled();
+      expect((sourceB.source as unknown as { postMessage: ReturnType<typeof vi.fn> }).postMessage)
+        .toHaveBeenCalledWith(expect.objectContaining({ type: 'intent.deliver' }), '*', undefined);
+    } finally {
+      catalog.remove(dTag);
+      napplets.clear();
+      originRegistry.clear();
+      Object.defineProperty(globalThis, 'window', { configurable: true, value: priorWindow });
+    }
   });
 });

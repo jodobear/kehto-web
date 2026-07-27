@@ -26,6 +26,7 @@ import {
 } from './napplet-resolver.js';
 import type { PlaygroundNapplet } from './napplet-resolver.js';
 import { InstalledNappletCatalog, matchesInstalledNappletRecord } from './installed-napplet-catalog.js';
+import type { InstalledNappletRecord } from './installed-napplet-catalog.js';
 import type {
   PlaygroundIntentControllerOptions,
   PlaygroundIntentGeneration,
@@ -167,6 +168,8 @@ const installedNapplets = new InstalledNappletCatalog();
 interface IntentGenerationState extends PlaygroundIntentGeneration {
   readonly dTag: string;
   readonly windowId: string;
+  /** Exact catalog record selected before this target generation began. */
+  readonly selectedRecord: InstalledNappletRecord;
   readonly ready: Promise<void>;
   readonly resolveReady: () => void;
   readonly rejectReady: (reason: Error) => void;
@@ -255,8 +258,8 @@ export function installVerifiedNapplet(
 export function createPlaygroundIntentTargetOptions(): PlaygroundIntentControllerOptions {
   return {
     openOrReuse: openOrReuseIntentTarget,
-    waitForReady: (generation) => intentGeneration(generation).ready,
-    isCurrent: (generation) => isCurrentIntentGeneration(intentGeneration(generation)),
+    waitForReady: (generation) => waitForPlaygroundIntentReady(intentGeneration(generation)),
+    isCurrent: (generation) => isCurrentPlaygroundIntentGeneration(intentGeneration(generation)),
     send: sendIntentDelivery,
   };
 }
@@ -289,6 +292,7 @@ async function openOrReuseIntentTarget(
   if (
     current
     && currentInfo
+    && current.selectedRecord === record
     && matchesInstalledNappletRecord(record, currentInfo)
     && isCurrentIntentGeneration(current)
   ) return current;
@@ -302,7 +306,7 @@ async function openOrReuseIntentTarget(
   }
 
   const live = [...napplets.values()].find((info) => matchesInstalledNappletRecord(record, info));
-  if (live) return replaceIntentGeneration(live);
+  if (live) return replaceIntentGeneration(live, record);
 
   let info: NappletInfo;
   try {
@@ -318,7 +322,7 @@ async function openOrReuseIntentTarget(
     closeNapplet(info.windowId);
     return null;
   }
-  return replaceIntentGeneration(info);
+  return replaceIntentGeneration(info, currentRecord);
 }
 
 function recordSupportsDelivery(
@@ -331,7 +335,10 @@ function recordSupportsDelivery(
   ) ?? false;
 }
 
-function replaceIntentGeneration(info: NappletInfo): IntentGenerationState | null {
+function replaceIntentGeneration(
+  info: NappletInfo,
+  selectedRecord: InstalledNappletRecord,
+): IntentGenerationState | null {
   if (!info.dTag) return null;
   clearPlaygroundIntentGeneration(info.windowId);
   let resolveReady!: () => void;
@@ -344,6 +351,7 @@ function replaceIntentGeneration(info: NappletInfo): IntentGenerationState | nul
     id: `playground-intent-${++intentGenerationCounter}`,
     dTag: info.dTag,
     windowId: info.windowId,
+    selectedRecord,
     ready,
     resolveReady,
     rejectReady,
@@ -365,15 +373,43 @@ function isCurrentIntentGeneration(generation: IntentGenerationState): boolean {
   const info = napplets.get(generation.windowId);
   return intentGenerations.get(generation.dTag)?.id === generation.id
     && info?.dTag === generation.dTag
+    && installedNapplets.useIfCurrent(generation.selectedRecord, info) !== null
     && info.iframe.contentWindow === (generation.source ?? info.iframe.contentWindow);
 }
 
-function markIntentTargetReady(windowId: string, source: Window): void {
+function invalidatePlaygroundIntentGeneration(generation: IntentGenerationState): void {
+  if (napplets.has(generation.windowId)) closeNapplet(generation.windowId);
+  else clearPlaygroundIntentGeneration(generation.windowId);
+}
+
+async function waitForPlaygroundIntentReady(generation: IntentGenerationState): Promise<void> {
+  if (!isCurrentIntentGeneration(generation)) {
+    invalidatePlaygroundIntentGeneration(generation);
+    throw new Error('intent target catalog record was replaced');
+  }
+  await generation.ready;
+  if (!isCurrentIntentGeneration(generation)) {
+    invalidatePlaygroundIntentGeneration(generation);
+    throw new Error('intent target catalog record was replaced');
+  }
+}
+
+function isCurrentPlaygroundIntentGeneration(generation: IntentGenerationState): boolean {
+  if (isCurrentIntentGeneration(generation)) return true;
+  invalidatePlaygroundIntentGeneration(generation);
+  return false;
+}
+
+export function markIntentTargetReady(windowId: string, source: Window): void {
   const info = napplets.get(windowId);
   if (!info?.dTag || info.iframe.contentWindow !== source) return;
   const generation = intentGenerations.get(info.dTag);
   if (!generation || generation.windowId !== windowId || generation.source) return;
   if (originRegistry.getWindowId(source) !== windowId) return;
+  if (!isCurrentIntentGeneration(generation)) {
+    invalidatePlaygroundIntentGeneration(generation);
+    return;
+  }
   generation.source = source;
   generation.resolveReady();
 }
@@ -383,7 +419,7 @@ function sendIntentDelivery(
   delivery: IntentRetentionParams['delivery'],
 ): void {
   const state = intentGeneration(generation);
-  if (!state.source || !isCurrentIntentGeneration(state)) {
+  if (!state.source || !isCurrentPlaygroundIntentGeneration(state)) {
     throw new Error('intent target generation is not current and ready');
   }
   createPostMessageProxy(state.source, tap, state.windowId).postMessage({

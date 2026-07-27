@@ -1,8 +1,13 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createThemeService } from '@kehto/services';
+import { originRegistry } from '@kehto/shell';
 
+import { BrowserIntentController } from './browser-intent-controller.js';
+import { createPajaIntentTargetOptions, markRuntimeTabReady } from './browser-host.js';
 import { matchesInstalledNappletRecord } from './installed-napplet-catalog.js';
+import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
+import type { PajaResolvedPointer } from './runtime-resolver.js';
 import { createPajaThemeBroadcastLink } from './theme-broadcast.js';
 
 describe('@kehto/paja browser host runtime source guards', () => {
@@ -214,5 +219,51 @@ describe('@kehto/paja browser host runtime source guards', () => {
 
     expect(coldLoad).toContain('context.runtime.catalog.useIfCurrent(record, resolved)');
     expect(coldLoad).not.toContain('context.runtime.catalog.install(resolved)');
+  });
+
+  it('rejects ready A and delivers only to live B after catalog replacement', async () => {
+    const priorDocument = globalThis.document;
+    const priorHTMLElement = globalThis.HTMLElement;
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: { getElementById: () => null } });
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: class {} });
+    const catalog = new InstalledNappletCatalog();
+    const resolved = (aggregateHash: string) => ({
+      pointer: { type: 'naddr', value: `naddr-${aggregateHash}`, identifier: 'profile-viewer', pubkey: 'a'.repeat(64), kind: 35_129, relays: [] },
+      event: { id: 'b'.repeat(64), pubkey: 'a'.repeat(64), created_at: 1, kind: 35_129, tags: [], content: '', sig: 'c'.repeat(128) },
+      relays: [], blossomServers: [], dTag: 'profile-viewer', aggregateHash, indexHtml: '',
+      manifest: { kind: 35_129, pubkey: 'a'.repeat(64), dTag: 'profile-viewer', aggregateHash, paths: [], servers: [], requires: ['intent'], archetypes: [{ slug: 'profile', convention: 'napplet:profile/open' }] },
+    }) as PajaResolvedPointer;
+    const makeTab = (id: string, target: PajaResolvedPointer) => {
+      const source = { postMessage: vi.fn() } as unknown as Window;
+      const tab = { id, generation: 1, resolvedTarget: target, frame: { contentWindow: source, remove: vi.fn() }, windowId: id, status: 'booting' };
+      originRegistry.register(source, id, { dTag: target.dTag, aggregateHash: target.aggregateHash });
+      return { tab, source };
+    };
+    const targetA = resolved('aggregate-a');
+    const targetB = resolved('aggregate-b');
+    const tabA = makeTab('tab-a', targetA);
+    const state = { tabs: [tabA.tab], activeTabId: 'tab-b', messageLog: [] } as unknown as import('./browser-host.js').PajaBrowserState;
+    const runtime = { catalog, readyWindowIds: new Set<string>(), readyWaiters: new Map(), intentRecords: new WeakMap(), currentWindowId: null };
+    const context = { runtime, bridge: { runtime: { destroyWindow: vi.fn(), sessionRegistry: { unregister: vi.fn() } } }, onTabDestroyed: vi.fn(), setStatus: vi.fn(), setPointerStatus: vi.fn() } as unknown as import('./browser-host.js').PajaBrowserStateContext;
+    try {
+      catalog.install(targetA);
+      const controller = new BrowserIntentController({ ...createPajaIntentTargetOptions(() => state, () => context), maxAttempts: 2 });
+      const task = controller.retain({ handler: 'profile-viewer', delivery: { sender: 'feed', archetype: 'profile', action: 'open', convention: 'napplet:profile/open', payload: {} } }).start();
+      await Promise.resolve();
+      const tabB = makeTab('tab-b', targetB);
+      state.tabs.push(tabB.tab as never);
+      catalog.install(targetB);
+      markRuntimeTabReady(state, context, tabA.tab as never, tabA.source, 'tab-a');
+      for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
+      markRuntimeTabReady(state, context, tabB.tab as never, tabB.source, 'tab-b');
+      await task;
+      expect((tabA.source as unknown as { postMessage: ReturnType<typeof vi.fn> }).postMessage).not.toHaveBeenCalled();
+      expect((tabB.source as unknown as { postMessage: ReturnType<typeof vi.fn> }).postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'intent.deliver' }), '*', undefined);
+      expect(catalog.get('profile-viewer')).toMatchObject({ aggregateHash: 'aggregate-b' });
+    } finally {
+      originRegistry.clear();
+      Object.defineProperty(globalThis, 'document', { configurable: true, value: priorDocument });
+      Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: priorHTMLElement });
+    }
   });
 });
