@@ -18,9 +18,9 @@ describe('CI release-only gates', () => {
     );
   });
 
-  test('keeps the JSR metadata sync guard on release-only commits', () => {
+  test('keeps package and docs metadata synchronized on release-only commits', () => {
     expect(workflowSource()).toMatch(
-      /- name: Verify generated JSR metadata is synced\n        if: \$\{\{ needs\.change_scope\.outputs\.release_only == 'true' \}\}\n        run: \|\n          node scripts\/sync-jsr-versions\.mjs\n          git diff --exit-code -- packages/,
+      /- name: Verify generated release metadata is synced\n        if: \$\{\{ needs\.change_scope\.outputs\.release_only == 'true' \}\}\n        run: \|\n          node scripts\/sync-jsr-versions\.mjs\n          git diff --exit-code -- packages docs\/packages/,
     );
   });
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// sync-jsr-versions.mjs — keep each packages/*/jsr.json in lockstep with its
-// sibling package.json. Run AFTER `pnpm version-packages` (which bumps
-// package.json via changesets) and BEFORE the JSR publish step.
+// sync-jsr-versions.mjs — keep generated release metadata in lockstep with each
+// packages/*/package.json. Run AFTER Changesets bumps package versions and
+// BEFORE the release metadata PR is validated.
 //
 // Two things drift when changesets bumps versions, because changesets only
 // touches package.json:
@@ -13,11 +13,14 @@
 //      ("Could not find version ... matching ^0.10.0"). External npm:/jsr:
 //      specifiers (nostr-tools, @noble/*, @napplet/*) are left untouched.
 //
-// This script bridges both gaps with zero npm-side churn.
+// This script bridges both JSR gaps with zero npm-side churn, then synchronizes
+// the package documentation version rows consumed by the docs release gate.
 
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { syncPackageDocVersions } from './sync-package-doc-versions.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PACKAGES_DIR = join(REPO_ROOT, 'packages');
@@ -68,3 +71,11 @@ for (const entry of readdirSync(PACKAGES_DIR, { withFileTypes: true })) {
 }
 
 console.log(`sync-jsr-versions: ${changed} updated, ${skipped} packages skipped (no jsr.json)`);
+
+const docsResult = syncPackageDocVersions();
+for (const update of docsResult.updates) {
+  console.log(`  synced ${update.slug}: docs version → ${update.version}`);
+}
+console.log(
+  `sync-package-doc-versions: ${docsResult.changed} updated, ${docsResult.checked} checked`,
+);
