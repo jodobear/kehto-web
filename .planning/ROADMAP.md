@@ -266,7 +266,7 @@ users rely on.
   4. Playground profile consumers load remote profile media through NAP-RESOURCE into revocable safe object URLs and clean them up rather than assigning remote URLs directly to image elements.
   5. Paja and playground both deliver the current theme to required napplets and bridge one host theme update as one synchronized changed theme with matching stored service state.
 
-**Plans:** 10/12 plans executed
+**Plans:** 11/12 plans executed
 
 **Wave 1**
 
@@ -304,7 +304,7 @@ users rely on.
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
-- [ ] 105-11-PLAN.md — Synchronize active package/policy docs and add the seven-package release changeset.
+- [x] 105-11-PLAN.md — Synchronize active package/policy docs and add the seven-package release changeset.
 - [ ] 105-12-PLAN.md — Document the complete live Paja and playground host lifecycle.
 
 **UI hint:** yes
@@ -333,7 +333,7 @@ users rely on.
 | 102. NAP-INC Event and Channel Parity | v1.29 | 14/14 | Complete    | 2026-07-26 |
 | 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete    | 2026-07-23 |
 | 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 6/6 | Complete    | 2026-07-26 |
-| 105. Published Convention Adoption and Host Flows | v1.29 | 10/12 | In Progress|  |
+| 105. Published Convention Adoption and Host Flows | v1.29 | 11/12 | In Progress|  |
 | 106. Active-Surface Conformance and Release | v1.29 | 0/TBD | Not started | - |
 
 ---

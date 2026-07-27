@@ -5,15 +5,15 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
-stopped_at: Completed 105-10-PLAN.md
-last_updated: "2026-07-27T11:14:26.474Z"
+stopped_at: Completed 105-11-PLAN.md
+last_updated: "2026-07-27T11:31:12.603Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 44
-  completed_plans: 42
+  completed_plans: 43
   percent: 67
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 105 (published-convention-adoption-and-host-flows) — EXECUTING
-Plan: 11 of 12
+Plan: 12 of 12
 Status: Ready to execute
 
 Last activity: 2026-07-27 — Phase 105 execution started
@@ -98,6 +98,7 @@ Last activity: 2026-07-27 — Phase 105 execution started
 | Phase 105 P07 | 24m | 2 tasks | 5 files |
 | Phase 105-published-convention-adoption-and-host-flows P09 | 13m | 2 tasks | 14 files |
 | Phase 105-published-convention-adoption-and-host-flows P10 | 5m | 2 tasks | 3 files |
+| Phase 105-published-convention-adoption-and-host-flows P11 | 20m | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -213,8 +214,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T11:14:26.462Z
-Stopped at: Completed 105-10-PLAN.md
+Last session: 2026-07-27T11:31:12.590Z
+Stopped at: Completed 105-11-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -310,3 +311,6 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: The active playground gateway guard mirrors published intent/resource manifests and forbids legacy profile INC imports or carriers.
 - [Phase ?]: Classify static migration evidence to explicit live sources while excluding history and intentional fixtures.
 - [Phase ?]: Retain the Kehto-owned mandatory NAP-SHELL prelude as positive proof of the published core/shim shell omission exception.
+- [Phase ?]: Treat the core/nap 0.29.0 peer-floor increase as breaking 0.x work and classify every affected published package as minor.
+- [Phase ?]: Retain Kehto host-owned NAP-SHELL prelude because published core 0.29.0 and shim 0.27.0 omit generic shell.
+- [Phase ?]: Treat resource hardening as non-normative Kehto policy because pinned master has no standalone NAP-RESOURCE.md.
