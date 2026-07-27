@@ -5,15 +5,15 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 106
 current_phase_name: Active-Surface Conformance and Release
 status: executing
-stopped_at: Completed 106-01-PLAN.md
-last_updated: "2026-07-27T15:51:56.862Z"
+stopped_at: Completed 106-02-PLAN.md
+last_updated: "2026-07-27T16:01:02.259Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 106 execution started
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 47
-  completed_plans: 45
+  completed_plans: 46
   percent: 83
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 106 (Active-Surface Conformance and Release) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 
 Last activity: 2026-07-27 — Phase 106 execution started
@@ -101,6 +101,7 @@ Last activity: 2026-07-27 — Phase 106 execution started
 | Phase 105-published-convention-adoption-and-host-flows P11 | 20m | 2 tasks | 14 files |
 | Phase 105-published-convention-adoption-and-host-flows P12 | 10 min | 1 tasks | 6 files |
 | Phase 106 P01 | 10m | 3 tasks | 6 files |
+| Phase 106 P02 | 5m | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -216,8 +217,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T15:51:56.849Z
-Stopped at: Completed 106-01-PLAN.md
+Last session: 2026-07-27T16:01:02.246Z
+Stopped at: Completed 106-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -321,3 +322,6 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: Profile media follows NAP-IDENTITY resource.bytes delegation without inferring standalone NAP-RESOURCE wire semantics.
 - [Phase ?]: PR #89 semantic delta is conformant: symmetric INC channel obligations already exist in runtime and prelude.
 - [Phase ?]: Phase 106 active scans explicitly separate current guidance from historical records.
+- [Phase ?]: Focused browser evidence records all five real-shell protocol flow classes; mandatory skips or failures block release readiness.
+- [Phase ?]: Phase 105's 12/24 desktop/mobile UI audit remains visible non-blocking protocol-release debt owned by Kehto maintainers.
+- [Phase ?]: Plan 106-02 ends at PR #204 readiness evidence; merge, versioning, exact-main CI, tag, and publishing remain unexecuted release-process steps.

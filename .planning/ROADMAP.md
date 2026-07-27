@@ -323,7 +323,7 @@ users rely on.
   5. The exact upstream draft heads and published npm/JSR artifacts are revalidated; any drift is reported and reconciled rather than silently inferred.
   6. Build, type-check, unit, relevant and full E2E, docs, AI-slop, and diff gates pass; changesets cover every changed published Kehto package and the branch is ready for its concise PR.
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 **Wave 1**
 
@@ -331,7 +331,7 @@ users rely on.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 106-02-PLAN.md — Prove real Paja/playground host flows and record the explicit non-blocking UI follow-up.
+- [x] 106-02-PLAN.md — Prove real Paja/playground host flows and record the explicit non-blocking UI follow-up.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -346,7 +346,7 @@ users rely on.
 | 103. Identity and Theme Wire Parity | v1.29 | 7/7 | Complete    | 2026-07-23 |
 | 104. NAP-INTENT and Manifest Contract Parity | v1.29 | 6/6 | Complete    | 2026-07-26 |
 | 105. Published Convention Adoption and Host Flows | v1.29 | 12/12 | Complete    | 2026-07-27 |
-| 106. Active-Surface Conformance and Release | v1.29 | 1/3 | In Progress|  |
+| 106. Active-Surface Conformance and Release | v1.29 | 2/3 | In Progress|  |
 
 ---
 
