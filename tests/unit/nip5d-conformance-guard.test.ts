@@ -142,9 +142,9 @@ const activeServiceGuidanceFiles = [
 ] as const;
 
 const activeIntentContractFiles = [
-  'packages/services/src/intent-types.ts',
   'packages/services/src/catalog-intent-resolver.ts',
   'packages/services/src/manifest-intent-catalog.ts',
+  'packages/services/src/index.ts',
   'apps/playground/src/playground-intent-catalog.ts',
 ] as const;
 
@@ -285,7 +285,7 @@ describe('NIP-5D conformance static guards', () => {
   });
 
   it('keeps active intent and manifest surfaces on exact convention contracts', () => {
-    const intentTypes = readRepoFile('packages/services/src/intent-types.ts');
+    const publishedIntentTypes = readRepoFile(installedCoreDist);
     const resolver = readRepoFile('packages/services/src/catalog-intent-resolver.ts');
     const paja = readRepoFile('packages/paja/src/browser-adapter.ts');
     const pajaIntent = [
@@ -303,11 +303,12 @@ describe('NIP-5D conformance static guards', () => {
     const forbiddenCanonicalField =
       /\b(?:protocol|protocols|handled|windowId|newWindow)\s*(?:\?|):/;
 
-    expect(localInterfaceFieldNames(intentTypes, 'IntentContract')).toEqual([
+    expect(existsSync(join(process.cwd(), 'packages/services/src/intent-types.ts'))).toBe(false);
+    expect(interfaceFieldNames(publishedIntentTypes, 'IntentContract')).toEqual([
       'convention',
       'eventKinds',
     ]);
-    expect(localInterfaceFieldNames(intentTypes, 'IntentCandidate')).toEqual([
+    expect(interfaceFieldNames(publishedIntentTypes, 'IntentCandidate')).toEqual([
       'dTag',
       'title',
       'actions',
@@ -315,18 +316,18 @@ describe('NIP-5D conformance static guards', () => {
       'contracts',
       'isDefault',
     ]);
-    expect(localInterfaceFieldNames(intentTypes, 'IntentAcceptedResult')).toEqual([
+    expect(interfaceFieldNames(publishedIntentTypes, 'IntentAcceptedResult')).toEqual([
       'ok',
       'archetype',
       'action',
       'convention',
       'handler',
     ]);
-    expect(localInterfaceFieldNames(intentTypes, 'IntentRejectedResult')).toEqual([
+    expect(interfaceFieldNames(publishedIntentTypes, 'IntentRejectedResult')).toEqual([
       'ok',
       'error',
     ]);
-    expect(localInterfaceFieldNames(intentTypes, 'IntentDelivery')).toEqual([
+    expect(interfaceFieldNames(publishedIntentTypes, 'IntentDelivery')).toEqual([
       'sender',
       'archetype',
       'action',
