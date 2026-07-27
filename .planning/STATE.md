@@ -5,15 +5,15 @@ milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 105
 current_phase_name: published-convention-adoption-and-host-flows
 status: executing
-stopped_at: Completed 105-04-PLAN.md
-last_updated: "2026-07-27T09:16:44.918Z"
+stopped_at: Completed 105-05-PLAN.md
+last_updated: "2026-07-27T09:26:23.543Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 execution started
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 44
-  completed_plans: 36
+  completed_plans: 37
   percent: 67
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 105 (published-convention-adoption-and-host-flows) — EXECUTING
-Plan: 5 of 12
+Plan: 6 of 12
 Status: Ready to execute
 
 Last activity: 2026-07-27 — Phase 105 execution started
@@ -92,6 +92,7 @@ Last activity: 2026-07-27 — Phase 105 execution started
 | Phase 105-published-convention-adoption-and-host-flows P02 | 10m | 1 tasks | 11 files |
 | Phase 105 P03 | 10m | 1 tasks | 14 files |
 | Phase 105 P04 | 6m | 2 tasks | 3 files |
+| Phase 105 P05 | 6m | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -207,8 +208,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-27T09:16:44.906Z
-Stopped at: Completed 105-04-PLAN.md
+Last session: 2026-07-27T09:26:23.531Z
+Stopped at: Completed 105-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
@@ -290,3 +291,4 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: Remaining playground apps and browser fixtures use exact published 0.29.0/0.27.0/0.25.0/0.12.0 pins with a generated third lock checkpoint.
 - [Phase ?]: Package-line guards dynamically inspect active manifests, JSR maps, final lock snapshots, and frozen installed metadata.
 - [Phase ?]: Keep the Kehto-owned mandatory NAP-SHELL prelude because published core/shim 0.29.0/0.27.0 omit the generic shell API.
+- [Phase ?]: NAP-INTENT values now come from released @napplet/core 0.29.0 while Kehto retains resolver and delivery policy.
