@@ -20,10 +20,14 @@ function params(overrides: Partial<IntentRetentionParams> = {}): IntentRetention
   return { handler: 'profile-viewer', delivery, ...overrides };
 }
 
-function installProfile(catalog: InstalledNappletCatalog, dTag = 'profile-viewer'): void {
-  catalog.install({
+function installProfile(
+  catalog: InstalledNappletCatalog,
+  dTag = 'profile-viewer',
+  aggregateHash = `${dTag}-aggregate`,
+) {
+  return catalog.install({
     dTag,
-    aggregateHash: `${dTag}-aggregate`,
+    aggregateHash,
     requires: ['intent'],
     archetypes: [{ slug: 'profile', convention: 'napplet:profile/open' }],
     indexHtml: '<main>verified</main>',
@@ -171,5 +175,45 @@ describe('PlaygroundIntentController', () => {
     expect(matchesInstalledNappletRecord(installed, staleLiveFrame)).toBe(false);
     expect(shellHost).toContain('closeNapplet(stale.windowId)');
     expect(shellHost).toContain('find((info) => matchesInstalledNappletRecord(record, info))');
+  });
+
+  it('abandons a held cold resolution after its selected installed record is replaced', async () => {
+    const catalog = new InstalledNappletCatalog();
+    const selected = installProfile(catalog, 'profile-viewer', 'aggregate-a');
+    let releaseResolution!: (identity: { dTag: string; aggregateHash: string }) => void;
+    const resolution = new Promise<{ dTag: string; aggregateHash: string }>((resolve) => {
+      releaseResolution = resolve;
+    });
+    const send = vi.fn();
+    const onTerminal = vi.fn();
+    let attempts = 0;
+    const controller = new PlaygroundIntentController({
+      openOrReuse: async () => {
+        attempts += 1;
+        if (attempts !== 1) return null;
+        const resolved = await resolution;
+        return catalog.useIfCurrent(selected, resolved) ? { id: 'aggregate-a' } : null;
+      },
+      waitForReady: () => undefined,
+      isCurrent: () => true,
+      send,
+      maxAttempts: 2,
+      onTerminal,
+    });
+
+    const deliveryTask = controller.retain(params()).start();
+    await Promise.resolve();
+    installProfile(catalog, 'profile-viewer', 'aggregate-b');
+    releaseResolution({ dTag: 'profile-viewer', aggregateHash: 'aggregate-a' });
+    await deliveryTask;
+
+    expect(catalog.get('profile-viewer')).toMatchObject({ aggregateHash: 'aggregate-b' });
+    expect(send).not.toHaveBeenCalled();
+    expect(attempts).toBe(2);
+    expect(onTerminal).toHaveBeenCalledWith(expect.objectContaining({ handler: 'profile-viewer' }), 'open-failed');
+
+    const shellHost = readFileSync(new URL('../../apps/playground/src/shell-host.ts', import.meta.url), 'utf8');
+    expect(shellHost).toContain('installInCatalog: false');
+    expect(shellHost).toContain('acceptResolved: (identity) => installedNapplets.useIfCurrent(record, identity) !== null');
   });
 });

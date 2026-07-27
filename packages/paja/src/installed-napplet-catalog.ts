@@ -90,6 +90,24 @@ export class InstalledNappletCatalog {
     return [...this.records.values()];
   }
 
+  /** Return a verified record by d-tag. */
+  get(dTag: string): InstalledNappletRecord | undefined {
+    return this.records.get(dTag);
+  }
+
+  /**
+   * Atomically confirm that a resolved target still belongs to the exact record
+   * selected before an async operation. The record object is the catalog version
+   * token, so even a same-identity replacement cannot pass this check.
+   */
+  useIfCurrent(
+    selected: InstalledNappletRecord,
+    target: Pick<InstalledNappletRecord, 'dTag' | 'aggregateHash'>,
+  ): InstalledNappletRecord | null {
+    if (this.records.get(selected.dTag) !== selected) return null;
+    return matchesInstalledNappletRecord(selected, target) ? selected : null;
+  }
+
   /** Return exact handler candidates derived only from installed manifests. */
   intentCatalog(): IntentCatalogEntry[] {
     return this.installed().map((record) => manifestToIntentCatalogEntry({

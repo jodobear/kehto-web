@@ -326,7 +326,7 @@ function createPajaIntentTargetOptions(
       const state = getState();
       const context = getContext();
       if (!state || !context) return null;
-      const record = context.runtime.catalog.installed().find((entry) => entry.dTag === params.handler);
+      const record = context.runtime.catalog.get(params.handler);
       if (!record || !recordSupportsDelivery(record, params)) return null;
 
       // A catalog replacement may retain the d-tag while replacing the verified
@@ -353,8 +353,9 @@ function createPajaIntentTargetOptions(
         || !resolvedSupportsDelivery(resolved, params)
       ) return null;
 
-      context.runtime.catalog.install(resolved);
-      const tab = addRuntimeTab(state, context, record.pointer.value, resolved);
+      const currentRecord = context.runtime.catalog.useIfCurrent(record, resolved);
+      if (!currentRecord) return null;
+      const tab = addRuntimeTab(state, context, currentRecord.pointer.value, resolved);
       persistRuntimeTabs(state);
       return { id: runtimeTabGenerationId(tab) };
     },

@@ -110,6 +110,19 @@ export class InstalledNappletCatalog {
     return this.records.get(dTag);
   }
 
+  /**
+   * Atomically confirm that a resolved target still belongs to the exact record
+   * selected before an async operation. The record object is the catalog version
+   * token, so even a same-identity replacement cannot pass this check.
+   */
+  useIfCurrent(
+    selected: InstalledNappletRecord,
+    target: { readonly dTag?: string; readonly aggregateHash?: string },
+  ): InstalledNappletRecord | null {
+    if (this.records.get(selected.dTag) !== selected) return null;
+    return matchesInstalledNappletRecord(selected, target) ? selected : null;
+  }
+
   /** Return manifest-derived exact handler candidates for intent resolution. */
   intentCatalog(): IntentCatalogEntry[] {
     return this.installed().map((record) => manifestToIntentCatalogEntry({

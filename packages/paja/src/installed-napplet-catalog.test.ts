@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { IntentRetentionParams } from '@kehto/services';
 import type { PajaResolvedPointer } from './runtime-resolver.js';
+import { BrowserIntentController } from './browser-intent-controller.js';
 import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
 
 function resolvedNapplet(overrides: Partial<PajaResolvedPointer> = {}): PajaResolvedPointer {
@@ -97,5 +99,61 @@ describe('InstalledNappletCatalog', () => {
         },
       },
     }]);
+  });
+
+  it('abandons a held cold resolution after its selected installed record is replaced', async () => {
+    const catalog = new InstalledNappletCatalog();
+    const aggregateA = 'a'.repeat(64);
+    const aggregateB = 'e'.repeat(64);
+    const resolvedA = resolvedNapplet({
+      aggregateHash: aggregateA,
+      manifest: { ...resolvedNapplet().manifest, aggregateHash: aggregateA },
+    });
+    const resolvedB = resolvedNapplet({
+      aggregateHash: aggregateB,
+      manifest: { ...resolvedNapplet().manifest, aggregateHash: aggregateB },
+    });
+    const selected = catalog.install(resolvedA);
+    let releaseResolution!: (resolved: PajaResolvedPointer) => void;
+    const resolution = new Promise<PajaResolvedPointer>((resolve) => {
+      releaseResolution = resolve;
+    });
+    const send = vi.fn();
+    const onTerminal = vi.fn();
+    let attempts = 0;
+    const controller = new BrowserIntentController({
+      openOrReuse: async () => {
+        attempts += 1;
+        if (attempts !== 1) return null;
+        const resolved = await resolution;
+        return catalog.useIfCurrent(selected, resolved) ? { id: 'aggregate-a' } : null;
+      },
+      waitForReady: () => undefined,
+      isCurrent: () => true,
+      send,
+      maxAttempts: 2,
+      onTerminal,
+    });
+    const delivery: IntentRetentionParams = {
+      handler: 'profile-viewer',
+      delivery: {
+        sender: 'social-feed',
+        archetype: 'profile',
+        action: 'open',
+        convention: 'napplet:profile/open',
+        payload: { pubkey: 'a'.repeat(64) },
+      },
+    };
+
+    const deliveryTask = controller.retain(delivery).start();
+    await Promise.resolve();
+    catalog.install(resolvedB);
+    releaseResolution(resolvedA);
+    await deliveryTask;
+
+    expect(catalog.get('profile-viewer')).toMatchObject({ aggregateHash: aggregateB });
+    expect(send).not.toHaveBeenCalled();
+    expect(attempts).toBe(2);
+    expect(onTerminal).toHaveBeenCalledWith(expect.objectContaining({ handler: 'profile-viewer' }), 'open-failed');
   });
 });

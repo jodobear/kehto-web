@@ -152,6 +152,14 @@ export interface LoadNappletOptions {
    * for any pre-render setup the host requires.
    */
   beforeRender?: (identity: LoadedNappletIdentity) => void | Promise<void>;
+  /**
+   * Synchronously admit the verified result before any frame is created.
+   * This hook must not await; intent delivery uses it to prevent a stale async
+   * resolution from starting after its selected catalog record was replaced.
+   */
+  acceptResolved?: (identity: LoadedNappletIdentity) => boolean;
+  /** Persist the verified result as an installed artifact. Defaults to true. */
+  installInCatalog?: boolean;
 }
 
 const napplets = new Map<string, NappletInfo>();
@@ -296,14 +304,18 @@ async function openOrReuseIntentTarget(
   const live = [...napplets.values()].find((info) => matchesInstalledNappletRecord(record, info));
   if (live) return replaceIntentGeneration(live);
 
-  const info = await loadNapplet(record.restart.name, record.restart.containerId);
-  const refreshed = installedNapplets.get(params.handler);
-  if (
-    info.dTag !== params.handler
-    || info.aggregateHash !== refreshed?.aggregateHash
-    || !refreshed
-    || !recordSupportsDelivery(refreshed, params)
-  ) {
+  let info: NappletInfo;
+  try {
+    info = await loadNapplet(record.restart.name, record.restart.containerId, {
+      installInCatalog: false,
+      acceptResolved: (identity) => installedNapplets.useIfCurrent(record, identity) !== null,
+    });
+  } catch {
+    return null;
+  }
+  const currentRecord = installedNapplets.useIfCurrent(record, info);
+  if (!currentRecord || !recordSupportsDelivery(currentRecord, params)) {
+    closeNapplet(info.windowId);
     return null;
   }
   return replaceIntentGeneration(info);
@@ -686,10 +698,14 @@ export async function loadNapplet(
     );
   }
 
+  if (options.acceptResolved && !options.acceptResolved(identity)) {
+    throw new Error(`[demo] ${resolved.dTag} no longer matches the selected installed artifact`);
+  }
+
   // Resolver verification is the only route into persistent handler authority.
   // Live iframe teardown, source swaps, and session cleanup never mutate this
   // catalog; only an explicit artifact uninstall may remove the record.
-  installVerifiedNapplet(resolved, { name, containerId });
+  if (options.installInCatalog !== false) installVerifiedNapplet(resolved, { name, containerId });
 
   const windowId = `demo-${name}-${++nappletCounter}`;
 
@@ -735,7 +751,7 @@ export async function loadNapplet(
   // the verified bytes are injected via srcdoc. The connect-src CSP <meta>
   // is built from the static per-dTag allowlist — the CSP travels inside
   // the document because srcdoc iframes have an opaque origin and no HTTP response.
-  await options.beforeRender?.({ dTag, aggregateHash });
+  if (options.beforeRender) await options.beforeRender({ dTag, aggregateHash });
   const origins = STATIC_ORIGIN_ALLOWLIST.get(dTag) ?? [];
   iframe.srcdoc = injectNappletNamespacePrelude(
     injectCspMeta(resolved.indexHtml, origins),
