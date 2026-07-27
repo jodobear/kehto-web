@@ -72,7 +72,11 @@ export function createProfileMediaController(
     },
     clear,
     clearAll(): void {
-      for (const sink of [...sinks]) clear(sink);
+      while (sinks.size > 0) {
+        const sink = sinks.values().next().value;
+        if (!sink) return;
+        clear(sink);
+      }
     },
     handleError(sink): void {
       clear(sink);

@@ -602,7 +602,8 @@ export function bootShell(
     // environment from this instance before srcdoc injection. Replacing the
     // services map here would register the handler but leave `intent` absent
     // from the advertised capability snapshot.
-    hooks.services.intent = intentService;
+    const services = hooks.services ?? (hooks.services = {});
+    services.intent = intentService;
     hooks.intent = { isAvailable: () => true };
   }
   tap = createInstalledMessageTap();
