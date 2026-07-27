@@ -100,6 +100,84 @@ test('resolves a stale embedded hint through configured live relays in the runni
   }
 });
 
+test('retains an accepted verified intent after the source tab closes and delivers it once to a cold target', async ({ page }) => {
+  test.setTimeout(60_000);
+  const server = await startPointerServer();
+  const source = createPointerFixture(server.url, 'intent-source', sourceIntentHtml(), ['intent']);
+  const target = createPointerFixture(server.url, 'profile-target', targetIntentHtml(), ['intent', 'theme'], [
+    ['archetype', 'profile', 'napplet:profile/open'],
+  ]);
+  const relay = 'wss://intent-fixture.example';
+  server.blobs.set(source.hash, source.bytes);
+  server.blobs.set(target.hash, target.bytes);
+  server.setConfig({
+    ...createPajaRuntimeHostConfig({ pointer: source.pointer, maxWaitMs: 2_000 }),
+    simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
+  });
+  await page.routeWebSocket(`${relay}/`, (socket) => {
+    socket.onMessage((message) => {
+      const request = JSON.parse(String(message)) as unknown[];
+      if (request[0] !== 'REQ' || typeof request[1] !== 'string') return;
+      const subscriptionId = request[1];
+      socket.send(JSON.stringify(['EVENT', subscriptionId, source.event]));
+      socket.send(JSON.stringify(['EVENT', subscriptionId, target.event]));
+      socket.send(JSON.stringify(['EOSE', subscriptionId]));
+    });
+  });
+
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.length)).toBe(1);
+    await page.evaluate((pointer) => window.__KEHTO_PAJA__?.loadPointer(pointer), target.pointer);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs
+      .find((tab) => tab.title === 'profile-target')?.status)).toBe('ready');
+
+    await page.evaluate(() => {
+      const state = window.__KEHTO_PAJA__;
+      const targetTab = state?.getState().tabs.find((tab) => tab.title === 'profile-target');
+      if (targetTab) state?.closeTab(targetTab.id);
+    });
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.length)).toBe(1);
+
+    await page.evaluate(() => {
+      const state = window.__KEHTO_PAJA__;
+      const sourceTab = state?.getState().tabs.find((tab) => tab.title === 'intent-source');
+      const frame = sourceTab ? document.getElementById(`napplet-frame-${sourceTab.id}`) : null;
+      if (!(frame instanceof HTMLIFrameElement)) throw new Error('Missing verified source frame');
+      frame.contentWindow?.postMessage({ type: 'test.invoke' }, '*');
+    });
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'test.source.accepted').length ?? 0)).toBe(1);
+
+    await page.evaluate(() => {
+      const state = window.__KEHTO_PAJA__;
+      const sourceTab = state?.getState().tabs.find((tab) => tab.title === 'intent-source');
+      if (sourceTab) state?.closeTab(sourceTab.id);
+    });
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs
+      .filter((tab) => tab.title === 'profile-target').length)).toBe(1);
+    const targetTabId = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs
+      .find((tab) => tab.title === 'profile-target')?.id ?? null);
+    expect(targetTabId).toBeTruthy();
+    const targetFrame = page.frameLocator(`#napplet-frame-${targetTabId}`);
+    await expect(targetFrame.locator('#delivery-count')).toHaveText('1', { timeout: 15_000 });
+    await expect(targetFrame.locator('#delivery-pubkey')).toHaveText('f'.repeat(64));
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'inc.emit' || entry.type === 'inc.event').length ?? 0)).toBe(0);
+
+    await page.evaluate(() => {
+      const forged = document.createElement('iframe');
+      forged.id = 'forged-ready';
+      forged.sandbox.add('allow-scripts');
+      forged.srcdoc = '<div id="messages">0</div><script>let count=0;window.addEventListener("message",()=>document.getElementById("messages").textContent=String(++count));parent.postMessage({type:"shell.ready"},"*");</script>';
+      document.body.append(forged);
+    });
+    await expect(page.frameLocator('#forged-ready').locator('#messages')).toHaveText('0');
+  } finally {
+    await server.close();
+  }
+});
+
 test('resolves the supplied Good Morning Protocol naddr through verified HTML', async ({ page }) => {
   test.skip(process.env.PAJA_LIVE_POINTER_TEST !== '1', 'requires live Nostr relays and Blossom availability');
   test.setTimeout(90_000);
@@ -179,4 +257,70 @@ async function startPointerServer(): Promise<PointerServer> {
       server.close((error) => error ? reject(error) : resolve());
     }),
   };
+}
+
+function createPointerFixture(
+  serverUrl: string,
+  dTag: string,
+  html: string,
+  requires: readonly string[],
+  extraTags: readonly string[][] = [],
+) {
+  const bytes = Buffer.from(html);
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  const aggregateHash = computeAggregateHash([{ path: '/index.html', sha256: hash }]);
+  const event = finalizeEvent({
+    kind: NAPPLET_KIND_NAMED,
+    created_at: 1_700_000_001,
+    tags: [
+      ['d', dTag],
+      ['title', dTag],
+      ['path', '/index.html', hash],
+      ['x', aggregateHash, 'aggregate'],
+      ['server', `${serverUrl}blossom`],
+      ...requires.map((name) => ['requires', name]),
+      ...extraTags,
+    ],
+    content: '',
+  }, Uint8Array.from('33'.repeat(32).match(/.{2}/g)!.map((part) => parseInt(part, 16))));
+  return {
+    bytes,
+    hash,
+    event,
+    pointer: naddrEncode({
+      identifier: dTag,
+      pubkey: event.pubkey,
+      kind: NAPPLET_KIND_NAMED,
+      relays: ['wss://intent-fixture.example'],
+    }),
+  };
+}
+
+function sourceIntentHtml(): string {
+  return `<!doctype html><html><body><div id="source-status">booting</div><script>
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'shell.init') document.getElementById('source-status').textContent = 'ready';
+      if (event.data && event.data.type === 'test.invoke') {
+        window.parent.postMessage({ type: 'intent.invoke', id: 'source-intent', request: {
+          archetype: 'profile', action: 'open', convention: 'napplet:profile/open', payload: { pubkey: '${'f'.repeat(64)}' },
+        } }, '*');
+      }
+      if (event.data && event.data.type === 'intent.invoke.result' && event.data.result && event.data.result.ok) {
+        window.parent.postMessage({ type: 'test.source.accepted' }, '*');
+      }
+    });
+    window.parent.postMessage({ type: 'shell.ready' }, '*');
+  </script></body></html>`;
+}
+
+function targetIntentHtml(): string {
+  return `<!doctype html><html><body><div id="delivery-count">0</div><div id="delivery-pubkey"></div><script>
+    let count = 0;
+    window.napplet.intent.onDelivery((delivery) => {
+      count += 1;
+      document.getElementById('delivery-count').textContent = String(count);
+      document.getElementById('delivery-pubkey').textContent = delivery.payload && delivery.payload.pubkey || '';
+    });
+    window.parent.postMessage({ type: 'shell.ready' }, '*');
+  </script></body></html>`;
 }
