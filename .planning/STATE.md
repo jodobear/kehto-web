@@ -4,15 +4,15 @@ milestone: v1.29
 milestone_name: Napplet Convention and Runtime Conformance
 current_phase: 106
 current_phase_name: Active-Surface Conformance and Release
-status: planning
+status: executing
 stopped_at: Completed 105-12-PLAN.md
-last_updated: "2026-07-27T14:42:17.763Z"
+last_updated: "2026-07-27T15:38:11.965Z"
 last_activity: 2026-07-27
 last_activity_desc: Phase 105 complete, transitioned to Phase 106
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 44
+  total_plans: 47
   completed_plans: 44
   percent: 83
 ---
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 
 Phase: 106 — Active-Surface Conformance and Release
 Plan: Not started
-Status: Ready to plan
+Status: Ready to execute
 
 Last activity: 2026-07-27 — Phase 105 complete, transitioned to Phase 106
 
