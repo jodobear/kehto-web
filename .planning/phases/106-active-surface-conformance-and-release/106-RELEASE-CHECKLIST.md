@@ -1,7 +1,7 @@
 ---
 phase: 106
-status: local-gates-passed
-checked_at: 2026-07-27T16:05:00Z
+status: first-push-ci-passed
+checked_at: 2026-07-27T16:15:00Z
 authority_verdict: conformant
 tested_branch: chore/napplet-scheme-conformance
 tested_source_sha: b2f4c2b80bd62586d28917239de6b93a299d5aa2
@@ -98,6 +98,27 @@ No changeset was added, combined, edited, or deleted by Phase 106-03.
 | Seven-package changeset state | Exact, preserved, and accepted by `pnpm changeset status` as recorded above. |
 | Branch synchronization | `origin/main` `dd79b04122c94ab63a08b856c377eb2e807f6644` is an ancestor of the validated source SHA; no synchronization commit was needed. |
 | Full build/type/unit/docs/AI-slop gate | Every required local gate passed on validated source `b2f4c2b80bd62586d28917239de6b93a299d5aa2`; PR push/check evidence remains pending. |
+
+## First pushed evidence — green CI
+
+- **Pushed evidence SHA:** `07d044c473b5520424f22f094266053749e972ad`
+  (`docs(106): record final release gates`). PR #204's `headRefOid` equalled
+  this SHA before its checks were evaluated.
+- **CI run:** [CI #30283262028](https://github.com/kehto/web/actions/runs/30283262028)
+  completed successfully for this exact SHA.
+- **Required PR checks:** [Detect CI Scope](https://github.com/kehto/web/actions/runs/30283262028/job/90034649715)
+  — PASS; [Build & Type-Check](https://github.com/kehto/web/actions/runs/30283262028/job/90034682977)
+  — PASS; [Detect Playwright Scope](https://github.com/kehto/web/actions/runs/30283262028/job/90034682993)
+  — PASS; [Vitest](https://github.com/kehto/web/actions/runs/30283262028/job/90034683107)
+  — PASS; [Playwright](https://github.com/kehto/web/actions/runs/30283262028/job/90035043561)
+  — PASS.
+- **Changeset protection:** [Changeset deletion guard](https://github.com/kehto/web/actions/runs/30283261976/job/90034649244)
+  — PASS. The `Verify generated JSR metadata is synced` build sub-step was
+  intentionally scope-skipped because this is not a generated Version Packages
+  change.
+- **Final-head caveat:** the next evidence commit changes only this checklist;
+  PR #204 must be rechecked at its new exact head before it may be called
+  merge-ready.
 
 ## UI audit disposition — explicit non-blocking protocol-release debt
 
