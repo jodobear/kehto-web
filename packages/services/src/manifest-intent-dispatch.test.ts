@@ -14,11 +14,10 @@ import {
   type RuntimeAdapter,
   type SessionEntry,
 } from '@kehto/runtime';
-import type { NappletMessage } from '@napplet/core';
+import type { IntentDelivery, NappletMessage } from '@napplet/core';
 import { createCatalogIntentResolver } from './catalog-intent-resolver.js';
 import { createIntentService } from './intent-service.js';
 import { manifestToIntentCatalogEntry } from './manifest-intent-catalog.js';
-import type { IntentDelivery } from './intent-types.js';
 
 const SOURCE_WINDOW = 'window-source';
 const SOURCE_DTAG = 'social-feed';

@@ -32,18 +32,18 @@
  * @packageDocumentation
  */
 
-import type { NappletMessage } from '@napplet/core';
-import type {
-  ServiceDescriptor,
-  ServiceHandler,
-  ServiceRuntimeContext,
-} from '@kehto/runtime';
 import type {
   IntentAcceptedResult,
   IntentAvailability,
   IntentRejectedResult,
   IntentRequest,
-} from './intent-types.js';
+  NappletMessage,
+} from '@napplet/core';
+import type {
+  ServiceDescriptor,
+  ServiceHandler,
+  ServiceRuntimeContext,
+} from '@kehto/runtime';
 
 /** Intent service version — follows semver. */
 const INTENT_SERVICE_VERSION = '1.0.0';

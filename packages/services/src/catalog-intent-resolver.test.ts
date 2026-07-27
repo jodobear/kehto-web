@@ -13,7 +13,7 @@ import type {
   IntentCatalogEntry,
   IntentRetentionParams,
 } from './catalog-intent-resolver.js';
-import type { IntentRequest, IntentResult } from './intent-types.js';
+import type { IntentRequest, IntentResult } from '@napplet/core';
 
 const NOTE_OPEN = 'napplet:note/open';
 const NOTE_EDIT = 'napplet:note/edit';

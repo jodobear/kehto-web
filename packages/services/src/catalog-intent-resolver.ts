@@ -27,7 +27,7 @@ import type {
   IntentDelivery,
   IntentRejectedResult,
   IntentRequest,
-} from './intent-types.js';
+} from '@napplet/core';
 import type {
   IntentResolver,
   IntentResolverContext,

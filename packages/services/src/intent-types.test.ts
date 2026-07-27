@@ -11,7 +11,7 @@ import type {
   IntentRejectedResult,
   IntentRequest,
   IntentResult,
-} from './index.js';
+} from '@napplet/core';
 
 const BEHAVIOR = {
   focus: true,

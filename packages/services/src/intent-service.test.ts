@@ -6,6 +6,7 @@
  * availability calls, and policy-aware live-session change broadcasts.
  */
 
+// @ts-expect-error — the package omits Node ambient types, while Vitest runs this guard in Node.
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NappletMessage } from '@napplet/core';

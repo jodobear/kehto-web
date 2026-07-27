@@ -172,7 +172,7 @@ export type {
   IntentRejectedResult,
   IntentResult,
   IntentDelivery,
-} from './intent-types.js';
+} from '@napplet/core';
 
 export { createCatalogIntentResolver } from './catalog-intent-resolver.js';
 export type {

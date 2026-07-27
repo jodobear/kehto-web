@@ -15,8 +15,8 @@
  * @packageDocumentation
  */
 
+import type { IntentContract } from '@napplet/core';
 import type { IntentArchetypeSupport, IntentCatalogEntry } from './catalog-intent-resolver.js';
-import type { IntentContract } from './intent-types.js';
 
 /**
  * The structural subset of `@kehto/nip/5d` `NappletManifest` the adapter needs.
