@@ -7,6 +7,8 @@ import {
   getDemoTopologyInputs,
   getDemoServiceNames,
   getNapplets,
+  getInstalledNappletCatalog,
+  createPlaygroundIntentTargetOptions,
   loadNapplet,
   getNotificationServiceHandler,
   getRelayServiceHandler,
@@ -18,6 +20,8 @@ import {
   type LoadedNappletIdentity,
   isServiceEnabled,
 } from './shell-host.js';
+import { createCatalogIntentResolver, createIntentService } from '@kehto/services';
+import { PlaygroundIntentController } from './playground-intent-controller.js';
 import { initThemeSwitcherHost, buildHostRelaySubscribe } from './theme-switcher-host.js';
 import type { Capability } from '@kehto/shell';
 import { createConsentModal } from './consent-modal.js';
@@ -66,9 +70,24 @@ const notificationUi = createNotificationUi();
 
 const initialTheme = getPersistedPlaygroundTheme();
 
+const installedNapplets = getInstalledNappletCatalog();
+const intentController = new PlaygroundIntentController(createPlaygroundIntentTargetOptions());
+const intentResolver = createCatalogIntentResolver({
+  loadCatalog: () => installedNapplets.intentCatalog(),
+  targets: intentController,
+  getDefaultHandler: (archetype) => installedNapplets.getDefaultHandler(archetype),
+  // UI selection is introduced with the live profile flow; ambiguity remains
+  // fail-closed until that user-policy seam is available.
+  chooseHandler: () => undefined,
+  // A napplet never authorizes its own explicit handler preference.
+  authorizeExplicitHandler: () => false,
+});
+installedNapplets.onChanged((archetype) => intentResolver.notifyChanged(archetype));
+const intentService = createIntentService({ resolver: intentResolver });
+
 const { tap } = bootShell((notifications) => {
   notificationUi.controller.handleServiceChange(notifications);
-}, initialTheme);
+}, initialTheme, intentService);
 
 const notificationHandler = getNotificationServiceHandler();
 if (notificationHandler) {

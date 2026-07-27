@@ -17,7 +17,7 @@ import {
   type SessionEntry,
   type ShellEnvironment,
 } from '@kehto/shell';
-import type { Notification } from '@kehto/services';
+import type { IntentRetentionParams, Notification } from '@kehto/services';
 import type { Theme } from '@napplet/nap/theme/types';
 import {
   resolvePlaygroundNapplet,
@@ -26,6 +26,10 @@ import {
 } from './napplet-resolver.js';
 import type { PlaygroundNapplet } from './napplet-resolver.js';
 import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
+import type {
+  PlaygroundIntentControllerOptions,
+  PlaygroundIntentGeneration,
+} from './playground-intent-controller.js';
 import { getSignerConnectionState } from './signer-connection.js';
 import { pushAclEvent } from './acl-history.js';
 import {
@@ -152,6 +156,16 @@ export interface LoadNappletOptions {
 
 const napplets = new Map<string, NappletInfo>();
 const installedNapplets = new InstalledNappletCatalog();
+interface IntentGenerationState extends PlaygroundIntentGeneration {
+  readonly dTag: string;
+  readonly windowId: string;
+  readonly ready: Promise<void>;
+  readonly resolveReady: () => void;
+  readonly rejectReady: (reason: Error) => void;
+  source?: Window;
+}
+const intentGenerations = new Map<string, IntentGenerationState>();
+let intentGenerationCounter = 0;
 const demoServiceNames = new Set<string>(DEMO_TOPOLOGY_SERVICE_NAMES);
 let nappletCounter = 0;
 
@@ -189,6 +203,8 @@ export function getInstalledNappletCatalog(): InstalledNappletCatalog {
 
 /** Explicitly uninstall an artifact; frame lifecycle never removes catalog authority. */
 export function uninstallNapplet(dTag: string): boolean {
+  const generation = intentGenerations.get(dTag);
+  if (generation) clearPlaygroundIntentGeneration(generation.windowId);
   return installedNapplets.remove(dTag);
 }
 
@@ -203,6 +219,125 @@ export function installVerifiedNapplet(
   restart: { name: string; containerId: string },
 ) {
   return installedNapplets.install(resolved, restart);
+}
+
+/**
+ * Create shell-host callbacks for retained, source-bound intent delivery.
+ *
+ * Callers create the controller before booting the shell, but these callbacks
+ * only open targets or send once the shell has registered a current source.
+ */
+export function createPlaygroundIntentTargetOptions(): PlaygroundIntentControllerOptions {
+  return {
+    openOrReuse: openOrReuseIntentTarget,
+    waitForReady: (generation) => intentGeneration(generation).ready,
+    isCurrent: (generation) => isCurrentIntentGeneration(intentGeneration(generation)),
+    send: sendIntentDelivery,
+  };
+}
+
+/** Clear live generation/session state when a target frame is closed or replaced. */
+export function clearPlaygroundIntentGeneration(windowId: string): void {
+  const info = napplets.get(windowId);
+  if (!info?.dTag) return;
+  const generation = intentGenerations.get(info.dTag);
+  if (!generation || generation.windowId !== windowId) return;
+  intentGenerations.delete(info.dTag);
+  generation.rejectReady(new Error('intent target generation replaced'));
+}
+
+function intentGeneration(generation: PlaygroundIntentGeneration): IntentGenerationState {
+  for (const state of intentGenerations.values()) {
+    if (state.id === generation.id) return state;
+  }
+  throw new Error('intent target generation is no longer available');
+}
+
+async function openOrReuseIntentTarget(
+  params: IntentRetentionParams,
+  _attempt: number,
+): Promise<PlaygroundIntentGeneration | null> {
+  const record = installedNapplets.get(params.handler);
+  if (!record || !recordSupportsDelivery(record, params)) return null;
+  const current = intentGenerations.get(params.handler);
+  if (current && isCurrentIntentGeneration(current)) return current;
+
+  const live = [...napplets.values()].find((info) => info.dTag === params.handler);
+  if (live) return replaceIntentGeneration(live);
+
+  const info = await loadNapplet(record.restart.name, record.restart.containerId);
+  const refreshed = installedNapplets.get(params.handler);
+  if (
+    info.dTag !== params.handler
+    || info.aggregateHash !== refreshed?.aggregateHash
+    || !refreshed
+    || !recordSupportsDelivery(refreshed, params)
+  ) {
+    return null;
+  }
+  return replaceIntentGeneration(info);
+}
+
+function recordSupportsDelivery(
+  record: ReturnType<InstalledNappletCatalog['get']>,
+  params: IntentRetentionParams,
+): boolean {
+  return record?.archetypes.some((archetype) =>
+    archetype.slug === params.delivery.archetype
+    && archetype.convention === params.delivery.convention,
+  ) ?? false;
+}
+
+function replaceIntentGeneration(info: NappletInfo): IntentGenerationState | null {
+  if (!info.dTag) return null;
+  clearPlaygroundIntentGeneration(info.windowId);
+  let resolveReady!: () => void;
+  let rejectReady!: (reason: Error) => void;
+  const ready = new Promise<void>((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
+  const generation: IntentGenerationState = {
+    id: `playground-intent-${++intentGenerationCounter}`,
+    dTag: info.dTag,
+    windowId: info.windowId,
+    ready,
+    resolveReady,
+    rejectReady,
+  };
+  intentGenerations.set(info.dTag, generation);
+  return generation;
+}
+
+function isCurrentIntentGeneration(generation: IntentGenerationState): boolean {
+  const info = napplets.get(generation.windowId);
+  return intentGenerations.get(generation.dTag)?.id === generation.id
+    && info?.dTag === generation.dTag
+    && info.iframe.contentWindow === (generation.source ?? info.iframe.contentWindow);
+}
+
+function markIntentTargetReady(windowId: string, source: Window): void {
+  const info = napplets.get(windowId);
+  if (!info?.dTag || info.iframe.contentWindow !== source) return;
+  const generation = intentGenerations.get(info.dTag);
+  if (!generation || generation.windowId !== windowId || generation.source) return;
+  if (originRegistry.getWindowId(source) !== windowId) return;
+  generation.source = source;
+  generation.resolveReady();
+}
+
+function sendIntentDelivery(
+  generation: PlaygroundIntentGeneration,
+  delivery: IntentRetentionParams['delivery'],
+): void {
+  const state = intentGeneration(generation);
+  if (!state.source || !isCurrentIntentGeneration(state)) {
+    throw new Error('intent target generation is not current and ready');
+  }
+  createPostMessageProxy(state.source, tap, state.windowId).postMessage({
+    type: 'intent.deliver',
+    delivery,
+  }, '*');
 }
 
 /**
@@ -386,6 +521,7 @@ function wrapRelayHandleMessage(messageTap: MessageTap): void {
       && (event.data as NappletMessage).type === 'shell.ready'
     ) {
       markEnvelopeIdentityBinding(windowId);
+      markIntentTargetReady(windowId, sourceWindow);
     }
   };
 }
@@ -441,6 +577,7 @@ function markNappletIdentityBound(info: NappletInfo, entry: SessionEntry): void 
 export function bootShell(
   notificationOnChange?: (notifications: readonly Notification[]) => void,
   initialTheme?: Theme,
+  intentService?: ServiceHandler,
 ): { tap: MessageTap; relay: ShellBridge } {
   const hooks = createDemoHooks(notificationOnChange, {
     getDisabledDomains,
@@ -451,6 +588,9 @@ export function bootShell(
     },
     onThemeBroadcast: (envelope) => relay.publishTheme(envelope.theme),
   }, initialTheme);
+  if (intentService) {
+    hooks.services = { ...hooks.services, intent: intentService };
+  }
   tap = createInstalledMessageTap();
   installOriginRegistryProxy(tap);
 
@@ -542,6 +682,7 @@ export async function loadNapplet(
       originRegistry.register(iframe.contentWindow, windowId, identity);
       originRegistry.setEnvironment(iframe.contentWindow, environment);
     }
+    clearPlaygroundIntentGeneration(windowId);
   });
 
   // Optional pre-render hook runs against the computed identity before
