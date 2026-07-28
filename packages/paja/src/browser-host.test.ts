@@ -174,6 +174,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
   it('keeps the private social cache inside the established identity and outbox host boundary', () => {
     const adapterSource = readFileSync(new URL('./browser-adapter.ts', import.meta.url), 'utf8');
     const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const diagnosticsSource = readFileSync(new URL('./browser-target-diagnostics.ts', import.meta.url), 'utf8');
 
     expect(adapterSource).toContain("import { createPajaSocialCache } from './browser-social-cache.js';");
     expect(adapterSource).toContain('const baseOutboxRouter = createOutboxRouter(backend, getSimulation, confirmRequest, signerProvider);');
@@ -191,7 +192,8 @@ describe('@kehto/paja browser host runtime source guards', () => {
     );
     expect(adapterSource).not.toContain('services.social');
     expect(adapterSource).not.toContain('paja.social');
-    expect(hostSource).toContain('async function reportTargetCorsDiagnostic(state: PajaBrowserState): Promise<void>');
+    expect(diagnosticsSource).toContain('export async function reportTargetCorsDiagnostic(state: PajaBrowserState): Promise<void>');
+    expect(hostSource).toContain("import { reportTargetCorsDiagnostic } from './browser-target-diagnostics.js';");
     expect(hostSource).toContain('startFrameNavigation(state, context);\n    void reportTargetCorsDiagnostic(state);');
   });
 
@@ -208,6 +210,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
     const adapter = createPajaAdapter(
       config,
       () => simulation,
+      () => {},
       () => {},
       () => true,
       { getSigner: () => null, getMethod: () => 'dev', getPubkey: () => null },
