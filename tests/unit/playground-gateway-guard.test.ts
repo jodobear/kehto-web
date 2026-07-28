@@ -191,6 +191,7 @@ describe('playground gateway artifact guard', () => {
 
     const sharedConfig = readRepoFile('apps/playground/napplets/shared-vite-config.ts');
     expect(sharedConfig).toContain('playgroundSingleFileArtifact(archetypes)');
+    expect(sharedConfig).toContain('modulePreload: false');
     expect(sharedConfig).toContain("artifactMode: 'external-assets'");
     expect(sharedConfig).toContain('assertSingleFileArtifact(inlinedHtml, distPath)');
     expect(sharedConfig).toContain('recomputeManifest(distPath, inlinedHtml, archetypes)');

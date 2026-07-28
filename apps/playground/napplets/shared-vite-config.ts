@@ -312,6 +312,8 @@ function singleFileBuildConfig(config: UserConfig): UserConfig {
 
   return {
     build: {
+      // Self-contained napplets cannot run Vite's fetch-based module-preload polyfill.
+      modulePreload: false,
       assetsInlineLimit: Number.MAX_SAFE_INTEGER,
       cssCodeSplit: false,
       rollupOptions: {
