@@ -1,16 +1,85 @@
 ---
 phase: 106
-status: first-push-ci-passed
-checked_at: 2026-07-27T16:15:00Z
+status: published
+pr_readiness_checked_at: 2026-07-27T16:15:00Z
+publication_checked_at: 2026-07-28T10:24:00Z
 authority_verdict: conformant
 tested_branch: chore/napplet-scheme-conformance
 tested_source_sha: b2f4c2b80bd62586d28917239de6b93a299d5aa2
+release_source_sha: 54ef2ead03ee0c37783727468b8658b6dc224137
+release_run: 30350331202
 ---
 
 # Phase 106 Release Checklist
 
-This checklist records Phase 106 PR-readiness evidence only. It does not
-authorize merge, release metadata creation, tagging, or publishing.
+This checklist preserves Phase 106's original PR-readiness evidence and its
+then-applicable execution boundary. Those plans did not authorize merge,
+release metadata creation, tagging, or publishing. The separate post-merge
+closure below records the later authorized publication and must not be confused
+with the earlier PR-readiness verdict.
+
+## Post-merge publication closure — 2026-07-28
+
+The registry-publication gap is closed. The public npm and JSR packages, rather
+than the earlier source branch or changeset alone, now provide the terminal
+downstream evidence.
+
+- **Source PR:** [PR #204](https://github.com/kehto/web/pull/204) merged as
+  `b85db51db838866de753b275b9d34ec908785bd2`.
+- **Planning closeout:** [PR #210](https://github.com/kehto/web/pull/210)
+  merged as `c3cc7f27ea4681e8b3334a5b109e228c97ff96a8`.
+- **Release metadata:** generated [Version Packages PR
+  #209](https://github.com/kehto/web/pull/209) merged as
+  `4eafa058d18cf245b23d49b23bc29dda0b7d7651`.
+- **Release-gate repair:** [PR #211](https://github.com/kehto/web/pull/211)
+  merged as the exact release source
+  `54ef2ead03ee0c37783727468b8658b6dc224137`.
+- **Exact-main validation:** [CI
+  #30299386244](https://github.com/kehto/web/actions/runs/30299386244)
+  completed successfully on that exact SHA, including build, type-check, docs,
+  Vitest, and Playwright. [Pages
+  #30299386308](https://github.com/kehto/web/actions/runs/30299386308)
+  also completed its artifact build, audit, and deployment successfully on the
+  same SHA.
+- **Publication:** authorized [Release
+  #30350331202](https://github.com/kehto/web/actions/runs/30350331202)
+  completed successfully on that exact SHA. Its npm OIDC publish and
+  topologically ordered JSR publish steps both passed.
+
+### Public registry versions
+
+Direct npm `latest` and JSR `latest` queries returned the same intended
+versions:
+
+| Package | npm `latest` | npm Napplet peer range | JSR `latest` |
+| --- | --- | --- | --- |
+| `@kehto/acl` | `0.16.0` | core/nap `>=0.29.0 <0.30.0` | `0.16.0` |
+| `@kehto/cli` | `0.3.0` | core/nap `>=0.29.0 <0.30.0` | `0.3.0` |
+| `@kehto/firewall` | `0.4.0` | core `>=0.29.0 <0.30.0` | `0.4.0` |
+| `@kehto/paja` | `0.9.0` | core/nap `>=0.29.0 <0.30.0` | `0.9.0` |
+| `@kehto/runtime` | `0.19.0` | core/nap `>=0.29.0 <0.30.0` | `0.19.0` |
+| `@kehto/services` | `0.17.0` | core/nap `>=0.29.0 <0.30.0` | `0.17.0` |
+| `@kehto/shell` | `0.18.0` | core/nap `>=0.29.0 <0.30.0` | `0.18.0` |
+
+The published JSR `jsr.json` files use the matching internal Kehto versions.
+Where packages directly import the Napplet contracts, their maps use
+`jsr:@napplet/core@^0.29.0` and `jsr:@napplet/nap@^0.29.0`; Paja 0.9.0's
+published JSR metadata directly confirms both mappings.
+
+### Clean downstream proof
+
+A new temporary npm project, with no workspace overrides or existing lockfile,
+successfully ran:
+
+```text
+npm install @kehto/paja@latest @napplet/core@latest @napplet/nap@latest
+```
+
+The resolved top-level versions were Paja `0.9.0`, core `0.29.0`, and nap
+`0.29.0`; npm deduplicated core/nap through Paja's Kehto dependency graph with
+no peer-resolution error. A dynamic ESM import of `@kehto/paja` passed, and
+esbuild produced a non-empty 182,507-byte Node-platform bundle from the
+installed Paja entry point.
 
 ## Final local release gate — validated source
 
@@ -148,7 +217,7 @@ verification](../105-published-convention-adoption-and-host-flows/105-VERIFICATI
 and the [closed Phase 105 ASVS L1 report (29/29 threats,
 0 open)](../105-published-convention-adoption-and-host-flows/105-SECURITY.md).
 
-## Boundary
+## Original Plan 106-02 boundary (historical)
 
 The authorized endpoint for Phase 106 is a green, merge-ready
 [PR #204](https://github.com/kehto/web/pull/204). This Plan 106-02 does not

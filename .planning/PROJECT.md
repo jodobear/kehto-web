@@ -66,9 +66,9 @@ This repo was extracted from the [@napplet monorepo](https://github.com/sandwich
 
 ## Current State
 
-**Status:** All six v1.29 phases are complete. PR #204 is open, non-draft, clean, mergeable, and technically green; merge, Version Packages metadata, exact-main release verification, tagging, and publishing remain unexecuted maintainer steps.
+**Status:** All six v1.29 phases are complete and the package line is published. PR #204, the generated Version Packages PR #209, the planning closeout PR #210, and release-gate repair PR #211 are merged. Exact `main` SHA `54ef2ead03ee0c37783727468b8658b6dc224137` passed CI and Pages, and Release run #30350331202 published the seven intended versions to npm and JSR.
 
-The upstream specification and active-surface audits, published package adoption, real Paja/playground flows, focused and full regression gates, exact-SHA CI, changeset accounting, and Phase 106 verification are complete. The Phase 105 visual audit remains explicit non-passing post-merge debt and is not visual sign-off.
+The upstream specification and active-surface audits, published package adoption, real Paja/playground flows, focused and full regression gates, exact-SHA CI, changeset accounting, public-registry verification, and clean downstream Paja installation are complete. The Phase 105 visual audit remains explicit non-passing post-merge debt and is not visual sign-off.
 
 ## Previous Milestone: v1.20 NIP-5D Content-Addressed Runtime Resolution
 
@@ -287,6 +287,7 @@ v1.6 unblocked hyprgate v2.0 by closing 6 of 8 Kehto Migration gap-analysis issu
 | 40 | v1.29 conformance evidence classifies active surfaces separately from preserved history | Current source and guidance fail closed on obsolete protocol shapes, while archived planning, changesets, changelogs, migrations, and deliberate fixtures remain intact and non-authoritative. | 2026-07-27 |
 | 41 | v1.29 release readiness ends at a green exact-SHA PR | PR #204 must match the locally reviewed head and have green required checks; merge, generated Version Packages metadata, exact-main verification, tagging, and publishing remain distinct maintainer actions. | 2026-07-27 |
 | 42 | The Phase 105 12/24 UI audit remains non-passing post-merge debt | The audit is acknowledged and owned by Kehto maintainers, but Phase 106 closes protocol/runtime conformance only and must not imply visual approval. | 2026-07-27 |
+| 43 | v1.29 registry publication is a separate terminal proof after PR readiness | Release completion requires exact-main CI and Pages, successful npm/JSR workflow steps, direct registry metadata for all seven versions, and a clean downstream install/import/build; Release #30350331202 and the recorded consumer smoke provide that proof. | 2026-07-28 |
 
 ## Evolution
 
@@ -306,4 +307,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-27 after Phase 106 — all v1.29 phases complete; PR #204 is ready for maintainer review and the 12/24 UI audit remains explicit post-merge debt.*
+*Last updated: 2026-07-28 after the Phase 106 publication follow-up — the v1.29 package line is available on npm and JSR; the 12/24 UI audit remains explicit non-passing debt.*
