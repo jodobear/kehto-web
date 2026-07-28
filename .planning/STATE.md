@@ -215,6 +215,7 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 | 260723-cvz | Diagnose and document Paja dev-mode opaque-origin CORS failure blocking napplet module scripts | 2026-07-23 | 0af445b | Verified | [260723-cvz-fix-paja-dev-mode-napplet-load-failure-c](./quick/260723-cvz-fix-paja-dev-mode-napplet-load-failure-c/) |
 | 260724-czo | Inject a full Class-1 CSP into verified srcdoc loaders | 2026-07-24 | d3d966a | Verified | [260724-czo-inject-a-full-class-1-csp-into-verified-](./quick/260724-czo-inject-a-full-class-1-csp-into-verified-/) |
 | 260726-g8r | Update AGENTS.md to require Kehto worktrees under ~/.worktrees/kehto | 2026-07-26 | 683018b | Verified | [260726-g8r-update-agents-md-to-require-kehto-worktr](./quick/260726-g8r-update-agents-md-to-require-kehto-worktr/) |
+| 260728-fv2 | Record completed Phase 106 npm and JSR publication and downstream proof | 2026-07-28 | bec8074 | Verified | [260728-fv2-record-completed-phase-106-npm-and-jsr-p](./quick/260728-fv2-record-completed-phase-106-npm-and-jsr-p/) |
 
 ## Session Continuity
 
