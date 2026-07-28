@@ -177,39 +177,68 @@ kehto paja \
 }
 ```
 
-## NAP-UPLOAD modes
+## NAP-UPLOAD Blossom rail
 
 Paja keeps `memory` as the default upload simulator. It returns deterministic
 `kehto-dev://` results and does not store bytes. Opt into real Blossom storage
-with a shell-owned server and an active Dev, NIP-07, or NIP-46 signer:
+with shell-owned configuration and an active Dev, NIP-07, or NIP-46 signer:
 
 ```bash
 kehto paja \
   --target-url http://127.0.0.1:5173 \
   --upload-mode blossom \
   --upload-server https://blossom.example \
+  --upload-server https://replica.example \
   -- pnpm vite --host 127.0.0.1
 ```
 
-Paja prompts with the napplet identity, file details, selected server, and a
-public/durable warning before it signs or sends bytes. Production servers must
-use HTTPS; plain HTTP is accepted only for loopback development hosts. The
-server must allow Paja's browser origin, `PUT` and `OPTIONS`, plus the
-`Authorization` and `Content-Type` CORS headers.
+Only explicit, normalized `--upload-server` values or `simulation.upload.servers`
+are upload targets. Paja attempts them sequentially in configured order. A
+transient network or HTTP 5xx failure gets one retry against that same server;
+server rejection, malformed descriptors, and failed proof continue to the next
+configured server. BUD-03 may inform a host's configuration, but its server
+list is never an implicit target. Pointer-loader Blossom hints are artifact
+sources, not upload policy. Paja does not construct BUD-10 URLs.
 
-Explicit servers win. With no explicit server, Paja may use an independently
-warmed snapshot of the active signer's newest BUD-03 kind `10063` `server`
-tags. `upload.info` and `upload.upload` never initiate that discovery. Pointer
-loader Blossom hints are artifact sources, not upload policy. The current path
-uses the first server only, returns its direct HTTP(S) URL, and does not mirror
-or construct BUD-10 URLs.
+The host applies policy before consent, signing, hashing-dependent authorization,
+or network activity. Its default policy permits at most 10 MiB and only PNG,
+JPEG, WebP, or GIF; explicit host configuration can set the byte ceiling and
+MIME allowlist. One session consent decision is keyed by the napplet window,
+active identity, exact ordered targets, normalized MIME class, and effective
+size ceiling. The prompt names every target, replica count, file size and MIME,
+public/durable storage, and worst-case transferred bytes. Upload support can be
+advertised while `upload.info.enabled` truthfully reports that the current
+configuration or signer is unavailable.
 
-Completion requires the server descriptor to confirm the exact local SHA-256
-and byte size as a non-negative safe integer. Missing or mismatched proof is a
-failed result even after an HTTP success. The configured identity, provider,
-signer, discovery author, and signed authorization pubkeys must agree; a fixed
-pubkey without `signEvent` is read-only. This implements the draft
-[NAP-UPLOAD at `a7cc174`](https://github.com/napplet/naps/blob/a7cc17463cbf5d9cb87884b31071bc4fc826034c/naps/NAP-UPLOAD.md).
+For each attempt, Paja signs BUD-11 authorization and sends the bytes. It then
+has the server-side verifier retrieve the stored URL under public-HTTPS,
+redirect, and DNS policy, recompute SHA-256 and size, and sniff MIME. Only a
+verified result enters the standard `upload.upload` result: the first verified
+configured-order URL is `url`; later verified URLs are `fallbackUrls`.
+Replica-local failures are host diagnostics, not napplet wire fields. The
+verified bytes receive an exact requesting-window resource grant, so the
+napplet previews them through standard `resource.bytes`; the grant is revoked
+when that window is torn down. A cancelled operation returns no success URL.
+If storage had already succeeded, the host warns that durable copies may
+remain; cancellation does not delete them.
+
+Production servers require HTTPS; plain HTTP is accepted only for loopback
+development hosts. A browser-facing Blossom server must allow Paja's browser
+origin, `PUT` and `OPTIONS`, plus the `Authorization` and `Content-Type` CORS
+headers. The napplet receives only the generic `window.napplet.upload` and
+`window.napplet.resource` journey (`upload.upload`, `upload.status`, then
+`resource.bytes`): no Paja-specific API, direct storage networking, credentials,
+signer access, or low-level Blossom surface is exposed.
+
+This rail is aligned to pinned drafts, not current `napplet/naps` master:
+[NAP-UPLOAD `a7cc17463cbf5d9cb87884b31071bc4fc826034c`](https://github.com/napplet/naps/blob/a7cc17463cbf5d9cb87884b31071bc4fc826034c/naps/NAP-UPLOAD.md),
+[NAP-RESOURCE `fa6bcc6935aa19e7b70ab2a2c721dafca77c78e1`](https://github.com/napplet/naps/blob/fa6bcc6935aa19e7b70ab2a2c721dafca77c78e1/naps/NAP-RESOURCE.md),
+[NAP-BLOSSOM `ca1d7ba594e6790785dc770227085d8648d39631`](https://github.com/napplet/naps/blob/ca1d7ba594e6790785dc770227085d8648d39631/naps/NAP-BLOSSOM.md),
+and [NAP-SHELL `a7cc17463cbf5d9cb87884b31071bc4fc826034c`](https://github.com/napplet/naps/blob/a7cc17463cbf5d9cb87884b31071bc4fc826034c/naps/NAP-SHELL.md).
+Installed `@napplet/nap@0.29.0` declarations expose `url`, `fallbackUrls`, and
+string `error`, but no per-replica outcome. That is an upstream schema gap, so
+Paja keeps attempt evidence host-only and makes no current-master conformance
+claim.
 
 Full package docs: [`docs/packages/paja.md`](../../docs/packages/paja.md).
 Getting started: [`docs/how-tos/paja-getting-started.md`](../../docs/how-tos/paja-getting-started.md).
