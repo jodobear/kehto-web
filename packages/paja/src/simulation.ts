@@ -194,6 +194,11 @@ const DEFAULT_THEME_VALUES: JsonRecord = {
   title: 'Kehto Paja',
 };
 
+/** Conservative maximum payload accepted by the Blossom rail without host overrides. */
+export const DEFAULT_BLOSSOM_MAX_BYTES = 10 * 1024 * 1024;
+/** Conservative image-only MIME policy accepted by the Blossom rail without host overrides. */
+export const DEFAULT_BLOSSOM_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const;
+
 /**
  * Normalize raw simulation options into a complete deterministic model.
  *
@@ -280,11 +285,13 @@ export function normalizePajaSimulation(
   }
   const uploadServers = normalizeUploadServers(raw?.upload?.servers ?? []);
   const discoverServers = raw?.upload?.discoverServers ?? uploadMode === 'blossom';
-  const maxBytes = raw?.upload?.maxBytes;
-  if (maxBytes !== undefined && (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)) {
+  const configuredMaxBytes = raw?.upload?.maxBytes;
+  if (configuredMaxBytes !== undefined && (!Number.isSafeInteger(configuredMaxBytes) || configuredMaxBytes <= 0)) {
     throw new PajaSimulationError('Invalid simulation: upload.maxBytes must be a positive safe integer.');
   }
-  const mimeTypes = normalizeMimeTypes(raw?.upload?.mimeTypes);
+  const maxBytes = configuredMaxBytes ?? (uploadMode === 'blossom' ? DEFAULT_BLOSSOM_MAX_BYTES : undefined);
+  const mimeTypes = normalizeMimeTypes(raw?.upload?.mimeTypes)
+    ?? (uploadMode === 'blossom' ? [...DEFAULT_BLOSSOM_MIME_TYPES] : undefined);
 
   return {
     capabilities: {
@@ -406,7 +413,7 @@ function normalizeMimeTypes(mimeTypes: readonly string[] | undefined): string[] 
     if (typeof value !== 'string' || value.trim().length === 0) {
       throw new PajaSimulationError('Invalid simulation: upload.mimeTypes entries must be non-empty strings.');
     }
-    const mimeType = value.trim();
+    const mimeType = value.trim().toLowerCase();
     if (!normalized.includes(mimeType)) normalized.push(mimeType);
   }
   return normalized;

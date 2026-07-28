@@ -25,7 +25,10 @@ export function confirmPajaRequest(
       `file: ${filename}`,
       `size: ${request.size} bytes`,
       `type: ${mimeType}`,
-      `server: ${request.server}`,
+      `replicas: ${request.replicaCount}`,
+      'ordered targets:',
+      ...request.servers.map((server, index) => `${index + 1}. ${server}`),
+      `worst-case transferred bytes: ${request.worstCaseBytes}`,
       request.warning,
     ].join('\n'));
     appendPajaMessageLog(state, 'paja', {
@@ -36,7 +39,9 @@ export function confirmPajaRequest(
       filename,
       size: request.size,
       mimeType,
-      server: request.server,
+      servers: request.servers,
+      replicaCount: request.replicaCount,
+      worstCaseBytes: request.worstCaseBytes,
       warning: request.warning,
     });
     return allowed;

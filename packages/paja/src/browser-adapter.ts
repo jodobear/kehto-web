@@ -55,7 +55,12 @@ import type { PajaSignerMethod } from './browser-signers.js';
 import type { PajaSimulation } from './simulation.js';
 import { BrowserIntentController } from './browser-intent-controller.js';
 import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
-import { createPajaUploadRuntime, type PajaUploadRuntime, type PajaVerifiedStoredBlob } from './browser-upload.js';
+import {
+  createPajaUploadRuntime,
+  type PajaUploadDiagnostic,
+  type PajaUploadRuntime,
+  type PajaVerifiedStoredBlob,
+} from './browser-upload.js';
 import { createPajaSocialCache } from './browser-social-cache.js';
 import {
   PAJA_LIVE_QUERY_WAIT_MS,
@@ -81,7 +86,11 @@ export type PajaConfirmationRequest =
       readonly filename?: string;
       readonly size: number;
       readonly mimeType?: string;
-      readonly server: string;
+      /** Ordered host-configured egress targets covered by this consent decision. */
+      readonly servers: readonly string[];
+      readonly replicaCount: number;
+      /** Exact maximum bytes across every PUT retry and stored-byte verification GET. */
+      readonly worstCaseBytes: number;
       readonly warning: string;
     };
 
@@ -560,6 +569,7 @@ export function createPajaAdapter(
   getIdentity?: PajaIdentityProvider,
   onEnvironmentChanged?: () => void,
   intentHost?: PajaIntentHost,
+  onUploadDiagnostic?: (diagnostic: PajaUploadDiagnostic) => void,
 ): ShellAdapter {
   const relayBackend = createPajaRelayBackend(getSimulation, confirmRequest);
   const resourceService = createResourceService({
@@ -577,8 +587,6 @@ export function createPajaAdapter(
         getSimulation,
         getSigner: () => createRuntimeSigner(getSimulation, confirmRequest, signerProvider),
         getProviderPubkey: () => signerProvider?.getPubkey() ?? null,
-        queryDiscovery: (relayUrls, filters) => relayBackend.query(relayUrls, filters),
-        getRelayUrls: () => getPajaRelayUrls(getSimulation()),
         confirmRequest,
         getNappletIdentity: () => getIdentity?.() ?? {
           dTag: config.window.dTag,
@@ -596,6 +604,9 @@ export function createPajaAdapter(
           return verified;
         },
         subscribeSignerChange: signerProvider?.subscribe?.bind(signerProvider),
+        onDiagnostic: (diagnostic) => {
+          if ('type' in diagnostic) onUploadDiagnostic?.(diagnostic);
+        },
       })
     : undefined;
   void uploadRuntime?.refreshIdentity();

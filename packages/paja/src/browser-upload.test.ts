@@ -4,6 +4,7 @@ import type { Signer } from '@kehto/runtime';
 
 import {
   createPajaUploadRuntime,
+  type PajaReplicaDiagnostic,
   type PajaUploadDiagnostic,
 } from './browser-upload.js';
 import {
@@ -81,7 +82,7 @@ describe('createPajaUploadRuntime configured replica operations', () => {
     const sha256 = await sha256Hex(BYTES);
     const simulation = configuredSimulation(['https://a.example', 'https://b.example']);
     const confirmations = vi.fn(() => true);
-    const diagnostics: PajaUploadDiagnostic[] = [];
+    const diagnostics: Array<PajaReplicaDiagnostic | PajaUploadDiagnostic> = [];
     const waitForRetry = vi.fn(async () => undefined);
     const fetchFn = vi.fn(async (url: string) => {
       if (url === 'https://a.example/upload' && fetchFn.mock.calls.filter(([called]) => called === url).length === 1) {
@@ -280,7 +281,7 @@ describe('createPajaUploadRuntime configured replica operations', () => {
   it('cancels the whole operation after a verified replica, discards URLs, and reports retained copies only to the host', async () => {
     const sha256 = await sha256Hex(BYTES);
     const bResponse = deferred<Response>();
-    const diagnostics: PajaUploadDiagnostic[] = [];
+    const diagnostics: Array<PajaReplicaDiagnostic | PajaUploadDiagnostic> = [];
     const fetchFn = vi.fn((url: string) => {
       if (url === 'https://a.example/upload') return Promise.resolve(blossomResponse(`https://a.example/${sha256}`, sha256));
       return bResponse.promise;
@@ -302,13 +303,14 @@ describe('createPajaUploadRuntime configured replica operations', () => {
     runtime.uploader.onWindowDestroyed?.('window-1');
     bResponse.resolve(blossomResponse(`https://b.example/${sha256}`, sha256));
 
-    await expect(operation).resolves.toMatchObject({
+    const result = await operation;
+    expect(result).toMatchObject({
       ok: false,
       status: 'cancelled',
       error: 'upload-teardown-cancelled',
-      url: undefined,
-      fallbackUrls: undefined,
     });
+    expect(result).not.toHaveProperty('url');
+    expect(result).not.toHaveProperty('fallbackUrls');
     expect(diagnostics).toContainEqual(expect.objectContaining({
       type: 'paja.upload.partial-copy',
       windowId: 'window-1',
