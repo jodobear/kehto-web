@@ -179,7 +179,8 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(adapterSource).toContain("import { createPajaSocialCache } from './browser-social-cache.js';");
     expect(adapterSource).toContain('const baseOutboxRouter = createOutboxRouter(backend, getSimulation, confirmRequest, signerProvider);');
     expect(adapterSource).toContain('baseRouter: baseOutboxRouter,');
-    expect(adapterSource).toContain('services.outbox = createOutboxService({ router: socialCache.decorate(baseOutboxRouter) });');
+    expect(adapterSource).toContain('getQueryRouter: (windowId, context) => socialCache.decorate(');
+    expect(adapterSource).toContain("context?.hasCapability(windowId, 'identity:read') ?? false");
     expect(adapterSource).toContain('getFollows: socialCache.getFollows,');
     expect(adapterSource).toContain('getActivePubkey: () => getRuntimePubkey(getSimulation, signerProvider),');
     expect(adapterSource).toContain('getUserPubkey: () => getRuntimePubkey(getSimulation, signerProvider),');

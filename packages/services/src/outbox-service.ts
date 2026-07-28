@@ -34,7 +34,7 @@
  */
 
 import type { EventTemplate, NappletMessage, NostrEvent, NostrFilter } from '@napplet/core';
-import type { RelayEventResult, ServiceDescriptor, ServiceHandler } from '@kehto/runtime';
+import type { RelayEventResult, ServiceDescriptor, ServiceHandler, ServiceRuntimeContext } from '@kehto/runtime';
 
 /** Outbox service version — follows semver. */
 const OUTBOX_SERVICE_VERSION = '1.0.0';
@@ -197,6 +197,14 @@ export interface StreamingOutboxRouter extends OutboxRouter {
 export interface OutboxServiceOptions {
   /** The outbox router the shell uses to reach relays. Required. */
   router: OutboxRouter;
+  /**
+   * Optionally selects a request-scoped router for a live napplet source.
+   *
+   * @param windowId - The authenticated source window for the request.
+   * @param context - Narrow runtime context for source-bound policy checks.
+   * @returns Router used only for that source's one-shot outbox queries.
+   */
+  getQueryRouter?(windowId: string, context: ServiceRuntimeContext | undefined): OutboxRouter;
 }
 
 type Send = (msg: NappletMessage) => void;
@@ -350,12 +358,13 @@ export function createOutboxService(options: OutboxServiceOptions): ServiceHandl
   if (!options || typeof options.router !== 'object' || options.router === null) {
     throw new Error('createOutboxService: options.router is required');
   }
-  const { router } = options;
+  const { router, getQueryRouter } = options;
+  let runtimeContext: ServiceRuntimeContext | undefined;
 
   // Active subscriptions keyed by `windowId:subId` for lifecycle management.
   const subscriptions = new Map<string, OutboxRouterSubscription>();
 
-  function handleQuery(msg: NappletMessage, send: Send): void {
+  function handleQuery(windowId: string, msg: NappletMessage, send: Send): void {
     const m = msg as NappletMessage & { id?: string; filters?: unknown; options?: unknown };
     const id = m.id ?? '';
     const filters = normalizeFilters(m.filters);
@@ -363,7 +372,8 @@ export function createOutboxService(options: OutboxServiceOptions): ServiceHandl
       send({ type: 'outbox.query.result', id, events: [], error: 'invalid filter' } as NappletMessage);
       return;
     }
-    void router
+    const queryRouter = getQueryRouter?.(windowId, runtimeContext) ?? router;
+    void queryRouter
       .query(filters, sanitizeQueryOptions(m.options))
       .then((result) =>
         send({
@@ -459,13 +469,19 @@ export function createOutboxService(options: OutboxServiceOptions): ServiceHandl
 
   return {
     descriptor: OUTBOX_DESCRIPTOR,
+    onRegistered(context: ServiceRuntimeContext): void {
+      runtimeContext = context;
+    },
+    onUnregistered(): void {
+      runtimeContext = undefined;
+    },
     handleMessage(windowId: string, message: NappletMessage, send: Send): void {
       switch (message.type) {
         case 'outbox.getEvent':
           handleGetEvent(router, message, send);
           return;
         case 'outbox.query':
-          handleQuery(message, send);
+          handleQuery(windowId, message, send);
           return;
         case 'outbox.subscribe':
           handleSubscribe(windowId, message, send);
