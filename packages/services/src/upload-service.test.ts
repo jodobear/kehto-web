@@ -164,8 +164,8 @@ describe('createUploadService', () => {
       svc.handleMessage(WINDOW, { type: 'upload.upload', id: 'u1', request: { data: bytes() } } as NappletMessage, c.send);
       await Promise.resolve();
       await Promise.resolve();
-      expect(c.sent).toHaveLength(1);
-      expect(c.sent[0]).toMatchObject({
+      expect(c.sent.filter((message) => message.type === 'upload.status.changed')).toHaveLength(2);
+      expect(c.sent.find((message) => message.type === 'upload.upload.result')).toMatchObject({
         type: 'upload.upload.result',
         id: 'u1',
         result: { ok: true, uploadId: 'upload-1', status: 'complete', url: 'https://files.test/abc.png' },
@@ -181,13 +181,18 @@ describe('createUploadService', () => {
       expect((c.sent[0] as { result?: unknown }).result).toBeUndefined();
     });
 
-    it('maps an uploader rejection to a top-level error result', async () => {
+    it('maps an uploader rejection to a terminal failed result', async () => {
       uploader.upload = vi.fn(async () => { throw new Error('server rejected'); });
       svc.handleMessage(WINDOW, { type: 'upload.upload', id: 'u3', request: { data: bytes() } } as NappletMessage, c.send);
       await Promise.resolve();
       await Promise.resolve();
-      expect(c.sent).toHaveLength(1);
-      expect(c.sent[0]).toMatchObject({ type: 'upload.upload.result', id: 'u3', error: 'server rejected' });
+      expect(c.sent.filter((message) => message.type === 'upload.status.changed').map((message) => (message as unknown as { status: UploadStatus }).status.status))
+        .toEqual(['uploading', 'failed']);
+      expect(c.sent.find((message) => message.type === 'upload.upload.result')).toMatchObject({
+        type: 'upload.upload.result',
+        id: 'u3',
+        result: { ok: false, uploadId: 'upload-1', status: 'failed', error: 'server rejected' },
+      });
     });
 
     it('emits one uploading snapshot, then one terminal snapshot and correlated result', async () => {
@@ -200,7 +205,7 @@ describe('createUploadService', () => {
       svc.handleMessage(WINDOW, { type: 'upload.upload', id: 'u4', request: { data: bytes() } } as NappletMessage, c.send);
       await vi.waitFor(() => expect(c.sent.some((m) => m.type === 'upload.upload.result')).toBe(true));
 
-      const changed = c.sent.filter((m) => m.type === 'upload.status.changed') as Array<{ status: UploadStatus }>;
+      const changed = c.sent.filter((m) => m.type === 'upload.status.changed') as unknown as Array<{ status: UploadStatus }>;
       expect(changed.map((message) => message.status.status)).toEqual(['uploading', 'complete']);
       expect(changed[0]?.status).toMatchObject({ uploadId: 'upload-1', rail: 'unknown', updatedAt: 1000 });
       expect(changed[1]?.status).toMatchObject({ uploadId: 'upload-1', status: 'complete', updatedAt: 1000 });
@@ -224,17 +229,17 @@ describe('createUploadService', () => {
       expect(res?.status).toMatchObject({ uploadId: 'upload-1', status: 'complete', updatedAt: 1000 });
     });
 
-    it('falls back to uploader.status() when the upload is not tracked', async () => {
-      const tracked: UploadStatus = { ok: true, uploadId: 'remote-9', status: 'complete', rail: 'blossom', updatedAt: 5 };
-      const uploader = mockUploader({ status: vi.fn(async () => tracked) });
+    it('does not fall back to uploader-global state for an unowned upload', async () => {
+      const uploader = mockUploader({
+        status: vi.fn(async (): Promise<UploadStatus> => ({ ok: true, uploadId: 'remote-9', status: 'complete', rail: 'blossom', updatedAt: 5 })),
+      });
       const svc = createUploadService({ uploader, generateId: ID, now: NOW });
       const c = collector();
 
       svc.handleMessage(WINDOW, { type: 'upload.status', id: 's2', uploadId: 'remote-9' } as NappletMessage, c.send);
       await Promise.resolve();
-      const res = c.sent.find((m) => m.type === 'upload.status.result') as { status?: UploadStatus } | undefined;
-      expect(uploader.status).toHaveBeenCalledWith('remote-9');
-      expect(res?.status).toBe(tracked);
+      expect(uploader.status).not.toHaveBeenCalled();
+      expect(c.sent).toContainEqual({ type: 'upload.status.result', id: 's2', error: 'unknown upload' });
     });
 
     it('errors when an unknown upload cannot be resolved', async () => {
@@ -312,7 +317,7 @@ describe('createUploadService', () => {
       svc.handleMessage('window-one', { type: 'upload.status', id: 'cross-window', uploadId: 'upload-2' } as NappletMessage, one.send);
       expect(one.sent.at(-1)).toMatchObject({ type: 'upload.status.result', id: 'cross-window', error: 'unknown upload' });
       expect(uploader.status).not.toHaveBeenCalled();
-      expect(two.sent.filter((m) => m.type === 'upload.status.changed').map((m) => (m as { status: UploadStatus }).status.status))
+      expect(two.sent.filter((m) => m.type === 'upload.status.changed').map((m) => (m as unknown as { status: UploadStatus }).status.status))
         .toEqual(['uploading', 'complete']);
     });
 

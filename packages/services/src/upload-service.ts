@@ -178,6 +178,8 @@ export interface Uploader {
   status?(uploadId: string): Promise<UploadStatus | undefined>;
   /** Optional: abort an in-flight upload (called on window teardown). */
   cancel?(uploadId: string): void;
+  /** Optional: discard host-private operation state for a destroyed window. */
+  onWindowDestroyed?(windowId: string): void;
 }
 
 /** Options for {@link createUploadService}. */
@@ -276,31 +278,28 @@ export function createUploadService(options: UploadServiceOptions): ServiceHandl
 
     const uploadId = generateId();
     const key = `${windowId}:${uploadId}`;
-    entries.set(key, { uploadId });
+    const uploading: UploadStatus = {
+      ok: true,
+      uploadId,
+      status: 'uploading',
+      rail: request.rail ?? 'unknown',
+      updatedAt: now(),
+    };
+    entries.set(key, { uploadId, status: uploading });
+    send({ type: 'upload.status.changed', status: uploading } as NappletMessage);
 
     const ctx: UploaderContext = {
       uploadId,
       windowId,
-      onStatus: (status) => {
-        const stamped: UploadStatus = { ...status, uploadId, updatedAt: status.updatedAt || now() };
-        const entry = entries.get(key);
-        if (entry) entry.status = stamped;
-        send({ type: 'upload.status.changed', status: stamped } as NappletMessage);
-      },
+      // The generic service is the only status authority. Transport progress
+      // cannot inject pending, duplicate uploading, or terminal transitions.
+      onStatus: () => undefined,
     };
 
     void uploader
       .upload(request, ctx)
-      .then((result) => {
-        const stamped: UploadResult = { ...result, uploadId };
-        const entry = entries.get(key);
-        if (entry) entry.status = { ...stamped, updatedAt: now() };
-        send({ type: 'upload.upload.result', id, result: stamped } as NappletMessage);
-      })
-      .catch((err) => {
-        entries.delete(key);
-        send({ type: 'upload.upload.result', id, error: toErrorMessage(err) } as NappletMessage);
-      });
+      .then((result) => finishUpload(key, id, result, send))
+      .catch((err) => finishUpload(key, id, uploadFailure(uploadId, request.rail, err), send));
   }
 
   function handleStatus(windowId: string, msg: NappletMessage, send: Send): void {
@@ -318,23 +317,20 @@ export function createUploadService(options: UploadServiceOptions): ServiceHandl
       return;
     }
 
-    if (uploader.status) {
-      void uploader
-        .status(uploadId)
-        .then((status) =>
-          send(
-            status
-              ? ({ type: 'upload.status.result', id, status } as NappletMessage)
-              : ({ type: 'upload.status.result', id, error: 'unknown upload' } as NappletMessage),
-          ),
-        )
-        .catch((err) =>
-          send({ type: 'upload.status.result', id, error: toErrorMessage(err) } as NappletMessage),
-        );
-      return;
-    }
-
+    // Upload IDs are scoped to their owner. Falling back to an uploader-global
+    // snapshot could expose another window's upload state.
     send({ type: 'upload.status.result', id, error: 'unknown upload' } as NappletMessage);
+  }
+
+  function finishUpload(key: string, id: string, result: UploadResult, send: Send): void {
+    const entry = entries.get(key);
+    if (!entry) return;
+
+    const terminal = normalizeTerminalResult(result, entry.uploadId);
+    const status: UploadStatus = { ...terminal, updatedAt: now() };
+    entry.status = status;
+    send({ type: 'upload.status.changed', status } as NappletMessage);
+    send({ type: 'upload.upload.result', id, result: terminal } as NappletMessage);
   }
 
   return {
@@ -363,7 +359,27 @@ export function createUploadService(options: UploadServiceOptions): ServiceHandl
           entries.delete(key);
         }
       }
+      uploader.onWindowDestroyed?.(windowId);
     },
+  };
+}
+
+function normalizeTerminalResult(result: UploadResult, uploadId: string): UploadResult {
+  const status: Extract<UploadState, 'complete' | 'failed' | 'cancelled'> = result.status === 'cancelled'
+    ? 'cancelled'
+    : result.ok
+      ? 'complete'
+      : 'failed';
+  return { ...result, uploadId, status, ok: status === 'complete' };
+}
+
+function uploadFailure(uploadId: string, rail: UploadRail | undefined, err: unknown): UploadResult {
+  return {
+    ok: false,
+    uploadId,
+    status: 'failed',
+    rail: rail ?? 'unknown',
+    error: toErrorMessage(err),
   };
 }
 
