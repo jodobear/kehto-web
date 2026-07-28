@@ -12,6 +12,7 @@ import {
   createPajaAdapter,
   PAJA_DEV_SIGNER_PUBKEY,
 } from './browser-adapter.js';
+import type { PajaUploadDiagnostic } from './browser-upload.js';
 import {
   confirmPajaRequest,
   createHostSignerController,
@@ -550,6 +551,16 @@ function createPajaBrowserState(context: PajaBrowserStateContext): PajaBrowserSt
   };
 }
 
+function reportPajaUploadDiagnostic(state: PajaBrowserState | null, diagnostic: PajaUploadDiagnostic): void {
+  appendPajaMessageLog(state, 'paja', {
+    type: 'paja.upload.partial-copy',
+    windowId: diagnostic.windowId,
+    retainedUrls: diagnostic.retainedUrls,
+    reason: diagnostic.reason,
+    message: 'Upload was cancelled after verification; durable copies may remain.',
+  });
+}
+
 async function installPajaHost(): Promise<void> {
   const config = await readLatestConfig(readConfig());
   const stage = getStage();
@@ -580,7 +591,7 @@ async function installPajaHost(): Promise<void> {
     getTargetIdentity(config, stateRef?.resolvedTarget), () => stateRef?.reload(), {
       catalog: runtime.catalog,
       controller: intentController,
-    });
+    }, (diagnostic) => reportPajaUploadDiagnostic(stateRef, diagnostic));
   const bridge = createShellBridge(adapter);
   themeBroadcast.attach(bridge);
   bridgeRef = bridge;
