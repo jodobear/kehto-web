@@ -95,6 +95,27 @@ describe('runtime upload domain dispatch', () => {
     expect((err as { id?: string }).id).toBe('u3');
   });
 
+  it('denies resource.bytes for a blocked napplet without reaching the resource service', () => {
+    const received: NappletMessage[] = [];
+    runtime.registerService('resource', {
+      descriptor: { name: 'resource', version: '1.0.0' },
+      handleMessage(_wid, msg) { received.push(msg); },
+    });
+    runtime.aclState.block('', DTAG, HASH);
+
+    runtime.handleMessage(WINDOW_ID, {
+      type: 'resource.bytes',
+      id: 'r1',
+      requestId: 'r1',
+      url: 'https://blossom.test/blob.bin',
+    } as NappletMessage);
+
+    expect(received).toHaveLength(0);
+    const err = findEnvelopeResponse(ctx.sent, 'resource.bytes.error');
+    expect(err).toBeDefined();
+    expect((err as { id?: string }).id).toBe('r1');
+  });
+
   it('allows upload.upload for a napplet with ACL grants (upload capability is not restricted)', () => {
     const received: NappletMessage[] = [];
     runtime.registerService('upload', {
