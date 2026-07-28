@@ -118,7 +118,7 @@ describe('createPajaSocialCache', () => {
 
   it('caps follows and defensively retains only bounded profiles from an oversized warm response', async () => {
     const follows = Array.from({ length: 300 }, (_, index) => index.toString(16).padStart(64, '0'));
-    const profiles = follows.map((pubkey, index) => result(event(index.toString(16), pubkey, 0)));
+    const profiles = follows.map((pubkey, index) => result(event(`${index.toString(16).padStart(63, '0')}f`, pubkey, 0)));
     let queryCount = 0;
     const baseQuery = vi.fn(async () => {
       queryCount += 1;
@@ -220,7 +220,10 @@ describe('createPajaSocialCache', () => {
 
     await expect(cache.getFollows(ACCOUNT_B)).resolves.toEqual([FOLLOWED_B]);
     expect(baseQuery).toHaveBeenCalledTimes(1);
-    expect(baseQuery).toHaveBeenCalledWith([{ kinds: [0], authors: [FOLLOWED_B] }], { authors: [FOLLOWED_B] });
+    expect(baseQuery).toHaveBeenCalledWith(
+      [{ kinds: [0], authors: [FOLLOWED_B], limit: 256 }],
+      { authors: [FOLLOWED_B], limit: 256 },
+    );
   });
 
   it('merges the request-start account snapshot when the active account switches while the base query is pending', async () => {
@@ -301,6 +304,31 @@ describe('createPajaSocialCache', () => {
     await expect(follows).resolves.toEqual([FOLLOWED_A]);
     await expect(cache.decorate(baseRouter).query([{ kinds: [0], authors: [FOLLOWED_A] }])).resolves.toEqual({
       events: [result(profile)],
+    });
+  });
+
+  it('augments only queries whose source is authorized to read identity', async () => {
+    const cached = result(event('1', FOLLOWED_A, 0));
+    const base = result(event('2', FOLLOWED_B, 0));
+    const baseResult: OutboxResult = { events: [base], incomplete: true, error: 'relay timeout' };
+    let queryCount = 0;
+    const baseRouter = createRouter(vi.fn(async () => {
+      queryCount += 1;
+      return queryCount === 1 ? { events: [cached] } : baseResult;
+    }));
+    const cache = createPajaSocialCache({
+      baseRouter,
+      loadContactList: vi.fn(async () => [event('3', ACCOUNT_A, 3, [['p', FOLLOWED_A]])]),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => ACCOUNT_A,
+    });
+    await cache.refreshActiveIdentity();
+
+    await expect(cache.decorate(baseRouter, () => false).query([{ kinds: [0] }])).resolves.toBe(baseResult);
+    await expect(cache.decorate(baseRouter, () => true).query([{ kinds: [0] }])).resolves.toEqual({
+      events: [base, cached],
+      incomplete: true,
+      error: 'relay timeout',
     });
   });
 

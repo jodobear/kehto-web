@@ -27,8 +27,12 @@ export interface PajaSocialCache {
   getFollows(pubkey: string): Promise<string[]>;
   /** Refreshes the active account without delaying adapter construction. */
   refreshActiveIdentity(): Promise<void>;
-  /** Decorates the existing router while preserving its non-query operations. */
-  decorate(router: OutboxRouter): OutboxRouter;
+  /**
+   * Decorates the existing router while preserving its non-query operations.
+   *
+   * @param canReadIdentity - Source-bound authorization for private cache augmentation.
+   */
+  decorate(router: OutboxRouter, canReadIdentity?: () => boolean): OutboxRouter;
   /** Removes the signer-change observer. */
   dispose(): void;
 }
@@ -122,13 +126,15 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
       && normalizePubkey(options.getActivePubkey() ?? '') === capturedPubkey;
   }
 
-  function decorate(router: OutboxRouter): OutboxRouter {
+  function decorate(router: OutboxRouter, canReadIdentity?: () => boolean): OutboxRouter {
     return {
       ...(router.getEvent ? { getEvent: router.getEvent.bind(router) } : {}),
       async query(filters, queryOptions) {
+        const canAugment = canReadIdentity?.() ?? true;
         const activePubkey = normalizePubkey(options.getActivePubkey() ?? '');
-        const snapshot = activePubkey ? snapshots.get(activePubkey) : undefined;
+        const snapshot = canAugment && activePubkey ? snapshots.get(activePubkey) : undefined;
         const base = await router.query(filters, queryOptions);
+        if (!canAugment) return base;
         const cached = matchingCachedProfiles(snapshot?.profiles ?? [], filters);
         return mergeResult(base, cached, filters, queryOptions);
       },

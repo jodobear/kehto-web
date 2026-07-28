@@ -421,6 +421,10 @@ function createRuntimeInstance(context: RuntimeInstanceContext): Runtime {
         sessionRegistry.getAllEntries().map((entry) => entry.windowId),
       );
     },
+    hasCapability(windowId: string, capability: Capability): boolean {
+      const entry = sessionRegistry.getEntryByWindowId(windowId);
+      return !!entry && aclState.check('', entry.dTag, entry.aggregateHash, capability);
+    },
     sendToEligibleNapplet(windowId: string, message: NappletMessage): boolean {
       const entry = sessionRegistry.getEntryByWindowId(windowId);
       if (!entry || typeof message.type !== 'string') return false;

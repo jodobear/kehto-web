@@ -398,7 +398,13 @@ function createDevServices(
       selectRelayTier: () => getPajaRelayUrls(getSimulation()),
       isAvailable: () => backend.isAvailable(),
     });
-    services.outbox = createOutboxService({ router: socialCache.decorate(baseOutboxRouter) });
+    services.outbox = createOutboxService({
+      router: baseOutboxRouter,
+      getQueryRouter: (windowId, context) => socialCache.decorate(
+        baseOutboxRouter,
+        () => context?.hasCapability(windowId, 'identity:read') ?? false,
+      ),
+    });
   }
   if (getSimulation().capabilities.domains.count && typeof backend.count === 'function') {
     services.count = createCountService({
