@@ -19,12 +19,28 @@ interface BlossomPut {
   readonly contentLength: string;
 }
 
+interface BlossomPutResponse {
+  readonly status: number;
+  readonly descriptor?: Record<string, unknown>;
+}
+
+interface HeldBlossomRequest {
+  waitUntilHeld(): Promise<void>;
+  release(): void;
+}
+
 interface BlossomTestServer extends TargetServer {
   readonly puts: BlossomPut[];
   readonly gets: string[];
+  readonly getRequests: string[];
   readonly requestMethods: string[];
+  readonly responseQueues: BlossomPutResponse[];
+  readonly storedBlobs: Map<string, Buffer>;
   omitSizeOnce(): void;
   alterNextGet(): void;
+  queuePutResponse(response: BlossomPutResponse): void;
+  replaceStoredBlob(path: string, bytes: readonly number[]): void;
+  holdNextRequest(): HeldBlossomRequest;
 }
 
 const shimPrelude = readFileSync(
@@ -408,7 +424,7 @@ test('stores disclosed bytes through a signed Blossom upload and fails closed on
     now: new Date('2026-06-21T00:00:00.000Z'),
   });
   const dialogs: string[] = [];
-  let denyNextUpload = false;
+  let denyNextUpload = true;
   let putsBeforeConsent = 0;
   page.on('dialog', async (dialog) => {
     dialogs.push(dialog.message());
@@ -445,6 +461,12 @@ test('stores disclosed bytes through a signed Blossom upload and fails closed on
       },
     });
     expect(blossom.requestMethods).toEqual([]);
+    denyNextUpload = true;
+    await sendUploadMessage(frame, 'denied-upload', [9, 9]);
+    await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'denied-upload')).toMatchObject({
+      result: { ok: false, status: 'cancelled', error: 'upload-consent-denied' },
+    });
+    expect(blossom.puts).toHaveLength(0);
 
     const bytes = [0, 1, 2, 3, 254, 255];
     const expectedSha = createHash('sha256').update(Buffer.from(bytes)).digest('hex');
@@ -491,17 +513,10 @@ test('stores disclosed bytes through a signed Blossom upload and fails closed on
     expect(Number(authEvent.tags.find((tag) => tag[0] === 'expiration')?.[1])).toBeGreaterThan(authEvent.created_at);
 
     putsBeforeConsent = 1;
-    denyNextUpload = true;
-    await sendUploadMessage(frame, 'denied-upload', [9, 9]);
-    await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'denied-upload')).toMatchObject({
-      result: { ok: false, status: 'cancelled', error: 'user cancelled' },
-    });
-    expect(blossom.puts).toHaveLength(1);
-
     blossom.alterNextGet();
     await sendUploadMessage(frame, 'altered-stored-bytes', [4, 5, 6]);
     await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'altered-stored-bytes')).toMatchObject({
-      result: { ok: false, status: 'failed', error: expect.stringContaining('upload-verification-failed') },
+      result: { ok: false, status: 'failed', error: 'upload-server-failed' },
     });
     expect(blossom.puts).toHaveLength(2);
 
@@ -509,14 +524,177 @@ test('stores disclosed bytes through a signed Blossom upload and fails closed on
     blossom.omitSizeOnce();
     await sendUploadMessage(frame, 'missing-size', [7, 8, 9]);
     await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'missing-size')).toMatchObject({
-      result: { ok: false, status: 'failed', error: 'server returned invalid size' },
+      result: { ok: false, status: 'failed', error: 'upload-server-failed' },
     });
     expect(blossom.puts).toHaveLength(3);
-    expect(dialogs.filter((message) => message.includes('Paja upload request'))).toHaveLength(4);
+    expect(dialogs.filter((message) => message.includes('Paja upload request'))).toHaveLength(2);
     expect(dialogs.filter((message) => message.includes('Paja sign request'))).toHaveLength(3);
   } finally {
     await uploadRuntime.close();
     await blossom.close();
+  }
+});
+
+test('proves configured Blossom replication remains standard-NAP-only in an opaque iframe', async ({ page }) => {
+  test.setTimeout(90_000);
+  const attempts: string[] = [];
+  const first = await startBlossomServer('first', attempts);
+  const second = await startBlossomServer('second', attempts);
+  const third = await startBlossomServer('third', attempts);
+  const uploadRuntime = await startPajaServer({
+    options: {
+      targetUrl: `${targetServer.url}?required=upload,resource&manualTraffic=1`,
+      port: 0,
+      simulation: {
+        relay: { mode: 'disabled' },
+        capabilities: { domains: { relay: false, outbox: false } },
+        upload: {
+          mode: 'blossom',
+          servers: [first.url, second.url, third.url],
+          maxBytes: 1024,
+          mimeTypes: ['application/octet-stream'],
+        },
+      },
+    },
+    allowLoopbackVerifierForTests: true,
+    now: new Date('2026-06-21T00:00:00.000Z'),
+  });
+  let denyNextUpload = true;
+  let putsBeforeConsent = 0;
+  page.on('dialog', async (dialog) => {
+    if (dialog.message().includes('Paja upload request')) {
+      expect(first.puts.length + second.puts.length + third.puts.length).toBe(putsBeforeConsent);
+      expect(dialog.message()).toContain(first.url);
+      expect(dialog.message()).toContain(second.url);
+      expect(dialog.message()).toContain(third.url);
+      if (denyNextUpload) {
+        denyNextUpload = false;
+        await dialog.dismiss();
+        return;
+      }
+    }
+    await dialog.accept();
+  });
+
+  try {
+    await page.goto(uploadRuntime.url);
+    await page.locator('#signer-dev').click();
+    await expect(page.locator('#signer-status')).toContainText('dev connected');
+    const frame = page.frameLocator('#napplet-frame');
+    await expect(frame.locator('#target-status')).toHaveText('shell-init received', { timeout: 15_000 });
+
+    await expect(frame.locator('body').evaluate(() => {
+      const napplet = (window as Window & { napplet?: Record<string, unknown>; nostr?: unknown }).napplet;
+      return {
+        domains: Object.keys(napplet ?? {}).sort(),
+        upload: Object.keys(napplet?.upload as Record<string, unknown> ?? {}).sort(),
+        resource: Object.keys(napplet?.resource as Record<string, unknown> ?? {}).sort(),
+        blossom: napplet?.blossom,
+        nostr: typeof (window as Window & { nostr?: unknown }).nostr,
+      };
+    })).resolves.toEqual({
+      domains: expect.arrayContaining(['resource', 'shell', 'upload']),
+      upload: ['info', 'onStatus', 'status', 'upload'],
+      resource: ['bytes', 'bytesAsObjectURL', 'bytesMany', 'hydrateResourceCache', 'info', 'revokeAllObjectURLs'],
+      blossom: undefined,
+      nostr: 'undefined',
+    });
+
+    await sendUploadMessage(frame, 'denied-before-egress', [0, 1, 2, 3, 254, 255]);
+    await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'denied-before-egress')).toMatchObject({
+      result: { ok: false, status: 'cancelled', error: 'upload-consent-denied' },
+    });
+    expect(first.puts).toHaveLength(0);
+    expect(second.puts).toHaveLength(0);
+    expect(third.puts).toHaveLength(0);
+
+    first.queuePutResponse({ status: 503 });
+    second.queuePutResponse({ status: 200, descriptor: { url: 'not-a-complete-descriptor' } });
+    const bytes = [0, 1, 2, 3, 254, 255];
+    const expectedSha = '7ea646958715ed687aa9ac2f5d785feb1a93411f4f25fdd6c7fcc6ab07fdf0e3';
+    putsBeforeConsent = 0;
+    await sendUploadMessage(frame, 'ordered-replicas', bytes);
+    await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'ordered-replicas')).toMatchObject({
+      result: {
+        ok: true,
+        status: 'complete',
+        url: `${first.url}/${expectedSha}`,
+        fallbackUrls: [`${third.url}/${expectedSha}`],
+      },
+    });
+    expect(attempts).toEqual(['first', 'first', 'second', 'third']);
+    expect(first.getRequests).toEqual([`/${expectedSha}`]);
+    expect(second.getRequests).toEqual([]);
+    expect(third.getRequests).toEqual([`/${expectedSha}`]);
+
+    for (const put of [...first.puts, ...second.puts, ...third.puts]) {
+      expect(put.bytes).toEqual(Buffer.from(bytes));
+      expect(put.sha256).toBe(expectedSha);
+      expect(put.contentLength).toBe(String(bytes.length));
+      expect(put.authorization).toMatch(/^Nostr [A-Za-z0-9_-]+$/);
+      const authorization = decodeNostrAuthorization(put.authorization);
+      expect(authorization.kind).toBe(24_242);
+      expect(authorization.tags).toEqual(expect.arrayContaining([
+        ['t', 'upload'],
+        ['x', expectedSha],
+        ['server', '127.0.0.1'],
+      ]));
+      expect(Number(authorization.tags.find((tag) => tag[0] === 'expiration')?.[1])).toBe(authorization.created_at + 300);
+    }
+
+    const primaryUrl = `${first.url}/${expectedSha}`;
+    await sendFixtureMessage(frame, { type: 'resource.bytes', id: 'ordered-preview', url: primaryUrl });
+    await expect.poll(() => readFixtureMessage(frame, 'resource.bytes.result', 'ordered-preview')).toMatchObject({
+      bodyBase64: Buffer.from(bytes).toString('base64'),
+      mime: 'application/octet-stream',
+    });
+    await expect(frame.locator('body').evaluate(async () => {
+      const messages = (window as Window & { __pajaTestMessages?: Array<{ type: string; id?: string; blob?: Blob }> }).__pajaTestMessages ?? [];
+      const result = messages.find((message) => message.type === 'resource.bytes.result' && message.id === 'ordered-preview');
+      return result?.blob ? Array.from(new Uint8Array(await result.blob.arrayBuffer())) : null;
+    })).resolves.toEqual(bytes);
+
+    first.alterNextGet();
+    putsBeforeConsent = first.puts.length + second.puts.length + third.puts.length;
+    await sendUploadMessage(frame, 'altered-proof-continues', bytes);
+    await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'altered-proof-continues')).toMatchObject({
+      result: {
+        ok: true,
+        url: `${second.url}/${expectedSha}`,
+        fallbackUrls: [`${third.url}/${expectedSha}`],
+      },
+    });
+    expect(first.storedBlobs.get(`/${expectedSha}`)).toEqual(Buffer.from(bytes));
+
+    const held = second.holdNextRequest();
+    putsBeforeConsent = first.puts.length + second.puts.length + third.puts.length;
+    await sendUploadMessage(frame, 'teardown-after-first-copy', bytes);
+    await expect.poll(() => first.puts.length).toBe(4);
+    await held.waitUntilHeld();
+    await page.locator('#reload-target').click();
+    held.release();
+    await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.upload.partial-copy'))).toEqual([
+      expect.objectContaining({
+        detail: 'Upload was cancelled after verification; durable copies may remain.',
+        preview: expect.stringContaining(`${first.url}/${expectedSha}`),
+      }),
+    ]);
+    await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'upload.upload.result' && entry.preview.includes('teardown-after-first-copy')))).toHaveLength(0);
+
+    await expect(frame.locator('body').evaluate(() => {
+      const messages = (window as Window & { __pajaTestMessages?: Array<Record<string, unknown>> }).__pajaTestMessages ?? [];
+      return messages.some((message) => (
+        message.type.includes('blossom')
+        || message.type.includes('authorization')
+        || Object.prototype.hasOwnProperty.call(message, 'authorization')
+        || Object.prototype.hasOwnProperty.call(message, 'credential')
+      ));
+    })).resolves.toBe(false);
+  } finally {
+    await uploadRuntime.close();
+    await Promise.all([first.close(), second.close(), third.close()]);
   }
 });
 
@@ -905,13 +1083,15 @@ function decodeNostrAuthorization(value: string): {
   };
 }
 
-async function startBlossomServer(): Promise<BlossomTestServer> {
+async function startBlossomServer(name = 'blossom', attempts: string[] = []): Promise<BlossomTestServer> {
   const puts: BlossomPut[] = [];
-  const gets: string[] = [];
-  const stored = new Map<string, Buffer>();
+  const getRequests: string[] = [];
+  const storedBlobs = new Map<string, Buffer>();
+  const responseQueues: BlossomPutResponse[] = [];
   const requestMethods: string[] = [];
   let omitSize = false;
   let alterNextGet = false;
+  let nextHold: { resolveHeld(): void; release: Promise<void> } | null = null;
   let url = '';
   const server = createServer((request, response) => {
     requestMethods.push(request.method ?? 'UNKNOWN');
@@ -924,8 +1104,8 @@ async function startBlossomServer(): Promise<BlossomTestServer> {
       return;
     }
     if (request.method === 'GET' && request.url) {
-      gets.push(request.url);
-      const storedBytes = stored.get(request.url);
+      getRequests.push(request.url);
+      const storedBytes = storedBlobs.get(request.url);
       if (!storedBytes) {
         response.writeHead(404, { 'content-type': 'text/plain' });
         response.end('Not found');
@@ -944,16 +1124,29 @@ async function startBlossomServer(): Promise<BlossomTestServer> {
     }
     const chunks: Buffer[] = [];
     request.on('data', (chunk: Buffer) => chunks.push(chunk));
-    request.on('end', () => {
+    request.on('end', async () => {
       const bytes = Buffer.concat(chunks);
       const authorization = String(request.headers.authorization ?? '');
       const contentType = String(request.headers['content-type'] ?? '');
       const sha256Header = String(request.headers['x-sha-256'] ?? '');
       const contentLength = String(request.headers['content-length'] ?? '');
       puts.push({ bytes, authorization, contentType, sha256: sha256Header, contentLength });
+      attempts.push(name);
+      const hold = nextHold;
+      nextHold = null;
+      if (hold) {
+        hold.resolveHeld();
+        await hold.release;
+      }
+      const queued = responseQueues.shift();
+      if (queued && (queued.status < 200 || queued.status >= 300)) {
+        response.writeHead(queued.status, { 'content-type': 'application/json' });
+        response.end(JSON.stringify(queued.descriptor ?? { error: `fixture HTTP ${queued.status}` }));
+        return;
+      }
       const sha256 = createHash('sha256').update(bytes).digest('hex');
-      stored.set(`/${sha256}`, bytes);
-      const descriptor = {
+      storedBlobs.set(`/${sha256}`, bytes);
+      const descriptor = queued?.descriptor ?? {
         url: `${url}/${sha256}`,
         sha256,
         ...(!omitSize ? { size: bytes.byteLength } : {}),
@@ -961,7 +1154,7 @@ async function startBlossomServer(): Promise<BlossomTestServer> {
         uploaded: 1,
       };
       omitSize = false;
-      response.writeHead(200, { 'content-type': 'application/json' });
+      response.writeHead(queued?.status ?? 200, { 'content-type': 'application/json' });
       response.end(JSON.stringify(descriptor));
     });
   });
@@ -981,13 +1174,34 @@ async function startBlossomServer(): Promise<BlossomTestServer> {
   return {
     url,
     puts,
-    gets,
+    gets: getRequests,
+    getRequests,
     requestMethods,
+    responseQueues,
+    storedBlobs,
     omitSizeOnce() {
       omitSize = true;
     },
     alterNextGet() {
       alterNextGet = true;
+    },
+    queuePutResponse(response) {
+      responseQueues.push(response);
+    },
+    replaceStoredBlob(path, bytes) {
+      storedBlobs.set(path, Buffer.from(bytes));
+    },
+    holdNextRequest() {
+      let resolveHeld: () => void = () => undefined;
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        resolveHeld = resolve;
+      });
+      const releasePromise = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      nextHold = { resolveHeld, release: releasePromise };
+      return { waitUntilHeld: () => held, release };
     },
     close: () => new Promise((resolve, reject) => {
       server.close((error) => {

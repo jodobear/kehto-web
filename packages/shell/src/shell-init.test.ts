@@ -71,6 +71,18 @@ describe('buildShellCapabilities', () => {
     expect(buildShellCapabilities({ ...baseHooks(), ...adapter }).domains).not.toContain(domain);
   });
 
+  // Pinned NAP-SHELL/NAP-UPLOAD draft a7cc174 defines capability support separately
+  // from upload.info availability. This is pinned-draft alignment, not a master claim.
+  it('advertises a wired upload capability independently of current rail readiness', () => {
+    const hooks: ShellAdapter = {
+      ...baseHooks(),
+      services: { upload: service('upload') },
+      upload: { getUploader: () => ({ rails: ['blossom'] }) },
+    };
+
+    expect(buildShellCapabilities(hooks).domains).toContain('upload');
+  });
+
   it('advertises only registered service domains with available adapters', () => {
     const hooks: ShellAdapter = {
       ...baseHooks(),
