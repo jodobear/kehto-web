@@ -45,7 +45,12 @@ function result(value: NostrEvent): RelayEventResult {
   return { event: value };
 }
 
-function createRouter(query: (filters: Parameters<OutboxRouter['query']>[0]) => Promise<OutboxResult>): OutboxRouter {
+function createRouter(
+  query: (
+    filters: Parameters<OutboxRouter['query']>[0],
+    options?: Parameters<OutboxRouter['query']>[1],
+  ) => Promise<OutboxResult>,
+): OutboxRouter {
   return {
     query,
     subscribe: (_filters: Parameters<OutboxRouter['subscribe']>[0], _options: OutboxSubscribeOptions | undefined, _sink: OutboxSubscriptionSink): OutboxRouterSubscription => ({ close() {} }),
@@ -79,8 +84,8 @@ describe('createPajaSocialCache', () => {
 
     expect(await cache.getFollows(ACCOUNT_A)).toEqual([FOLLOWED_A]);
     expect(baseRouter.query).toHaveBeenCalledWith(
-      [{ kinds: [0], authors: [FOLLOWED_A], limit: 256 }],
-      { authors: [FOLLOWED_A], limit: 256 },
+      [{ kinds: [0], authors: [FOLLOWED_A], limit: 64 }],
+      { authors: [FOLLOWED_A], limit: 64 },
     );
 
     const decorated = cache.decorate(baseRouter);
@@ -116,13 +121,15 @@ describe('createPajaSocialCache', () => {
     expect(baseRouter.query).not.toHaveBeenCalled();
   });
 
-  it('caps follows and defensively retains only bounded profiles from an oversized warm response', async () => {
+  it('warms every verified follow through bounded sequential batches', async () => {
     const follows = Array.from({ length: 300 }, (_, index) => index.toString(16).padStart(64, '0'));
-    const profiles = follows.map((pubkey, index) => result(event(`${index.toString(16).padStart(63, '0')}f`, pubkey, 0)));
-    let queryCount = 0;
-    const baseQuery = vi.fn(async () => {
-      queryCount += 1;
-      return { events: queryCount === 1 ? profiles : [] };
+    const profiles = follows.map((pubkey) => result(event(pubkey, pubkey, 0)));
+    const baseQuery = vi.fn(async (
+      filters: Parameters<OutboxRouter['query']>[0],
+      _options?: Parameters<OutboxRouter['query']>[1],
+    ) => {
+      const authors = filters[0]?.authors;
+      return { events: authors ? authors.map((pubkey) => result(event(pubkey, pubkey, 0))) : [] };
     });
     const baseRouter = createRouter(baseQuery);
     const cache = createPajaSocialCache({
@@ -134,15 +141,73 @@ describe('createPajaSocialCache', () => {
 
     await cache.refreshActiveIdentity();
 
-    const expectedFollows = follows.slice(0, 256);
-    expect(await cache.getFollows(ACCOUNT_A)).toEqual(expectedFollows);
-    expect(baseQuery).toHaveBeenCalledWith(
-      [{ kinds: [0], authors: expectedFollows, limit: 256 }],
-      { authors: expectedFollows, limit: 256 },
-    );
-    await expect(cache.decorate(baseRouter).query([{ kinds: [0] }])).resolves.toMatchObject({
-      events: profiles.slice(0, 256),
+    expect(await cache.getFollows(ACCOUNT_A)).toEqual(follows);
+    expect(baseQuery).toHaveBeenCalledTimes(5);
+    for (const [filters, options] of baseQuery.mock.calls) {
+      expect(filters).toEqual([{ kinds: [0], authors: expect.any(Array), limit: 64 }]);
+      expect(filters[0]?.authors?.length).toBeLessThanOrEqual(64);
+      expect(options).toEqual({ authors: filters[0]?.authors, limit: 64 });
+    }
+    await expect(cache.decorate(baseRouter).query([{ kinds: [0] }])).resolves.toEqual({ events: profiles });
+  });
+
+  it('accumulates completed batches while retaining base results and cancels a stale generation mid-batch', async () => {
+    const follows = Array.from({ length: 130 }, (_, index) => index.toString(16).padStart(64, '0'));
+    const secondBatch = deferred<OutboxResult>();
+    const base = { event: event(follows[0]!, follows[0]!, 0), sidecar: { relayHints: ['wss://base.example'] } };
+    let activePubkey = ACCOUNT_A;
+    const baseRouter = createRouter(vi.fn(async (filters: Parameters<OutboxRouter['query']>[0]) => {
+      const authors = filters[0]?.authors;
+      if (!authors) return { events: [base] };
+      if (authors[0] === follows[64]) return secondBatch.promise;
+      if (authors[0] === FOLLOWED_B) return { events: [result(event('b', FOLLOWED_B, 0))] };
+      return { events: authors.map((pubkey) => result(event(pubkey, pubkey, 0))) };
+    }));
+    const cache = createPajaSocialCache({
+      baseRouter,
+      loadContactList: vi.fn(async (pubkey) => [event('contacts', pubkey, 3, pubkey === ACCOUNT_A
+        ? follows.map((follow) => ['p', follow])
+        : [['p', FOLLOWED_B]])]),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => activePubkey,
     });
+
+    const refreshA = cache.refreshActiveIdentity();
+    await Promise.resolve();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    const partial = await cache.decorate(baseRouter).query([{ kinds: [0] }]);
+    expect(partial.events).toHaveLength(64);
+    expect(partial.events[0]).toBe(base);
+
+    activePubkey = ACCOUNT_B;
+    await cache.refreshActiveIdentity();
+    secondBatch.resolve({ events: [result(event('stale', follows[64]!, 0))] });
+    await refreshA;
+
+    activePubkey = ACCOUNT_A;
+    const staleSnapshot = await cache.decorate(baseRouter).query([{ kinds: [0] }]);
+    expect(staleSnapshot.events).toHaveLength(64);
+    expect(staleSnapshot.events.some(({ event }) => event.pubkey === follows[64])).toBe(false);
+  });
+
+  it('filters hostile batch responses to one deterministic newest profile per batch author', async () => {
+    const oldA = result(event('z', FOLLOWED_A, 0, [], 1));
+    const newestA = result(event('a', FOLLOWED_A, 0, [], 2));
+    const tiedA = result(event('b', FOLLOWED_A, 0, [], 2));
+    const profileB = result(event('c', FOLLOWED_B, 0, [], 1));
+    const hostile = [oldA, newestA, tiedA, profileB, result(event('x', ACCOUNT_B, 0)), result(event('y', FOLLOWED_A, 1))];
+    const baseRouter = createRouter(vi.fn(async (filters) => filters[0]?.authors ? { events: hostile } : { events: [] }));
+    const cache = createPajaSocialCache({
+      baseRouter,
+      loadContactList: vi.fn(async () => [event('contacts', ACCOUNT_A, 3, [['p', FOLLOWED_A], ['p', FOLLOWED_B]])]),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => ACCOUNT_A,
+    });
+
+    await cache.refreshActiveIdentity();
+
+    await expect(cache.decorate(baseRouter).query([{ kinds: [0] }])).resolves.toEqual({ events: [newestA, profileB] });
   });
 
   it('selects the newest verified same-author kind-3 event with a lowest-ID tie independent of arrival order', async () => {
@@ -221,8 +286,8 @@ describe('createPajaSocialCache', () => {
     await expect(cache.getFollows(ACCOUNT_B)).resolves.toEqual([FOLLOWED_B]);
     expect(baseQuery).toHaveBeenCalledTimes(1);
     expect(baseQuery).toHaveBeenCalledWith(
-      [{ kinds: [0], authors: [FOLLOWED_B], limit: 256 }],
-      { authors: [FOLLOWED_B], limit: 256 },
+      [{ kinds: [0], authors: [FOLLOWED_B], limit: 64 }],
+      { authors: [FOLLOWED_B], limit: 64 },
     );
   });
 
@@ -404,7 +469,7 @@ describe('createPajaSocialCache', () => {
     await cache.refreshActiveIdentity();
 
     await expect(cache.decorate(baseRouter).query([{ kinds: [0], authors: [FOLLOWED_A] }])).resolves.toEqual({
-      events: [baseEntry, result(cachedOnly)],
+      events: [baseEntry],
       incomplete: true,
       error: 'relay timeout',
     });
