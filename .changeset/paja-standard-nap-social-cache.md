@@ -1,5 +1,7 @@
 ---
 "@kehto/paja": minor
+"@kehto/runtime": minor
+"@kehto/services": minor
 ---
 
-Document Paja's private, active-account-scoped social cache behind standard identity and OUTBOX services.
+Add Paja's bounded, active-account-scoped social cache behind standard identity and OUTBOX services, with request-scoped capability checks that prevent OUTBOX-only callers from observing private follow-derived cache entries.
