@@ -44,6 +44,10 @@ interface SocialSnapshot {
 // installed @napplet/nap@0.28.0 types govern under upstream drift; this makes
 // no current-master OUTBOX conformance claim.
 const HEX_PUBKEY = /^[0-9a-f]{64}$/i;
+/** Bounds private contact-list parsing and warm-query author discovery in Paja. */
+const MAX_WARMED_FOLLOWS = 256;
+/** Bounds retained kind-0 profiles even when a router returns an oversized result. */
+const MAX_WARMED_PROFILES = 256;
 
 /**
  * Creates Paja's memory-only, account-scoped social cache.
@@ -100,8 +104,8 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
       }
 
       const warmed = await options.baseRouter.query(
-        [{ kinds: [0], authors: follows }],
-        { authors: follows },
+        [{ kinds: [0], authors: follows, limit: MAX_WARMED_PROFILES }],
+        { authors: follows, limit: MAX_WARMED_PROFILES },
       );
       if (!isCurrent(capturedPubkey, currentGeneration)) return;
       snapshots.set(capturedPubkey, {
@@ -171,14 +175,18 @@ function contactPubkeys(event: NostrEvent | undefined): string[] {
   for (const tag of event.tags) {
     if (!Array.isArray(tag) || tag[0] !== 'p') continue;
     const pubkey = normalizePubkey(tag[1]);
-    if (pubkey) follows.add(pubkey);
+    if (!pubkey || follows.has(pubkey)) continue;
+    follows.add(pubkey);
+    if (follows.size === MAX_WARMED_FOLLOWS) break;
   }
   return [...follows];
 }
 
 function profileResults(result: OutboxResult, follows: readonly string[]): RelayEventResult[] {
   const followed = new Set(follows);
-  return result.events.filter(({ event }) => event.kind === 0 && followed.has(normalizePubkey(event.pubkey) ?? ''));
+  return result.events
+    .filter(({ event }) => event.kind === 0 && followed.has(normalizePubkey(event.pubkey) ?? ''))
+    .slice(0, MAX_WARMED_PROFILES);
 }
 
 function matchingCachedProfiles(profiles: readonly RelayEventResult[], filters: Parameters<OutboxRouter['query']>[0]): RelayEventResult[] {

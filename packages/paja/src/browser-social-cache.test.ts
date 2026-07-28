@@ -79,8 +79,8 @@ describe('createPajaSocialCache', () => {
 
     expect(await cache.getFollows(ACCOUNT_A)).toEqual([FOLLOWED_A]);
     expect(baseRouter.query).toHaveBeenCalledWith(
-      [{ kinds: [0], authors: [FOLLOWED_A] }],
-      { authors: [FOLLOWED_A] },
+      [{ kinds: [0], authors: [FOLLOWED_A], limit: 256 }],
+      { authors: [FOLLOWED_A], limit: 256 },
     );
 
     const decorated = cache.decorate(baseRouter);
@@ -114,6 +114,35 @@ describe('createPajaSocialCache', () => {
     await expect(cache.getFollows(` ${ACCOUNT_A}`)).resolves.toEqual([]);
     await expect(cache.getFollows(ACCOUNT_A)).resolves.toEqual([FOLLOWED_A, extraFollow]);
     expect(baseRouter.query).not.toHaveBeenCalled();
+  });
+
+  it('caps follows and defensively retains only bounded profiles from an oversized warm response', async () => {
+    const follows = Array.from({ length: 300 }, (_, index) => index.toString(16).padStart(64, '0'));
+    const profiles = follows.map((pubkey, index) => result(event(index.toString(16), pubkey, 0)));
+    let queryCount = 0;
+    const baseQuery = vi.fn(async () => {
+      queryCount += 1;
+      return { events: queryCount === 1 ? profiles : [] };
+    });
+    const baseRouter = createRouter(baseQuery);
+    const cache = createPajaSocialCache({
+      baseRouter,
+      loadContactList: vi.fn(async () => [event('1', ACCOUNT_A, 3, follows.map((pubkey) => ['p', pubkey]))]),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => ACCOUNT_A,
+    });
+
+    await cache.refreshActiveIdentity();
+
+    const expectedFollows = follows.slice(0, 256);
+    expect(await cache.getFollows(ACCOUNT_A)).toEqual(expectedFollows);
+    expect(baseQuery).toHaveBeenCalledWith(
+      [{ kinds: [0], authors: expectedFollows, limit: 256 }],
+      { authors: expectedFollows, limit: 256 },
+    );
+    await expect(cache.decorate(baseRouter).query([{ kinds: [0] }])).resolves.toMatchObject({
+      events: profiles.slice(0, 256),
+    });
   });
 
   it('selects the newest verified same-author kind-3 event with a lowest-ID tie independent of arrival order', async () => {
