@@ -14,6 +14,7 @@ import type { UploaderContext } from './upload-service.js';
 import type { EventTemplate, NostrEvent } from '@napplet/core';
 
 const SHA = 'a'.repeat(64);
+const BINARY_SHA = '7ea646958715ed687aa9ac2f5d785feb1a93411f4f25fdd6c7fcc6ab07fdf0e3';
 const OX = 'b'.repeat(64);
 
 function ctx(uploadId = 'up-1'): UploaderContext {
@@ -242,6 +243,75 @@ describe('createHttpUploader', () => {
       ]);
     });
 
+    it('encodes a complete 300-second BUD-11 event and binary PUT headers', async () => {
+      const signed = {
+        id: 'e'.repeat(64),
+        pubkey: 'p'.repeat(64),
+        sig: 'f'.repeat(128),
+      };
+      const signEvent = vi.fn(async (tmpl: EventTemplate): Promise<NostrEvent> => ({ ...tmpl, ...signed }));
+      const fetchFn = vi.fn(async () => ({
+        ok: true,
+        status: 201,
+        json: async () => ({
+          url: 'https://blossom.test/blob.bin',
+          sha256: BINARY_SHA,
+          size: 6,
+          type: 'application/octet-stream',
+          uploaded: 1,
+        }),
+      }) as unknown as Response);
+      const data = new Uint8Array([0, 1, 2, 3, 254, 255]);
+      const uploader = createHttpUploader({
+        rails: { blossom: { servers: ['https://BLOSSOM.TEST'] } },
+        signEvent,
+        fetch: fetchFn as unknown as typeof fetch,
+        digestSha256: async () => BINARY_SHA,
+        now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? 'application/octet-stream',
+        }),
+      });
+
+      await uploader.upload({ rail: 'blossom', data: data.buffer, mimeType: 'application/octet-stream' }, ctx('bud-11'));
+
+      const auth = String((fetchFn as ReturnType<typeof vi.fn>).mock.calls[0][1].headers.Authorization);
+      const encoded = auth.slice('Nostr '.length);
+      expect(auth).toMatch(/^Nostr [A-Za-z0-9_-]+$/);
+      expect(encoded).not.toContain('=');
+      const padded = encoded.replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - (encoded.length % 4)) % 4);
+      const decoded = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded), (char) => char.charCodeAt(0)))) as NostrEvent;
+      expect(decoded).toEqual({
+        kind: 24242,
+        created_at: NOW(),
+        content: 'Upload file',
+        tags: [
+          ['t', 'upload'],
+          ['x', BINARY_SHA],
+          ['server', 'blossom.test'],
+          ['expiration', String(NOW() + 300)],
+        ],
+        ...signed,
+      });
+      expect(signEvent).toHaveBeenCalledWith({
+        kind: 24242,
+        created_at: NOW(),
+        content: 'Upload file',
+        tags: decoded.tags,
+      });
+
+      const [, init] = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(init.headers).toMatchObject({
+        'X-SHA-256': BINARY_SHA,
+        'Content-Length': '6',
+        'Content-Type': 'application/octet-stream',
+      });
+      expect(new Uint8Array(init.body as ArrayBuffer)).toEqual(data);
+    });
+
     it('uses only a host-produced stored-byte proof for its standard NIP-94 result', async () => {
       const verifyBlossomStoredBlob = vi.fn(async () => ({
         url: 'https://cdn.test/verified.bin',
@@ -300,6 +370,9 @@ describe('createHttpUploader', () => {
       ['fractional size', { url: 'https://blossom.test/blob', sha256: SHA, size: 8.5 }, /invalid size/i],
       ['unsafe size', { url: 'https://blossom.test/blob', sha256: SHA, size: Number.MAX_SAFE_INTEGER + 1 }, /invalid size/i],
       ['mismatched size', { url: 'https://blossom.test/blob', sha256: SHA, size: 7 }, /mismatched size/i],
+      ['missing type', { url: 'https://blossom.test/blob', sha256: SHA, size: 8, uploaded: 1 }, /type/i],
+      ['missing uploaded timestamp', { url: 'https://blossom.test/blob', sha256: SHA, size: 8, type: 'application/octet-stream' }, /uploaded/i],
+      ['negative uploaded timestamp', { url: 'https://blossom.test/blob', sha256: SHA, size: 8, type: 'application/octet-stream', uploaded: -1 }, /uploaded/i],
       ['missing URL', { sha256: SHA, size: 8 }, /url/i],
       ['malformed URL', { url: 42, sha256: SHA, size: 8 }, /url/i],
     ])('rejects a descriptor with %s', async (_case, descriptor, error) => {
