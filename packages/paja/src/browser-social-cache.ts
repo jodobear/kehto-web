@@ -45,7 +45,7 @@ interface SocialSnapshot {
 // Authority recorded in 102-IMPLEMENTATION-NOTE.md: NAP-IDENTITY
 // 6461e4b37c29dc09a20dff35d9515889c4433874 is byte-identical to recorded
 // master. Pinned NAP-OUTBOX 4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e plus
-// installed @napplet/nap@0.28.0 types govern under upstream drift; this makes
+// installed @napplet/nap@0.29.0 types govern under upstream drift; this makes
 // no current-master OUTBOX conformance claim.
 const HEX_PUBKEY = /^[0-9a-f]{64}$/i;
 /** Bounds private contact-list parsing and warm-query author discovery in Paja. */
