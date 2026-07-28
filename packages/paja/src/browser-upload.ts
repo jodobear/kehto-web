@@ -1,4 +1,3 @@
-import type { NostrEvent } from '@napplet/core';
 import type { Signer } from '@kehto/runtime';
 import {
   createHttpUploader,
@@ -6,6 +5,7 @@ import {
   type UploadRequest,
   type UploadResult,
   type Uploader,
+  type UploaderContext,
   type VerifiedBlossomResult,
 } from '@kehto/services';
 
@@ -112,6 +112,21 @@ interface IdentitySnapshot {
   readonly signer: Signer & Required<Pick<Signer, 'getPublicKey' | 'signEvent'>>;
 }
 
+interface RuntimeState {
+  generation: number;
+  identity: IdentitySnapshot | null;
+  readonly activeOperations: Map<string, PajaReplicaOperation>;
+  readonly sessionConsents: Map<string, PajaUploadConsentKey>;
+}
+
+interface PreparedUpload {
+  readonly size: number;
+  readonly mimeType: string;
+  readonly maxBytes: number;
+  readonly servers: readonly string[];
+  readonly worstCaseBytes: number;
+}
+
 /**
  * Create Paja's shell-owned configured Blossom replica operation.
  *
@@ -120,249 +135,264 @@ interface IdentitySnapshot {
  * configured replica before returning only standard NAP-UPLOAD success fields.
  */
 export function createPajaUploadRuntime(options: PajaUploadRuntimeOptions): PajaUploadRuntime {
-  let generation = 0;
-  let identity: IdentitySnapshot | null = null;
-  const activeOperations = new Map<string, PajaReplicaOperation>();
-  const sessionConsents = new Map<string, PajaUploadConsentKey>();
-  const waitForRetry = options.waitForRetry ?? sleep;
-
-  async function refreshIdentity(): Promise<void> {
-    generation += 1;
-    for (const operation of activeOperations.values()) {
-      stopOperation(operation, 'upload-identity-changed');
-    }
-    identity = null;
-    const simulation = options.getSimulation();
-    if (simulation.upload.mode !== 'blossom') return;
-
-    const configuredPubkey = simulation.identity.pubkey.trim();
-    const providerPubkey = options.getProviderPubkey()?.trim() ?? '';
-    if (configuredPubkey && providerPubkey && configuredPubkey !== providerPubkey) return;
-
-    const signer = options.getSigner();
-    if (!hasWritableIdentity(signer)) return;
-    let signerPubkey: string;
-    try {
-      signerPubkey = (await signer.getPublicKey()).trim();
-    } catch {
-      return;
-    }
-    if (!isHexPubkey(signerPubkey)) return;
-    const candidates = [configuredPubkey, providerPubkey, signerPubkey].filter(Boolean);
-    if (candidates.some((candidate) => candidate !== signerPubkey)) return;
-
-    identity = { pubkey: signerPubkey, signer };
-  }
-
-  const uploader: Uploader = {
-    async upload(request, ctx) {
-      const simulation = options.getSimulation();
-      if (simulation.upload.mode !== 'blossom') return failure(ctx.uploadId, 'upload-unavailable');
-      if (request.rail && request.rail !== 'blossom') return failure(ctx.uploadId, 'upload-unavailable');
-
-      const size = uploadSize(request);
-      const mimeType = normalizedMimeType(request);
-      const maxBytes = simulation.upload.maxBytes;
-      const mimeTypes = simulation.upload.mimeTypes;
-      if (
-        !Number.isSafeInteger(size) ||
-        size < 0 ||
-        !Number.isSafeInteger(maxBytes) ||
-        !maxBytes ||
-        size > maxBytes ||
-        !mimeType ||
-        !mimeTypes?.includes(mimeType)
-      ) {
-        return failure(ctx.uploadId, 'upload-policy-denied');
-      }
-
-      const servers = [...simulation.upload.servers];
-      if (servers.length === 0 || !options.verifyStoredBlob) return failure(ctx.uploadId, 'upload-unavailable');
-      const worstCaseBytes = size * servers.length * 3;
-      if (!Number.isSafeInteger(worstCaseBytes)) return failure(ctx.uploadId, 'upload-policy-denied');
-
-      const snapshot = identity;
-      if (!snapshot) return failure(ctx.uploadId, 'upload-unavailable');
-      const nappletIdentity = options.getNappletIdentity(ctx.windowId);
-      const consentKey: PajaUploadConsentKey = {
-        windowId: ctx.windowId,
-        signerPubkey: snapshot.pubkey,
-        servers,
-        mimeType,
-        maxBytes,
-      };
-      const serializedConsentKey = serializeConsentKey(consentKey);
-      if (!sessionConsents.has(serializedConsentKey)) {
-        if (!options.confirmRequest({
-          action: 'upload',
-          windowId: ctx.windowId,
-          napplet: nappletIdentity,
-          filename: request.filename,
-          size,
-          mimeType,
-          servers,
-          replicaCount: servers.length,
-          worstCaseBytes,
-          warning: PUBLIC_UPLOAD_WARNING,
-        })) {
-          return cancelled(ctx.uploadId, 'upload-consent-denied');
-        }
-        sessionConsents.set(serializedConsentKey, consentKey);
-      }
-
-      const operation: PajaReplicaOperation = {
-        uploadId: ctx.uploadId,
-        windowId: ctx.windowId,
-        generation,
-        signerPubkey: snapshot.pubkey,
-        controller: new AbortController(),
-        delegates: new Set(),
-        verifiedResults: [],
-        diagnostics: [],
-      };
-      activeOperations.set(ctx.uploadId, operation);
-      try {
-        for (const server of servers) {
-          const first = await attemptReplica({ operation, server, attempt: 1, request, ctx, snapshot, nappletIdentity, mimeType });
-          if (operation.stopReason) return cancelledOperation(operation);
-          if (first.ok) operation.verifiedResults.push(first.result);
-          else if (first.retryable) {
-            await waitForRetry(RETRY_DELAY_MS, operation.controller.signal);
-            if (operation.stopReason || operation.controller.signal.aborted || !isCurrentOperation(operation, snapshot)) return cancelledOperation(operation);
-            const retry = await attemptReplica({ operation, server, attempt: 2, request, ctx, snapshot, nappletIdentity, mimeType });
-            if (operation.stopReason) return cancelledOperation(operation);
-            if (retry.ok) operation.verifiedResults.push(retry.result);
-          }
-          if (operation.stopReason || operation.controller.signal.aborted || !isCurrentOperation(operation, snapshot)) {
-            return cancelledOperation(operation);
-          }
-        }
-        return operation.verifiedResults.length > 0
-          ? completeWithVerifiedReplicas(operation.verifiedResults)
-          : failure(ctx.uploadId, 'upload-server-failed');
-      } finally {
-        activeOperations.delete(ctx.uploadId);
-      }
-    },
-    cancel(uploadId) {
-      const operation = activeOperations.get(uploadId);
-      if (operation) stopOperation(operation, 'upload-teardown-cancelled');
-    },
-    onWindowDestroyed(windowId) {
-      for (const [key, operation] of activeOperations) {
-        if (operation.windowId === windowId) {
-          stopOperation(operation, 'upload-teardown-cancelled');
-          activeOperations.delete(key);
-        }
-      }
-      for (const [key, consent] of sessionConsents) {
-        if (consent.windowId === windowId) sessionConsents.delete(key);
-      }
-    },
+  const state: RuntimeState = {
+    generation: 0,
+    identity: null,
+    activeOperations: new Map(),
+    sessionConsents: new Map(),
   };
-
-  function uploadInfo(): UploadInfo {
-    const simulation = options.getSimulation();
-    const configured = simulation.upload.mode === 'blossom' ? simulation.upload.servers : [];
-    const ready = Boolean(identity && configured.length > 0);
-    return {
-      rails: [{
-        rail: 'blossom',
-        enabled: ready,
-        ...(ready ? { returns: [...new Set(configured.map((server) => new URL(server).protocol.slice(0, -1)))] } : {}),
-      }],
-      ...(simulation.upload.mode === 'blossom' && simulation.upload.maxBytes !== undefined ? { maxBytes: simulation.upload.maxBytes } : {}),
-      ...(simulation.upload.mode === 'blossom' && simulation.upload.mimeTypes ? { mimeTypes: [...simulation.upload.mimeTypes] } : {}),
-    };
-  }
-
-  function getBackend(): { rails: string[] } | null {
-    return uploadInfo().rails[0]?.enabled ? { rails: ['blossom'] } : null;
-  }
-
-  const unsubscribe = options.subscribeSignerChange?.(() => {
-    void refreshIdentity();
-  });
+  const uploader = createConfiguredReplicaUploader(options, state, options.waitForRetry ?? sleep);
+  const refreshIdentity = () => refreshPajaUploadIdentity(options, state);
+  const unsubscribe = options.subscribeSignerChange?.(() => { void refreshIdentity(); });
 
   return {
     uploader,
-    uploadInfo,
-    getBackend,
+    uploadInfo: () => getUploadInfo(options.getSimulation(), state.identity),
+    getBackend: () => getUploadInfo(options.getSimulation(), state.identity).rails[0]?.enabled
+      ? { rails: ['blossom'] }
+      : null,
     refreshIdentity,
     dispose: () => {
       unsubscribe?.();
-      for (const operation of activeOperations.values()) stopOperation(operation, 'upload-teardown-cancelled');
+      for (const operation of state.activeOperations.values()) stopOperation(operation, 'upload-teardown-cancelled');
     },
   };
+}
 
-  async function attemptReplica(args: {
-    operation: PajaReplicaOperation;
-    server: string;
-    attempt: number;
-    request: UploadRequest;
-    ctx: Parameters<Uploader['upload']>[1];
-    snapshot: IdentitySnapshot;
-    nappletIdentity: NappletIdentity;
-    mimeType: string;
-  }): Promise<{ ok: true; result: UploadResult } | { ok: false; retryable: boolean }> {
-    const { operation, server, attempt, request, ctx, snapshot, nappletIdentity, mimeType } = args;
-    if (operation.stopReason || operation.controller.signal.aborted || !isCurrentOperation(operation, snapshot)) {
-      return { ok: false, retryable: false };
-    }
-    const delegate = createHttpUploader({
-      rails: { blossom: { servers: [server] } },
-      defaultRail: 'blossom',
-      signEvent: async (template) => {
-        const event = await snapshot.signer.signEvent(template);
-        if (event.pubkey !== snapshot.pubkey) throw new Error('signer identity mismatch');
-        return event;
-      },
-      ...(options.fetch ? { fetch: options.fetch } : {}),
-      verifyBlossomStoredBlob: (verification) => options.verifyStoredBlob!({
-        windowId: ctx.windowId,
-        identity: nappletIdentity,
-        ...verification,
-      }),
-    });
-    operation.delegates.add(delegate);
-    try {
-      const result = await delegate.upload({ ...request, rail: 'blossom', mimeType }, ctx);
-      if (operation.stopReason || operation.controller.signal.aborted || !isCurrentOperation(operation, snapshot)) {
-        return { ok: false, retryable: false };
+function createConfiguredReplicaUploader(
+  options: PajaUploadRuntimeOptions,
+  state: RuntimeState,
+  waitForRetry: (milliseconds: number, signal: AbortSignal) => Promise<void>,
+): Uploader {
+  return {
+    async upload(request, ctx) {
+      const simulation = options.getSimulation();
+      const prepared = prepareUpload(simulation, request, options.verifyStoredBlob);
+      if ('error' in prepared) return failure(ctx.uploadId, prepared.error);
+      const snapshot = state.identity;
+      if (!snapshot) return failure(ctx.uploadId, 'upload-unavailable');
+      const nappletIdentity = options.getNappletIdentity(ctx.windowId);
+      if (!requestConsent(options, state, ctx, request, snapshot, nappletIdentity, prepared)) {
+        return cancelled(ctx.uploadId, 'upload-consent-denied');
       }
-      if (result.ok && result.url) {
-        recordDiagnostic(operation, { server, attempt, verified: true });
-        return { ok: true, result };
+      const operation = createOperation(ctx, state, snapshot);
+      state.activeOperations.set(ctx.uploadId, operation);
+      try {
+        return await executeReplicas({
+          options,
+          state,
+          operation,
+          request,
+          ctx,
+          snapshot,
+          nappletIdentity,
+          prepared,
+          waitForRetry,
+        });
+      } finally {
+        state.activeOperations.delete(ctx.uploadId);
       }
-      const error = result.error ?? 'upload-server-failed';
-      recordDiagnostic(operation, { server, attempt, verified: false, error });
-      return { ok: false, retryable: isTransientFailure(error) };
-    } finally {
-      operation.delegates.delete(delegate);
+    },
+    cancel(uploadId) {
+      const operation = state.activeOperations.get(uploadId);
+      if (operation) stopOperation(operation, 'upload-teardown-cancelled');
+    },
+    onWindowDestroyed(windowId) {
+      for (const [key, operation] of state.activeOperations) {
+        if (operation.windowId === windowId) {
+          stopOperation(operation, 'upload-teardown-cancelled');
+          state.activeOperations.delete(key);
+        }
+      }
+      for (const [key, consent] of state.sessionConsents) {
+        if (consent.windowId === windowId) state.sessionConsents.delete(key);
+      }
+    },
+  };
+}
+
+async function refreshPajaUploadIdentity(options: PajaUploadRuntimeOptions, state: RuntimeState): Promise<void> {
+  state.generation += 1;
+  for (const operation of state.activeOperations.values()) stopOperation(operation, 'upload-identity-changed');
+  state.identity = null;
+  const simulation = options.getSimulation();
+  if (simulation.upload.mode !== 'blossom') return;
+
+  const configuredPubkey = simulation.identity.pubkey.trim();
+  const providerPubkey = options.getProviderPubkey()?.trim() ?? '';
+  if (configuredPubkey && providerPubkey && configuredPubkey !== providerPubkey) return;
+  const signer = options.getSigner();
+  if (!hasWritableIdentity(signer)) return;
+  try {
+    const signerPubkey = (await signer.getPublicKey()).trim();
+    const candidates = [configuredPubkey, providerPubkey, signerPubkey].filter(Boolean);
+    if (isHexPubkey(signerPubkey) && !candidates.some((candidate) => candidate !== signerPubkey)) {
+      state.identity = { pubkey: signerPubkey, signer };
     }
+  } catch {
+    // A failed signer refresh leaves the rail installed but currently unavailable.
   }
+}
 
-  function isCurrentOperation(operation: PajaReplicaOperation, snapshot: IdentitySnapshot): boolean {
-    return operation.generation === generation && identity?.pubkey === snapshot.pubkey;
+function prepareUpload(
+  simulation: PajaSimulation,
+  request: UploadRequest,
+  verifier: PajaUploadRuntimeOptions['verifyStoredBlob'],
+): PreparedUpload | { readonly error: Extract<PajaUploadErrorCode, 'upload-unavailable' | 'upload-policy-denied'> } {
+  if (simulation.upload.mode !== 'blossom' || (request.rail && request.rail !== 'blossom') || !verifier) {
+    return { error: 'upload-unavailable' };
   }
-
-  function recordDiagnostic(operation: PajaReplicaOperation, diagnostic: PajaReplicaDiagnostic): void {
-    operation.diagnostics.push(diagnostic);
-    options.onDiagnostic?.(diagnostic);
+  const size = uploadSize(request);
+  const mimeType = normalizedMimeType(request);
+  const maxBytes = simulation.upload.maxBytes;
+  const servers = [...simulation.upload.servers];
+  if (
+    !Number.isSafeInteger(size) || size < 0 || !Number.isSafeInteger(maxBytes) || !maxBytes ||
+    size > maxBytes || !mimeType || !simulation.upload.mimeTypes?.includes(mimeType)
+  ) {
+    return { error: 'upload-policy-denied' };
   }
+  const worstCaseBytes = size * servers.length * 3;
+  if (servers.length === 0 || !Number.isSafeInteger(worstCaseBytes)) {
+    return servers.length === 0 ? { error: 'upload-unavailable' } : { error: 'upload-policy-denied' };
+  }
+  return { size, mimeType, maxBytes, servers, worstCaseBytes };
+}
 
-  function cancelledOperation(operation: PajaReplicaOperation): UploadResult {
-    const reason = operation.stopReason ?? 'upload-teardown-cancelled';
-    if (operation.verifiedResults.length > 0) {
-      options.onDiagnostic?.({
-        type: 'paja.upload.partial-copy',
-        windowId: operation.windowId,
-        retainedUrls: operation.verifiedResults.flatMap((result) => result.url ? [result.url] : []),
-        reason,
-      });
+function requestConsent(
+  options: PajaUploadRuntimeOptions,
+  state: RuntimeState,
+  ctx: UploaderContext,
+  request: UploadRequest,
+  snapshot: IdentitySnapshot,
+  napplet: NappletIdentity,
+  prepared: PreparedUpload,
+): boolean {
+  const consent: PajaUploadConsentKey = {
+    windowId: ctx.windowId,
+    signerPubkey: snapshot.pubkey,
+    servers: prepared.servers,
+    mimeType: prepared.mimeType,
+    maxBytes: prepared.maxBytes,
+  };
+  const key = serializeConsentKey(consent);
+  if (state.sessionConsents.has(key)) return true;
+  const accepted = options.confirmRequest({
+    action: 'upload',
+    windowId: ctx.windowId,
+    napplet,
+    filename: request.filename,
+    size: prepared.size,
+    mimeType: prepared.mimeType,
+    servers: prepared.servers,
+    replicaCount: prepared.servers.length,
+    worstCaseBytes: prepared.worstCaseBytes,
+    warning: PUBLIC_UPLOAD_WARNING,
+  });
+  if (accepted) state.sessionConsents.set(key, consent);
+  return accepted;
+}
+
+function createOperation(ctx: UploaderContext, state: RuntimeState, snapshot: IdentitySnapshot): PajaReplicaOperation {
+  return {
+    uploadId: ctx.uploadId,
+    windowId: ctx.windowId,
+    generation: state.generation,
+    signerPubkey: snapshot.pubkey,
+    controller: new AbortController(),
+    delegates: new Set(),
+    verifiedResults: [],
+    diagnostics: [],
+  };
+}
+
+async function executeReplicas(args: {
+  readonly options: PajaUploadRuntimeOptions;
+  readonly state: RuntimeState;
+  readonly operation: PajaReplicaOperation;
+  readonly request: UploadRequest;
+  readonly ctx: UploaderContext;
+  readonly snapshot: IdentitySnapshot;
+  readonly nappletIdentity: NappletIdentity;
+  readonly prepared: PreparedUpload;
+  readonly waitForRetry: (milliseconds: number, signal: AbortSignal) => Promise<void>;
+}): Promise<UploadResult> {
+  const { operation, prepared } = args;
+  for (const server of prepared.servers) {
+    const first = await attemptReplica({ ...args, server, attempt: 1 });
+    if (operation.stopReason) return cancelledOperation(args.options, operation);
+    if (first.ok) operation.verifiedResults.push(first.result);
+    else if (first.retryable) {
+      await args.waitForRetry(RETRY_DELAY_MS, operation.controller.signal);
+      if (!isOperationCurrent(args.state, operation, args.snapshot)) return cancelledOperation(args.options, operation);
+      const retry = await attemptReplica({ ...args, server, attempt: 2 });
+      if (operation.stopReason) return cancelledOperation(args.options, operation);
+      if (retry.ok) operation.verifiedResults.push(retry.result);
     }
-    return cancelled(operation.uploadId, reason);
+    if (!isOperationCurrent(args.state, operation, args.snapshot)) return cancelledOperation(args.options, operation);
   }
+  return operation.verifiedResults.length > 0
+    ? completeWithVerifiedReplicas(operation.verifiedResults)
+    : failure(operation.uploadId, 'upload-server-failed');
+}
+
+async function attemptReplica(args: {
+  readonly options: PajaUploadRuntimeOptions;
+  readonly state: RuntimeState;
+  readonly operation: PajaReplicaOperation;
+  readonly request: UploadRequest;
+  readonly ctx: UploaderContext;
+  readonly snapshot: IdentitySnapshot;
+  readonly nappletIdentity: NappletIdentity;
+  readonly prepared: PreparedUpload;
+  readonly server: string;
+  readonly attempt: number;
+}): Promise<{ ok: true; result: UploadResult } | { ok: false; retryable: boolean }> {
+  const { options, operation, request, ctx, snapshot, nappletIdentity, prepared, server, attempt } = args;
+  if (!isOperationCurrent(args.state, operation, snapshot)) return { ok: false, retryable: false };
+  const delegate = createHttpUploader({
+    rails: { blossom: { servers: [server] } },
+    defaultRail: 'blossom',
+    signEvent: async (template) => {
+      const event = await snapshot.signer.signEvent(template);
+      if (event.pubkey !== snapshot.pubkey) throw new Error('signer identity mismatch');
+      return event;
+    },
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+    verifyBlossomStoredBlob: (verification) => options.verifyStoredBlob!({
+      windowId: ctx.windowId,
+      identity: nappletIdentity,
+      ...verification,
+    }),
+  });
+  operation.delegates.add(delegate);
+  try {
+    const result = await delegate.upload({ ...request, rail: 'blossom', mimeType: prepared.mimeType }, ctx);
+    if (!isOperationCurrent(args.state, operation, snapshot)) return { ok: false, retryable: false };
+    if (result.ok && result.url) {
+      recordDiagnostic(options, operation, { server, attempt, verified: true });
+      return { ok: true, result };
+    }
+    const error = result.error ?? 'upload-server-failed';
+    recordDiagnostic(options, operation, { server, attempt, verified: false, error });
+    return { ok: false, retryable: isTransientFailure(error) };
+  } finally {
+    operation.delegates.delete(delegate);
+  }
+}
+
+function getUploadInfo(simulation: PajaSimulation, identity: IdentitySnapshot | null): UploadInfo {
+  const configured = simulation.upload.mode === 'blossom' ? simulation.upload.servers : [];
+  const ready = Boolean(identity && configured.length > 0);
+  return {
+    rails: [{
+      rail: 'blossom',
+      enabled: ready,
+      ...(ready ? { returns: [...new Set(configured.map((server) => new URL(server).protocol.slice(0, -1)))] } : {}),
+    }],
+    ...(simulation.upload.mode === 'blossom' && simulation.upload.maxBytes !== undefined ? { maxBytes: simulation.upload.maxBytes } : {}),
+    ...(simulation.upload.mode === 'blossom' && simulation.upload.mimeTypes ? { mimeTypes: [...simulation.upload.mimeTypes] } : {}),
+  };
 }
 
 function stopOperation(
@@ -373,6 +403,28 @@ function stopOperation(
   operation.stopReason = reason;
   operation.controller.abort();
   for (const delegate of operation.delegates) delegate.cancel?.(operation.uploadId);
+}
+
+function isOperationCurrent(state: RuntimeState, operation: PajaReplicaOperation, snapshot: IdentitySnapshot): boolean {
+  return !operation.stopReason && !operation.controller.signal.aborted && operation.generation === state.generation && state.identity?.pubkey === snapshot.pubkey;
+}
+
+function recordDiagnostic(options: PajaUploadRuntimeOptions, operation: PajaReplicaOperation, diagnostic: PajaReplicaDiagnostic): void {
+  operation.diagnostics.push(diagnostic);
+  options.onDiagnostic?.(diagnostic);
+}
+
+function cancelledOperation(options: PajaUploadRuntimeOptions, operation: PajaReplicaOperation): UploadResult {
+  const reason = operation.stopReason ?? 'upload-teardown-cancelled';
+  if (operation.verifiedResults.length > 0) {
+    options.onDiagnostic?.({
+      type: 'paja.upload.partial-copy',
+      windowId: operation.windowId,
+      retainedUrls: operation.verifiedResults.flatMap((result) => result.url ? [result.url] : []),
+      reason,
+    });
+  }
+  return cancelled(operation.uploadId, reason);
 }
 
 function completeWithVerifiedReplicas(results: readonly UploadResult[]): UploadResult {
