@@ -39,7 +39,7 @@ export interface PajaSocialCache {
 
 interface SocialSnapshot {
   readonly follows: string[];
-  readonly profiles: RelayEventResult[];
+  readonly profiles: Map<string, RelayEventResult>;
 }
 
 // Authority recorded in 102-IMPLEMENTATION-NOTE.md: NAP-IDENTITY
@@ -48,10 +48,10 @@ interface SocialSnapshot {
 // installed @napplet/nap@0.29.0 types govern under upstream drift; this makes
 // no current-master OUTBOX conformance claim.
 const HEX_PUBKEY = /^[0-9a-f]{64}$/i;
-/** Bounds one sequential warm-query's author discovery and response work. */
-const WARM_AUTHOR_BATCH_SIZE = 64;
-/** Bounds one sequential warm-query's collected kind-0 events. */
-const WARM_BATCH_EVENT_LIMIT = 64;
+/** Bounds synchronous follow-tag processing before yielding to the event loop. */
+const FOLLOW_PARSE_YIELD_EVERY = 64;
+/** Bounds sequential profile queries before yielding to the event loop. */
+const PROFILE_WARM_YIELD_EVERY = 64;
 
 /**
  * Creates Paja's memory-only, account-scoped social cache.
@@ -75,15 +75,16 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
     const warmed = snapshots.get(normalizedPubkey);
     if (warmed) return [...warmed.follows];
     if (generation === capturedGeneration) {
-      snapshots.set(normalizedPubkey, { follows, profiles: [] });
+      snapshots.set(normalizedPubkey, { follows, profiles: new Map() });
     }
     return [...follows];
   }
 
-  async function verifiedFollows(capturedPubkey: string): Promise<string[]> {
+  async function verifiedFollows(capturedPubkey: string, isStillCurrent?: () => boolean): Promise<string[]> {
     const candidates = await options.loadContactList(capturedPubkey);
     const verified: NostrEvent[] = [];
     for (const candidate of candidates) {
+      if (isStillCurrent && !isStillCurrent()) return [];
       if (!isContactCandidate(candidate, capturedPubkey)) continue;
       try {
         if (await options.verifyEvent(candidate)) verified.push(candidate);
@@ -91,36 +92,34 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
         // An unverifiable relay event cannot influence the active social graph.
       }
     }
-    return contactPubkeys(selectReplacement(verified));
+    return contactPubkeys(selectReplacement(verified), isStillCurrent);
   }
 
   async function refreshActiveIdentity(): Promise<void> {
     const currentGeneration = ++generation;
     const capturedPubkey = normalizePubkey(options.getActivePubkey() ?? '');
     if (!capturedPubkey) return;
+    const isStillCurrent = () => isCurrent(capturedPubkey, currentGeneration);
 
     try {
-      const follows = await verifiedFollows(capturedPubkey);
-      if (!isCurrent(capturedPubkey, currentGeneration)) return;
-      snapshots.set(capturedPubkey, { follows, profiles: [] });
-      const profiles = new Map<string, RelayEventResult>();
-      for (let start = 0; start < follows.length; start += WARM_AUTHOR_BATCH_SIZE) {
-        if (!isCurrent(capturedPubkey, currentGeneration)) return;
-        const authors = follows.slice(start, start + WARM_AUTHOR_BATCH_SIZE);
+      const follows = await verifiedFollows(capturedPubkey, isStillCurrent);
+      if (!isStillCurrent()) return;
+      const snapshot: SocialSnapshot = { follows, profiles: new Map() };
+      snapshots.set(capturedPubkey, snapshot);
+      for (let index = 0; index < follows.length; index += 1) {
+        if (!isStillCurrent()) return;
+        const author = follows[index]!;
         const warmed = await options.baseRouter.query(
-          [{ kinds: [0], authors, limit: WARM_BATCH_EVENT_LIMIT }],
-          { authors, limit: WARM_BATCH_EVENT_LIMIT },
+          [{ kinds: [0], authors: [author], limit: 1 }],
+          { authors: [author], limit: 1 },
         );
-        if (!isCurrent(capturedPubkey, currentGeneration)) return;
-        for (const [pubkey, profile] of profileResults(warmed, authors)) {
-          profiles.set(pubkey, profile);
-        }
-        snapshots.set(capturedPubkey, { follows, profiles: orderedProfiles(follows, profiles) });
-
-        if (start + WARM_AUTHOR_BATCH_SIZE < follows.length) {
-          if (!isCurrent(capturedPubkey, currentGeneration)) return;
+        if (!isStillCurrent()) return;
+        const profile = profileResult(warmed, author);
+        if (profile) snapshot.profiles.set(author, profile);
+        if ((index + 1) % PROFILE_WARM_YIELD_EVERY === 0 && index + 1 < follows.length) {
+          if (!isStillCurrent()) return;
           await yieldToEventLoop();
-          if (!isCurrent(capturedPubkey, currentGeneration)) return;
+          if (!isStillCurrent()) return;
         }
       }
     } catch {
@@ -142,7 +141,7 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
         const snapshot = canAugment && activePubkey ? snapshots.get(activePubkey) : undefined;
         const base = await router.query(filters, queryOptions);
         if (!canAugment) return base;
-        const cached = matchingCachedProfiles(snapshot?.profiles ?? [], filters);
+        const cached = matchingCachedProfiles(snapshot?.profiles, filters);
         return mergeResult(base, cached, filters, queryOptions);
       },
       subscribe: router.subscribe.bind(router),
@@ -182,26 +181,29 @@ function selectReplacement(events: NostrEvent[]): NostrEvent | undefined {
   })[0];
 }
 
-function contactPubkeys(event: NostrEvent | undefined): string[] {
+async function contactPubkeys(event: NostrEvent | undefined, isStillCurrent?: () => boolean): Promise<string[]> {
   if (!event || !Array.isArray(event.tags)) return [];
   const follows = new Set<string>();
-  for (const tag of event.tags) {
-    if (!Array.isArray(tag) || tag[0] !== 'p') continue;
-    const pubkey = normalizePubkey(tag[1]);
-    if (!pubkey || follows.has(pubkey)) continue;
-    follows.add(pubkey);
+  for (let index = 0; index < event.tags.length; index += 1) {
+    if (isStillCurrent && !isStillCurrent()) return [];
+    const tag = event.tags[index];
+    if (Array.isArray(tag) && tag[0] === 'p') {
+      const pubkey = normalizePubkey(tag[1]);
+      if (pubkey) follows.add(pubkey);
+    }
+    if ((index + 1) % FOLLOW_PARSE_YIELD_EVERY === 0 && index + 1 < event.tags.length) {
+      await yieldToEventLoop();
+      if (isStillCurrent && !isStillCurrent()) return [];
+    }
   }
   return [...follows];
 }
 
-function profileResults(result: OutboxResult, authors: readonly string[]): Map<string, RelayEventResult> {
-  const allowedAuthors = new Set(authors);
-  const newest = new Map<string, RelayEventResult>();
+function profileResult(result: OutboxResult, author: string): RelayEventResult | undefined {
+  let newest: RelayEventResult | undefined;
   for (const entry of result.events) {
-    const pubkey = normalizePubkey(entry.event.pubkey);
-    if (!pubkey || entry.event.kind !== 0 || !allowedAuthors.has(pubkey)) continue;
-    const existing = newest.get(pubkey);
-    if (!existing || isNewerProfile(entry, existing)) newest.set(pubkey, entry);
+    if (entry.event.kind !== 0 || normalizePubkey(entry.event.pubkey) !== author) continue;
+    if (!newest || isNewerProfile(entry, newest)) newest = entry;
   }
   return newest;
 }
@@ -213,24 +215,18 @@ function isNewerProfile(candidate: RelayEventResult, existing: RelayEventResult)
   return candidate.event.id < existing.event.id;
 }
 
-function orderedProfiles(follows: readonly string[], profiles: ReadonlyMap<string, RelayEventResult>): RelayEventResult[] {
-  return follows.flatMap((pubkey) => {
-    const profile = profiles.get(pubkey);
-    return profile ? [profile] : [];
-  });
-}
-
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-function matchingCachedProfiles(profiles: readonly RelayEventResult[], filters: Parameters<OutboxRouter['query']>[0]): RelayEventResult[] {
-  if (filters.length === 0) return [...profiles];
+function matchingCachedProfiles(profiles: ReadonlyMap<string, RelayEventResult> | undefined, filters: Parameters<OutboxRouter['query']>[0]): RelayEventResult[] {
+  const readyProfiles = profiles ? [...profiles.values()] : [];
+  if (filters.length === 0) return readyProfiles;
   const matched = new Map<string, RelayEventResult>();
   for (const filter of filters) {
     const limit = typeof filter.limit === 'number' && filter.limit >= 0 ? filter.limit : undefined;
     let count = 0;
-    for (const entry of profiles) {
+    for (const entry of readyProfiles) {
       if (!matchesAnyFilter(entry.event, [filter])) continue;
       if (limit !== undefined && count >= limit) continue;
       count += 1;
