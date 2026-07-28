@@ -6,6 +6,7 @@ import {
   type UploadRequest,
   type UploadResult,
   type Uploader,
+  type VerifiedBlossomResult,
 } from '@kehto/services';
 
 import type { PajaConfirmationRequest } from './browser-adapter.js';
@@ -22,6 +23,11 @@ interface NappletIdentity {
   readonly aggregateHash: string;
 }
 
+/** Paja-private verified tuple retained for the matching resource grant. */
+export interface PajaVerifiedStoredBlob extends VerifiedBlossomResult {
+  readonly bytes: ArrayBuffer;
+}
+
 /** Host-owned dependencies for Paja's real Blossom upload mode. */
 export interface PajaUploadRuntimeOptions {
   readonly getSimulation: () => PajaSimulation;
@@ -32,6 +38,17 @@ export interface PajaUploadRuntimeOptions {
   readonly confirmRequest: (request: PajaConfirmationRequest) => boolean;
   readonly getNappletIdentity: (windowId: string) => NappletIdentity;
   readonly fetch?: typeof fetch;
+  /** Host-only stored-byte proof plus exact-grant handoff. */
+  readonly verifyStoredBlob?: (request: {
+    readonly windowId: string;
+    readonly identity: NappletIdentity;
+    readonly url: string;
+    readonly sha256: string;
+    readonly size: number;
+    readonly requestMimeType?: string;
+    readonly descriptorMimeType?: string;
+    readonly signal: AbortSignal;
+  }) => Promise<PajaVerifiedStoredBlob>;
   readonly subscribeSignerChange?: (listener: () => void) => () => void;
 }
 
@@ -131,10 +148,12 @@ export function createPajaUploadRuntime(options: PajaUploadRuntimeOptions): Paja
       if (!snapshot) return failure(ctx.uploadId, 'no signer available');
       const server = effectiveServers(simulation, snapshot.pubkey, discovered)[0];
       if (!server) return failure(ctx.uploadId, 'no server configured');
+      const nappletIdentity = options.getNappletIdentity(ctx.windowId);
+      if (!options.verifyStoredBlob) return failure(ctx.uploadId, 'upload-verification-failed: host verifier unavailable');
       if (!options.confirmRequest({
         action: 'upload',
         windowId: ctx.windowId,
-        napplet: options.getNappletIdentity(ctx.windowId),
+        napplet: nappletIdentity,
         filename: request.filename,
         size,
         mimeType,
@@ -155,6 +174,11 @@ export function createPajaUploadRuntime(options: PajaUploadRuntimeOptions): Paja
           return event;
         },
         ...(options.fetch ? { fetch: options.fetch } : {}),
+        verifyBlossomStoredBlob: (request) => options.verifyStoredBlob!({
+          windowId: ctx.windowId,
+          identity: nappletIdentity,
+          ...request,
+        }),
       });
       activeUploads.set(ctx.uploadId, delegate);
       try {

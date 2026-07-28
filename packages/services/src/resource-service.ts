@@ -147,11 +147,24 @@ export interface ResourceServiceOptions {
   resourceInfo?: ResourceInfoProvider;
 }
 
+/** A host-verified exact resource grant. This is never a napplet wire field. */
+export interface VerifiedResourceGrant {
+  readonly windowId: string;
+  readonly identity: { readonly dTag: string; readonly aggregateHash: string };
+  readonly url: string;
+  readonly blob: Blob;
+  readonly mime: string;
+}
+
 /**
- * Type alias for the ServiceHandler returned by `createResourceService`.
- * Exported for host apps that need to type-annotate the handler reference.
+ * Resource handler with the host-only capability to grant verified stored bytes.
+ *
+ * The capability is intentionally narrower than an origin grant: it accepts an
+ * exact URL, current window identity, and the verifier-retained bytes only.
  */
-export type ResourceService = ServiceHandler;
+export interface ResourceService extends ServiceHandler {
+  grantVerifiedResource(grant: VerifiedResourceGrant): void;
+}
 
 /**
  * Convert an ArrayBuffer to base64 string, safe for both browser and Node.
@@ -168,9 +181,12 @@ function arrayBufferToBase64(buf: ArrayBuffer): string {
   return btoa(binary);
 }
 
+interface VerifiedResourceEntry extends VerifiedResourceGrant {}
+
 interface ResourceRequestState {
   inFlight: Map<string, { controller: AbortController; windowId: string }>;
   perWindow: Map<string, Set<string>>;
+  verifiedResources: Map<string, VerifiedResourceEntry>;
 }
 
 type LegacyResourceErrorCode = 'denied' | 'invalid-url' | 'canceled' | 'network-error';
@@ -311,6 +327,26 @@ function responseBlob(buffer: ArrayBuffer, mime: string): Blob {
   return new Blob([buffer], { type: mime });
 }
 
+function verifiedResourceKey(windowId: string, url: string): string {
+  return `${windowId} ${url}`;
+}
+
+async function verifiedResourceItem(
+  grant: VerifiedResourceEntry,
+  url: string,
+): Promise<ResourceFetchSuccess> {
+  const buffer = await grant.blob.arrayBuffer();
+  return {
+    ok: true,
+    url,
+    blob: grant.blob,
+    mime: grant.mime,
+    status: 200,
+    headers: {},
+    bodyBase64: arrayBufferToBase64(buffer),
+  };
+}
+
 function requestIdFromMessage(message: NappletMessage & { id?: unknown; requestId?: unknown }): string | null {
   if (typeof message.id === 'string' && message.id.length > 0) return message.id;
   if (typeof message.requestId === 'string' && message.requestId.length > 0) return message.requestId;
@@ -444,7 +480,12 @@ async function handleBytes(
   trackRequest(state, requestId, windowId, controller);
 
   try {
-    const item = await fetchResourceItem(options, identity, url, init, controller.signal);
+    const grant = state.verifiedResources.get(verifiedResourceKey(windowId, url));
+    const item = grant && grant.identity.dTag === identity.dTag && grant.identity.aggregateHash === identity.aggregateHash
+      ? await verifiedResourceItem(grant, url)
+      : await fetchResourceItem(options, identity, url, init, controller.signal);
+    // Teardown deletes the request before any late fetch or Blob read can send.
+    if (state.inFlight.get(requestId)?.controller !== controller) return;
     if (!item.ok) {
       sendResourceError(send, requestId, item.code, item.message, item.error);
       return;
@@ -525,6 +566,9 @@ function handleCancel(state: ResourceRequestState, requestId: string): void {
 }
 
 function destroyWindowRequests(state: ResourceRequestState, windowId: string): void {
+  for (const [key, grant] of state.verifiedResources) {
+    if (grant.windowId === windowId) state.verifiedResources.delete(key);
+  }
   const requestIds = state.perWindow.get(windowId);
   if (!requestIds) return;
   for (const requestId of requestIds) {
@@ -573,6 +617,7 @@ export function createResourceService(options: ResourceServiceOptions): Resource
   const state: ResourceRequestState = {
     inFlight: new Map<string, { controller: AbortController; windowId: string }>(),
     perWindow: new Map<string, Set<string>>(),
+    verifiedResources: new Map<string, VerifiedResourceEntry>(),
   };
 
   const descriptor: ServiceDescriptor = {
@@ -582,8 +627,15 @@ export function createResourceService(options: ResourceServiceOptions): Resource
       'NAP-RESOURCE reference service — shell-proxied authenticated fetch (RESOURCE-01..06)',
   };
 
-  const handler: ServiceHandler = {
+  const handler: ResourceService = {
     descriptor,
+
+    grantVerifiedResource(grant): void {
+      if (!grant.windowId || !grant.identity.dTag || !grant.identity.aggregateHash || !grant.url || !(grant.blob instanceof Blob) || !grant.mime) {
+        throw new Error('grantVerifiedResource requires an exact URL, current identity, Blob, and MIME');
+      }
+      state.verifiedResources.set(verifiedResourceKey(grant.windowId, grant.url), { ...grant });
+    },
 
     handleMessage(
       windowId: string,

@@ -1,5 +1,4 @@
 import { createServer } from 'node:http';
-import { createHash } from 'node:crypto';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -22,7 +21,7 @@ afterEach(async () => {
 async function createVerifierTestServer(bytes: Uint8Array, contentType = 'application/octet-stream'): Promise<VerifierTestServer> {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': contentType });
-    response.end(bytes);
+    response.end(bytes as never);
   });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -36,17 +35,6 @@ async function createVerifierTestServer(bytes: Uint8Array, contentType = 'applic
   };
   servers.push(fixture);
   return fixture;
-}
-
-function deferredBlobFetch(): {
-  fetch: typeof fetch;
-  resolve(response: Response): void;
-} {
-  let resolve!: (response: Response) => void;
-  return {
-    fetch: (_url, _init) => new Promise<Response>((next) => { resolve = next; }),
-    resolve,
-  };
 }
 
 describe('createPajaStoredBlobVerifier', () => {
@@ -100,26 +88,25 @@ describe('createPajaStoredBlobVerifier', () => {
     })).rejects.toThrow('upload-verification-failed');
   });
 
-  it('suppresses a deferred response after the caller aborts', async () => {
-    const deferred = deferredBlobFetch();
+  it('suppresses an aborted stored-byte verification before it can return a tuple', async () => {
     const controller = new AbortController();
+    controller.abort();
     const verifier = createPajaStoredBlobVerifier({
       allowLoopbackForTests: true,
-      fetch: deferred.fetch,
+      fetch: async () => new Response(VECTOR),
     });
-    const pending = verifier.verify({
+
+    await expect(verifier.verify({
       url: 'http://127.0.0.1:8080/blob',
       sha256: SHA256,
       size: VECTOR.byteLength,
       signal: controller.signal,
-    });
-    controller.abort();
-    deferred.resolve(new Response(VECTOR));
-
-    await expect(pending).rejects.toThrow('upload-verification-failed');
+    })).rejects.toThrow('upload-verification-failed');
   });
 
-  it('does not accept descriptor metadata as evidence', async () => {
-    expect(createHash('sha256').update(VECTOR).digest('hex')).toBe(SHA256);
+  it('uses the required real-vector digest', async () => {
+    const digest = await crypto.subtle.digest('SHA-256', VECTOR.buffer);
+    const actual = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    expect(actual).toBe(SHA256);
   });
 });

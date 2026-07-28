@@ -13,6 +13,20 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+const verifyStoredBlob = vi.fn(async (request: {
+  url: string;
+  sha256: string;
+  size: number;
+  requestMimeType?: string;
+  descriptorMimeType?: string;
+}) => ({
+  url: request.url,
+  sha256: request.sha256,
+  size: request.size,
+  mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+  bytes: new ArrayBuffer(request.size),
+}));
+
 function signedEvent(template: EventTemplate, pubkey = PUBKEY): NostrEvent {
   return {
     ...template,
@@ -60,9 +74,11 @@ describe('createPajaUploadRuntime', () => {
         sha256,
         size: bytes.byteLength,
         type: 'application/octet-stream',
+        uploaded: 1,
       }),
     }) as Response);
     const runtime = createPajaUploadRuntime({
+      verifyStoredBlob,
       getSimulation: () => normalizePajaSimulation({
         upload: { mode: 'blossom', servers: ['https://blossom.example'] },
       }),
@@ -120,10 +136,11 @@ describe('createPajaUploadRuntime', () => {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ url: `https://two.example/${sha256}`, sha256, size: bytes.byteLength }),
+        json: async () => ({ url: `https://two.example/${sha256}`, sha256, size: bytes.byteLength, type: 'application/octet-stream', uploaded: 1 }),
       } as Response;
     });
     const runtime = createPajaUploadRuntime({
+      verifyStoredBlob,
       getSimulation: () => normalizePajaSimulation({ upload: { mode: 'blossom' } }),
       getSigner: () => activeSigner,
       getProviderPubkey: () => PUBKEY,
@@ -151,6 +168,7 @@ describe('createPajaUploadRuntime', () => {
     const confirmRequest = vi.fn(() => true);
     const fetchFn = vi.fn();
     const runtime = createPajaUploadRuntime({
+      verifyStoredBlob,
       getSimulation: () => normalizePajaSimulation({
         identity: { mode: 'fixed', pubkey: PUBKEY },
         upload: { mode: 'blossom', servers: ['https://blossom.example'] },
@@ -179,6 +197,7 @@ describe('createPajaUploadRuntime', () => {
     const confirmRequest = vi.fn(() => true);
     const fetchFn = vi.fn();
     const runtime = createPajaUploadRuntime({
+      verifyStoredBlob,
       getSimulation: () => normalizePajaSimulation({
         identity: { mode: 'fixed', pubkey: PUBKEY },
         upload: { mode: 'blossom', servers: ['https://blossom.example'] },
@@ -209,6 +228,7 @@ describe('createPajaUploadRuntime', () => {
       blossomEvent(pubkey, 20, [`https://${pubkey[0]}.example`]),
     ]);
     const runtime = createPajaUploadRuntime({
+      verifyStoredBlob,
       getSimulation: () => normalizePajaSimulation({ upload: { mode: 'blossom' } }),
       getSigner: () => activeSigner,
       getProviderPubkey: () => pubkey,
@@ -238,6 +258,7 @@ describe('createPajaUploadRuntime', () => {
     activeSigner.signEvent = vi.fn(async (template: EventTemplate) => signedEvent(template, 'b'.repeat(64)));
     const fetchFn = vi.fn();
     const runtime = createPajaUploadRuntime({
+      verifyStoredBlob,
       getSimulation: () => normalizePajaSimulation({
         upload: { mode: 'blossom', servers: ['https://blossom.example'] },
       }),
@@ -261,6 +282,7 @@ describe('createPajaUploadRuntime', () => {
     const confirmRequest = vi.fn(() => true);
     const fetchFn = vi.fn();
     const runtime = createPajaUploadRuntime({
+      verifyStoredBlob,
       getSimulation: () => normalizePajaSimulation({
         identity: { mode: 'fixed', pubkey: PUBKEY },
         upload: { mode: 'blossom', servers: ['https://blossom.example'] },
@@ -291,6 +313,7 @@ describe('createPajaUploadRuntime', () => {
     const confirmRequest = vi.fn(() => true);
     const fetchFn = vi.fn();
     const runtime = createPajaUploadRuntime({
+      verifyStoredBlob,
       getSimulation: () => normalizePajaSimulation({
         upload: {
           mode: 'blossom',
@@ -322,6 +345,7 @@ describe('createPajaUploadRuntime', () => {
     const activeSigner = signer();
     const fetchFn = vi.fn();
     const runtime = createPajaUploadRuntime({
+      verifyStoredBlob,
       getSimulation: () => normalizePajaSimulation({
         upload: { mode: 'blossom', servers: ['http://localhost:3000'] },
       }),

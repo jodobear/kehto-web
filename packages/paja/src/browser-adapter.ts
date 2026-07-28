@@ -55,7 +55,7 @@ import type { PajaSignerMethod } from './browser-signers.js';
 import type { PajaSimulation } from './simulation.js';
 import { BrowserIntentController } from './browser-intent-controller.js';
 import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
-import { createPajaUploadRuntime, type PajaUploadRuntime } from './browser-upload.js';
+import { createPajaUploadRuntime, type PajaUploadRuntime, type PajaVerifiedStoredBlob } from './browser-upload.js';
 import { createPajaSocialCache } from './browser-social-cache.js';
 import {
   PAJA_LIVE_QUERY_WAIT_MS,
@@ -310,6 +310,40 @@ function createDevSigner(
   };
 }
 
+async function verifyPajaStoredBlob(request: {
+  readonly url: string;
+  readonly sha256: string;
+  readonly size: number;
+  readonly requestMimeType?: string;
+  readonly descriptorMimeType?: string;
+  readonly signal: AbortSignal;
+}): Promise<PajaVerifiedStoredBlob> {
+  const response = await fetch('/__kehto/blossom/verify', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      url: request.url,
+      sha256: request.sha256,
+      size: request.size,
+      requestMimeType: request.requestMimeType,
+      descriptorMimeType: request.descriptorMimeType,
+    }),
+    signal: request.signal,
+  });
+  const body = await response.json() as Record<string, unknown>;
+  if (!response.ok || typeof body.error === 'string') {
+    throw new Error(typeof body.error === 'string' ? body.error : 'upload-verification-failed');
+  }
+  const size = body.size;
+  if (typeof body.url !== 'string' || typeof body.sha256 !== 'string' || typeof size !== 'number' || !Number.isSafeInteger(size) || typeof body.mimeType !== 'string' || typeof body.bytesBase64 !== 'string') {
+    throw new Error('upload-verification-failed: malformed host verifier response');
+  }
+  const binary = atob(body.bytesBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return { url: body.url, sha256: body.sha256, size, mimeType: body.mimeType, bytes: bytes.buffer };
+}
+
 function getRuntimePubkey(
   getSimulation: () => PajaSimulation,
   signerProvider?: PajaSignerProvider,
@@ -346,6 +380,7 @@ function createDevServices(
   onThemeBroadcast: (envelope: ThemeChangedMessage) => void,
   confirmRequest: (request: PajaConfirmationRequest) => boolean,
   uploadRuntime?: PajaUploadRuntime,
+  resourceService?: ReturnType<typeof createResourceService>,
   signerProvider?: PajaSignerProvider,
   intentHost: PajaIntentHost = createDefaultIntentHost(),
 ): Record<string, ServiceHandler> {
@@ -379,7 +414,7 @@ function createDevServices(
   void socialCache.refreshActiveIdentity();
   const services: Record<string, ServiceHandler> = {
     keys: createKeysService(),
-    resource: createResourceService({
+    resource: resourceService ?? createResourceService({
       fetch: (url, init) => fetch(url, init),
       isOriginGranted: () => true,
       getConnectGrants: () => ['*'],
@@ -527,6 +562,16 @@ export function createPajaAdapter(
   intentHost?: PajaIntentHost,
 ): ShellAdapter {
   const relayBackend = createPajaRelayBackend(getSimulation, confirmRequest);
+  const resourceService = createResourceService({
+    fetch: (url, init) => fetch(url, init),
+    // Paja grants only verifier-retained exact URLs, never a broad origin.
+    isOriginGranted: () => false,
+    getConnectGrants: () => [],
+    resolveIdentity: () => getIdentity?.() ?? {
+      dTag: config.window.dTag,
+      aggregateHash: config.window.aggregateHash,
+    },
+  });
   const uploadRuntime = getSimulation().upload.mode === 'blossom'
     ? createPajaUploadRuntime({
         getSimulation,
@@ -538,6 +583,17 @@ export function createPajaAdapter(
         getNappletIdentity: () => getIdentity?.() ?? {
           dTag: config.window.dTag,
           aggregateHash: config.window.aggregateHash,
+        },
+        verifyStoredBlob: async (request) => {
+          const verified = await verifyPajaStoredBlob(request);
+          resourceService.grantVerifiedResource({
+            windowId: request.windowId,
+            identity: request.identity,
+            url: verified.url,
+            blob: new Blob([verified.bytes], { type: verified.mimeType }),
+            mime: verified.mimeType,
+          });
+          return verified;
         },
         subscribeSignerChange: signerProvider?.subscribe?.bind(signerProvider),
       })
@@ -571,6 +627,7 @@ export function createPajaAdapter(
       onThemeBroadcast,
       confirmRequest,
       uploadRuntime,
+      resourceService,
       signerProvider,
       resolvedIntentHost,
     ),

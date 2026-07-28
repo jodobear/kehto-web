@@ -62,6 +62,7 @@ function blossomResponse() {
       sha256: SHA,
       size: 8,
       type: 'application/pdf',
+      uploaded: 1,
     }),
   } as unknown as Response;
 }
@@ -77,6 +78,12 @@ describe('createHttpUploader', () => {
         fetch: fetchFn as unknown as typeof fetch,
         digestSha256: DIGEST,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
 
       const result = await uploader.upload(
@@ -132,6 +139,12 @@ describe('createHttpUploader', () => {
         fetch: fetchFn as unknown as typeof fetch,
         digestSha256: DIGEST,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
       const result = await uploader.upload({ rail: 'nip96', data: new ArrayBuffer(8) }, ctx());
       expect(result.ok).toBe(false);
@@ -151,6 +164,12 @@ describe('createHttpUploader', () => {
         fetch: fetchFn as unknown as typeof fetch,
         digestSha256: DIGEST,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
       const result = await uploader.upload({ rail: 'nip96', data: new ArrayBuffer(8) }, ctx());
       expect(result.ok).toBe(false);
@@ -168,6 +187,12 @@ describe('createHttpUploader', () => {
         fetch: fetchFn as unknown as typeof fetch,
         digestSha256: DIGEST,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
 
       const uploadContext = ctx('up-2');
@@ -288,6 +313,12 @@ describe('createHttpUploader', () => {
         }) as unknown as Response) as unknown as typeof fetch,
         digestSha256: DIGEST,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
 
       const result = await uploader.upload({ rail: 'blossom', data: new ArrayBuffer(8) }, ctx());
@@ -307,6 +338,12 @@ describe('createHttpUploader', () => {
         }) as unknown as Response) as unknown as typeof fetch,
         digestSha256: DIGEST,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
       const rejected = createHttpUploader({
         rails: { blossom: { servers: ['https://blossom.test'] } },
@@ -314,6 +351,12 @@ describe('createHttpUploader', () => {
         fetch: vi.fn(async () => ({ ok: false, status: 403 }) as Response) as unknown as typeof fetch,
         digestSha256: DIGEST,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
 
       await expect(malformed.upload({ rail: 'blossom', data: new ArrayBuffer(8) }, ctx('bad-json')))
@@ -332,6 +375,12 @@ describe('createHttpUploader', () => {
         fetch: fetchFn as unknown as typeof fetch,
         digestSha256: DIGEST,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
 
       const pending = uploader.upload({ rail: 'blossom', data: new ArrayBuffer(8) }, ctx('cancel-me'));
@@ -360,6 +409,12 @@ describe('createHttpUploader', () => {
         fetch: fetchFn as unknown as typeof fetch,
         digestSha256,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
 
       const pending = uploader.upload({ rail: 'blossom', data: new ArrayBuffer(8) }, ctx('cancel-hash'));
@@ -388,6 +443,12 @@ describe('createHttpUploader', () => {
         fetch: fetchFn as unknown as typeof fetch,
         digestSha256: DIGEST,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
       const result = await uploader.upload({ data: new ArrayBuffer(8) }, ctx());
       expect(result.rail).toBe('blossom');
@@ -402,6 +463,12 @@ describe('createHttpUploader', () => {
         fetch: fetchFn as unknown as typeof fetch,
         digestSha256: DIGEST,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
       const result = await uploader.upload({ rail: 'torrent', data: new ArrayBuffer(8) }, ctx());
       expect(result.ok).toBe(false);
@@ -417,6 +484,12 @@ describe('createHttpUploader', () => {
         fetch: (vi.fn() as unknown) as typeof fetch,
         digestSha256: DIGEST,
         now: NOW,
+        verifyBlossomStoredBlob: async (request) => ({
+          url: request.url,
+          sha256: request.sha256,
+          size: request.size,
+          mimeType: request.descriptorMimeType ?? request.requestMimeType ?? 'application/octet-stream',
+        }),
       });
       const result = await uploader.upload({ rail: 'nip96', data: new ArrayBuffer(8) }, ctx());
       expect(result.ok).toBe(false);

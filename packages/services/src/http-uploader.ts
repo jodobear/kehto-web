@@ -67,6 +67,24 @@ export interface HttpUploaderRails {
 /** Signs an event template on the user's behalf (shell holds the key). */
 export type SignEvent = (template: EventTemplate) => Promise<NostrEvent>;
 
+/** A host-verified Blossom result, safe to expose through standard NAP-UPLOAD fields. */
+export interface VerifiedBlossomResult {
+  readonly url: string;
+  readonly sha256: string;
+  readonly size: number;
+  readonly mimeType: string;
+}
+
+/** Untrusted descriptor claims passed to a host-private stored-blob verifier. */
+export interface VerifyBlossomStoredBlobRequest {
+  readonly url: string;
+  readonly sha256: string;
+  readonly size: number;
+  readonly requestMimeType?: string;
+  readonly descriptorMimeType?: string;
+  readonly signal: AbortSignal;
+}
+
 /** Options for {@link createHttpUploader}. */
 export interface HttpUploaderOptions {
   /** Configured rails + their servers. */
@@ -75,6 +93,8 @@ export interface HttpUploaderOptions {
   defaultRail?: UploadRail;
   /** Signs NIP-98 / Blossom auth events. Required. */
   signEvent: SignEvent;
+  /** Host-private proof callback. Blossom results fail closed when it is absent. */
+  verifyBlossomStoredBlob?: (request: VerifyBlossomStoredBlobRequest) => Promise<VerifiedBlossomResult>;
   /** Fetch implementation; defaults to the global `fetch`. */
   fetch?: typeof fetch;
   /** Hex SHA-256 of the payload bytes; defaults to Web Crypto. */
@@ -99,6 +119,7 @@ export function createHttpUploader(options: HttpUploaderOptions): Uploader {
   }
   const rails = options.rails ?? {};
   const signEvent = options.signEvent;
+  const verifyBlossomStoredBlob = options.verifyBlossomStoredBlob;
   const fetchFn = options.fetch ?? fetch;
   const digest = options.digestSha256 ?? defaultDigestSha256;
   const nowS = options.now ?? (() => Math.floor(Date.now() / 1000));
@@ -129,7 +150,7 @@ export function createHttpUploader(options: HttpUploaderOptions): Uploader {
       }
       return rail === 'nip96'
         ? await uploadNip96({ request, ctx, server, bytes, sha256, signEvent, fetchFn, nowS, controller })
-        : await uploadBlossom({ request, ctx, server, bytes, sha256, signEvent, fetchFn, nowS, controller });
+        : await uploadBlossom({ request, ctx, server, bytes, sha256, signEvent, verifyBlossomStoredBlob, fetchFn, nowS, controller });
     } catch (err) {
       if (controller.signal.aborted) {
         return cancelled(ctx.uploadId, rail, sha256);
@@ -154,6 +175,7 @@ interface RailUploadArgs {
   bytes: Uint8Array;
   sha256: string;
   signEvent: SignEvent;
+  verifyBlossomStoredBlob?: (request: VerifyBlossomStoredBlobRequest) => Promise<VerifiedBlossomResult>;
   fetchFn: typeof fetch;
   nowS: () => number;
   controller: AbortController;
@@ -241,8 +263,12 @@ function fromNip94Tags(
 }
 
 async function uploadBlossom(args: RailUploadArgs): Promise<UploadResult> {
-  const { request, ctx, server, bytes, sha256, signEvent, fetchFn, nowS, controller } = args;
+  const { request, ctx, server, bytes, sha256, signEvent, verifyBlossomStoredBlob, fetchFn, nowS, controller } = args;
+  if (!verifyBlossomStoredBlob) {
+    return failed(ctx.uploadId, 'blossom', 'upload-verification-failed: host verifier unavailable', sha256);
+  }
 
+  const serverHost = new URL(server).hostname.toLowerCase();
   const auth = await signEvent({
     kind: KIND_BLOSSOM_AUTH,
     created_at: nowS(),
@@ -250,12 +276,17 @@ async function uploadBlossom(args: RailUploadArgs): Promise<UploadResult> {
     tags: [
       ['t', 'upload'],
       ['x', sha256],
+      ['server', serverHost],
       ['expiration', String(nowS() + BLOSSOM_AUTH_TTL_S)],
     ],
   });
 
   const endpoint = `${trimTrailingSlash(server)}/upload`;
-  const headers: Record<string, string> = { Authorization: nostrAuthHeader(auth) };
+  const headers: Record<string, string> = {
+    Authorization: blossomAuthHeader(auth),
+    'X-SHA-256': sha256,
+    'Content-Length': String(bytes.byteLength),
+  };
   if (request.mimeType) headers['Content-Type'] = request.mimeType;
 
   emitUploading(ctx, 'blossom', bytes.byteLength, nowS);
@@ -287,24 +318,50 @@ async function uploadBlossom(args: RailUploadArgs): Promise<UploadResult> {
   if (blob.size !== bytes.byteLength) {
     return failed(ctx.uploadId, 'blossom', 'server returned mismatched size', sha256);
   }
+  if (typeof blob.type !== 'string' || blob.type.length === 0) {
+    return failed(ctx.uploadId, 'blossom', 'server returned no type', sha256);
+  }
+  if (!Number.isSafeInteger(blob.uploaded) || (blob.uploaded ?? -1) < 0) {
+    return failed(ctx.uploadId, 'blossom', 'server returned invalid uploaded timestamp', sha256);
+  }
 
-  const mimeType = blob.type ?? request.mimeType;
-  const nip94: NostrTag[] = [['url', blob.url]];
-  if (mimeType) nip94.push(['m', mimeType]);
-  nip94.push(['x', sha256], ['size', String(bytes.byteLength)]);
+  try {
+    const verified = await verifyBlossomStoredBlob({
+      url: blob.url,
+      sha256,
+      size: bytes.byteLength,
+      requestMimeType: request.mimeType,
+      descriptorMimeType: blob.type,
+      signal: controller.signal,
+    });
+    if (controller.signal.aborted) return cancelled(ctx.uploadId, 'blossom', sha256);
+    if (verified.sha256 !== sha256 || verified.size !== bytes.byteLength) {
+      return failed(ctx.uploadId, 'blossom', 'upload-verification-failed: verifier returned mismatched bytes', sha256);
+    }
+    return toVerifiedBlossomNip94(ctx.uploadId, verified);
+  } catch (error) {
+    return failed(ctx.uploadId, 'blossom', toErrorMessage(error), sha256);
+  }
+}
 
-  const result: UploadResult = {
+/** Construct standard Blossom result tags exclusively from a host-verified tuple. */
+export function toVerifiedBlossomNip94(uploadId: string, verified: VerifiedBlossomResult): UploadResult {
+  return {
     ok: true,
-    uploadId: ctx.uploadId,
+    uploadId,
     status: 'complete',
     rail: 'blossom',
-    url: blob.url,
-    sha256,
-    size: bytes.byteLength,
-    nip94,
+    url: verified.url,
+    sha256: verified.sha256,
+    size: verified.size,
+    mimeType: verified.mimeType,
+    nip94: [
+      ['url', verified.url],
+      ['m', verified.mimeType],
+      ['x', verified.sha256],
+      ['size', String(verified.size)],
+    ] as NostrTag[],
   };
-  if (mimeType) result.mimeType = mimeType;
-  return result;
 }
 
 interface BlossomDescriptor {
@@ -312,6 +369,7 @@ interface BlossomDescriptor {
   sha256?: string;
   size?: number;
   type?: string;
+  uploaded?: number;
 }
 
 function failed(uploadId: string, rail: UploadRail, error: string, sha256?: string): UploadResult {
@@ -341,6 +399,10 @@ function firstConfiguredRail(rails: HttpUploaderRails): UploadRail | undefined {
 
 function nostrAuthHeader(event: NostrEvent): string {
   return `Nostr ${base64Utf8(JSON.stringify(event))}`;
+}
+
+function blossomAuthHeader(event: NostrEvent): string {
+  return `Nostr ${base64Utf8(JSON.stringify(event)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')}`;
 }
 
 function base64Utf8(s: string): string {

@@ -95,6 +95,7 @@ export type {
   ResourceSchemeInfo,
   ResourceServiceOptions,
   ResourceService,
+  VerifiedResourceGrant,
 } from './resource-service.js';
 
 export { createOutboxService } from './outbox-service.js';
@@ -148,6 +149,8 @@ export type {
   HttpUploaderRails,
   RailServerConfig,
   SignEvent,
+  VerifiedBlossomResult,
+  VerifyBlossomStoredBlobRequest,
 } from './http-uploader.js';
 
 export { createIntentService } from './intent-service.js';
