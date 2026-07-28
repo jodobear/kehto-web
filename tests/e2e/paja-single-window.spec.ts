@@ -19,12 +19,28 @@ interface BlossomPut {
   readonly contentLength: string;
 }
 
+interface BlossomPutResponse {
+  readonly status: number;
+  readonly descriptor?: Record<string, unknown>;
+}
+
+interface HeldBlossomRequest {
+  waitUntilHeld(): Promise<void>;
+  release(): void;
+}
+
 interface BlossomTestServer extends TargetServer {
   readonly puts: BlossomPut[];
   readonly gets: string[];
+  readonly getRequests: string[];
   readonly requestMethods: string[];
+  readonly responseQueues: BlossomPutResponse[];
+  readonly storedBlobs: Map<string, Buffer>;
   omitSizeOnce(): void;
   alterNextGet(): void;
+  queuePutResponse(response: BlossomPutResponse): void;
+  replaceStoredBlob(path: string, bytes: readonly number[]): void;
+  holdNextRequest(): HeldBlossomRequest;
 }
 
 const shimPrelude = readFileSync(
@@ -659,7 +675,10 @@ test('proves configured Blossom replication remains standard-NAP-only in an opaq
     held.release();
     await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
       .filter((entry) => entry.type === 'paja.upload.partial-copy'))).toEqual([
-      expect.objectContaining({ retainedUrls: [`${first.url}/${expectedSha}`], message: 'Upload was cancelled after verification; durable copies may remain.' }),
+      expect.objectContaining({
+        detail: 'Upload was cancelled after verification; durable copies may remain.',
+        preview: expect.stringContaining(`${first.url}/${expectedSha}`),
+      }),
     ]);
     await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
       .filter((entry) => entry.type === 'upload.upload.result' && entry.preview.includes('teardown-after-first-copy')))).toHaveLength(0);
@@ -1064,13 +1083,15 @@ function decodeNostrAuthorization(value: string): {
   };
 }
 
-async function startBlossomServer(): Promise<BlossomTestServer> {
+async function startBlossomServer(name = 'blossom', attempts: string[] = []): Promise<BlossomTestServer> {
   const puts: BlossomPut[] = [];
-  const gets: string[] = [];
-  const stored = new Map<string, Buffer>();
+  const getRequests: string[] = [];
+  const storedBlobs = new Map<string, Buffer>();
+  const responseQueues: BlossomPutResponse[] = [];
   const requestMethods: string[] = [];
   let omitSize = false;
   let alterNextGet = false;
+  let nextHold: { resolveHeld(): void; release: Promise<void> } | null = null;
   let url = '';
   const server = createServer((request, response) => {
     requestMethods.push(request.method ?? 'UNKNOWN');
@@ -1083,8 +1104,8 @@ async function startBlossomServer(): Promise<BlossomTestServer> {
       return;
     }
     if (request.method === 'GET' && request.url) {
-      gets.push(request.url);
-      const storedBytes = stored.get(request.url);
+      getRequests.push(request.url);
+      const storedBytes = storedBlobs.get(request.url);
       if (!storedBytes) {
         response.writeHead(404, { 'content-type': 'text/plain' });
         response.end('Not found');
@@ -1103,16 +1124,29 @@ async function startBlossomServer(): Promise<BlossomTestServer> {
     }
     const chunks: Buffer[] = [];
     request.on('data', (chunk: Buffer) => chunks.push(chunk));
-    request.on('end', () => {
+    request.on('end', async () => {
       const bytes = Buffer.concat(chunks);
       const authorization = String(request.headers.authorization ?? '');
       const contentType = String(request.headers['content-type'] ?? '');
       const sha256Header = String(request.headers['x-sha-256'] ?? '');
       const contentLength = String(request.headers['content-length'] ?? '');
       puts.push({ bytes, authorization, contentType, sha256: sha256Header, contentLength });
+      attempts.push(name);
+      const hold = nextHold;
+      nextHold = null;
+      if (hold) {
+        hold.resolveHeld();
+        await hold.release;
+      }
+      const queued = responseQueues.shift();
+      if (queued && (queued.status < 200 || queued.status >= 300)) {
+        response.writeHead(queued.status, { 'content-type': 'application/json' });
+        response.end(JSON.stringify(queued.descriptor ?? { error: `fixture HTTP ${queued.status}` }));
+        return;
+      }
       const sha256 = createHash('sha256').update(bytes).digest('hex');
-      stored.set(`/${sha256}`, bytes);
-      const descriptor = {
+      storedBlobs.set(`/${sha256}`, bytes);
+      const descriptor = queued?.descriptor ?? {
         url: `${url}/${sha256}`,
         sha256,
         ...(!omitSize ? { size: bytes.byteLength } : {}),
@@ -1120,7 +1154,7 @@ async function startBlossomServer(): Promise<BlossomTestServer> {
         uploaded: 1,
       };
       omitSize = false;
-      response.writeHead(200, { 'content-type': 'application/json' });
+      response.writeHead(queued?.status ?? 200, { 'content-type': 'application/json' });
       response.end(JSON.stringify(descriptor));
     });
   });
@@ -1140,13 +1174,34 @@ async function startBlossomServer(): Promise<BlossomTestServer> {
   return {
     url,
     puts,
-    gets,
+    gets: getRequests,
+    getRequests,
     requestMethods,
+    responseQueues,
+    storedBlobs,
     omitSizeOnce() {
       omitSize = true;
     },
     alterNextGet() {
       alterNextGet = true;
+    },
+    queuePutResponse(response) {
+      responseQueues.push(response);
+    },
+    replaceStoredBlob(path, bytes) {
+      storedBlobs.set(path, Buffer.from(bytes));
+    },
+    holdNextRequest() {
+      let resolveHeld: () => void = () => undefined;
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        resolveHeld = resolve;
+      });
+      const releasePromise = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      nextHold = { resolveHeld, release: releasePromise };
+      return { waitUntilHeld: () => held, release };
     },
     close: () => new Promise((resolve, reject) => {
       server.close((error) => {
