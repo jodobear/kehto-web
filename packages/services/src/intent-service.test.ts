@@ -68,6 +68,7 @@ function context(overrides: Partial<ServiceRuntimeContext> = {}): ServiceRuntime
   return {
     resolveDTag: vi.fn((windowId: string) => windowId === WINDOW ? SENDER : undefined),
     listWindowIds: vi.fn(() => Object.freeze(['win-a', 'win-b'])),
+    hasCapability: vi.fn(() => true),
     sendToEligibleNapplet: vi.fn(() => true),
     ...overrides,
   };
