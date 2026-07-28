@@ -62,10 +62,12 @@ function createRouter(
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, reject, resolve };
 }
 
 describe('createPajaSocialCache', () => {
@@ -165,6 +167,39 @@ describe('createPajaSocialCache', () => {
       expect(options).toEqual({ authors: filters[0]?.authors, limit: 1 });
     }
     await expect(cache.decorate(baseRouter).query([{ kinds: [0] }])).resolves.toEqual({ events: profiles });
+  });
+
+  it('continues warming later verified follows after one author query fails', async () => {
+    const laterFollow = 'f'.repeat(64);
+    const profileA = result(event('a', FOLLOWED_A, 0));
+    const profileLater = result(event('f', laterFollow, 0));
+    const baseRouter = createRouter(vi.fn(async (filters) => {
+      const author = filters[0]?.authors?.[0];
+      if (author === FOLLOWED_A) return { events: [profileA] };
+      if (author === FOLLOWED_B) throw new Error('relay unavailable');
+      if (author === laterFollow) return { events: [profileLater] };
+      return { events: [] };
+    }));
+    const cache = createPajaSocialCache({
+      baseRouter,
+      loadContactList: vi.fn(async () => [event('1', ACCOUNT_A, 3, [
+        ['p', FOLLOWED_A],
+        ['p', FOLLOWED_B],
+        ['p', laterFollow],
+      ])]),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => ACCOUNT_A,
+    });
+
+    await cache.refreshActiveIdentity();
+
+    await expect(cache.decorate(baseRouter).query([{ kinds: [0] }])).resolves.toEqual({
+      events: [profileA, profileLater],
+    });
+    expect(baseRouter.query).toHaveBeenCalledWith(
+      [{ kinds: [0], authors: [laterFollow], limit: 1 }],
+      { authors: [laterFollow], limit: 1 },
+    );
   });
 
   it('accumulates completed batches while retaining base results and cancels a stale generation mid-batch', async () => {
@@ -307,6 +342,41 @@ describe('createPajaSocialCache', () => {
     );
   });
 
+  it('aborts a superseded background contact-list load before warming the new account', async () => {
+    let activePubkey = ACCOUNT_A;
+    let firstSignal: AbortSignal | undefined;
+    const baseQuery = vi.fn(async (filters: Parameters<OutboxRouter['query']>[0]) => ({
+      events: [result(event('p', filters[0]?.authors?.[0] ?? FOLLOWED_B, 0))],
+    }));
+    const cache = createPajaSocialCache({
+      baseRouter: createRouter(baseQuery),
+      loadContactList: vi.fn((pubkey, signal) => {
+        if (pubkey === ACCOUNT_B) {
+          return Promise.resolve([event('b', ACCOUNT_B, 3, [['p', FOLLOWED_B]])]);
+        }
+        firstSignal = signal;
+        return new Promise<NostrEvent[]>((resolve) => {
+          signal?.addEventListener('abort', () => resolve([]), { once: true });
+        });
+      }),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => activePubkey,
+    });
+
+    const refreshA = cache.refreshActiveIdentity();
+    await vi.waitFor(() => expect(firstSignal).toBeDefined());
+    activePubkey = ACCOUNT_B;
+    await cache.refreshActiveIdentity();
+    await refreshA;
+
+    expect(firstSignal?.aborted).toBe(true);
+    expect(baseQuery).toHaveBeenCalledTimes(1);
+    expect(baseQuery).toHaveBeenCalledWith(
+      [{ kinds: [0], authors: [FOLLOWED_B], limit: 1 }],
+      { authors: [FOLLOWED_B], limit: 1 },
+    );
+  });
+
   it('merges the request-start account snapshot when the active account switches while the base query is pending', async () => {
     let activePubkey = ACCOUNT_A;
     const baseQuery = deferred<OutboxResult>();
@@ -411,6 +481,30 @@ describe('createPajaSocialCache', () => {
       incomplete: true,
       error: 'relay timeout',
     });
+  });
+
+  it('returns only the base result when identity authorization is revoked mid-query', async () => {
+    const cached = result(event('1', FOLLOWED_A, 0));
+    const base = result(event('2', FOLLOWED_B, 0));
+    const baseResult: OutboxResult = { events: [base], incomplete: true };
+    const pendingBase = deferred<OutboxResult>();
+    let canReadIdentity = true;
+    const baseRouter = createRouter(vi.fn(async (filters) => {
+      return filters[0]?.authors ? { events: [cached] } : pendingBase.promise;
+    }));
+    const cache = createPajaSocialCache({
+      baseRouter,
+      loadContactList: vi.fn(async () => [event('3', ACCOUNT_A, 3, [['p', FOLLOWED_A]])]),
+      verifyEvent: vi.fn(async () => true),
+      getActivePubkey: () => ACCOUNT_A,
+    });
+    await cache.refreshActiveIdentity();
+
+    const query = cache.decorate(baseRouter, () => canReadIdentity).query([{ kinds: [0] }]);
+    canReadIdentity = false;
+    pendingBase.resolve(baseResult);
+
+    await expect(query).resolves.toBe(baseResult);
   });
 
   it('adds only cached kind-0 values matching the query filters and their result limit', async () => {

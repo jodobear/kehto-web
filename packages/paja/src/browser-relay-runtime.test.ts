@@ -177,6 +177,30 @@ describe('@kehto/paja effective relay URLs', () => {
     expect(loaded).toHaveLength(PAJA_CONTACT_LIST_CANDIDATE_LIMIT);
   });
 
+  it('closes a superseded live contact-list query when its signal aborts', async () => {
+    const pubkey = 'a'.repeat(64);
+    livePool.close = undefined;
+    livePool.closeRejects = false;
+    livePool.delivered = 0;
+    livePool.events = [];
+    livePool.requests = [];
+    const simulation = normalizePajaSimulation({
+      relay: { mode: 'live', urls: ['wss://relay.example'] },
+    });
+    const loader = createPajaContactListLoader(
+      createPajaRelayBackend(() => simulation, () => true),
+      () => simulation,
+    );
+    const controller = new AbortController();
+
+    const loaded = loader(pubkey, controller.signal);
+    await vi.waitFor(() => expect(livePool.requests).toHaveLength(1));
+    controller.abort();
+
+    await expect(loaded).resolves.toEqual([]);
+    expect(livePool.close).toHaveBeenCalledWith('paja query aborted');
+  });
+
   it('settles a bounded contact-list query when close rejects without an unhandled rejection', async () => {
     const pubkey = 'a'.repeat(64);
     livePool.closeRejects = true;

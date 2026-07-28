@@ -12,7 +12,7 @@ export interface PajaSocialCacheOptions {
   /** The one host-owned router used for profile warming. */
   readonly baseRouter: OutboxRouter;
   /** Reads raw contact-list candidates through Paja's existing bootstrap relays. */
-  readonly loadContactList: (pubkey: string) => Promise<NostrEvent[]>;
+  readonly loadContactList: (pubkey: string, signal?: AbortSignal) => Promise<NostrEvent[]>;
   /** Verifies an untrusted contact-list candidate before it is used. */
   readonly verifyEvent: (event: NostrEvent) => boolean | Promise<boolean>;
   /** Returns the active Paja account, if present. */
@@ -62,6 +62,7 @@ const PROFILE_WARM_YIELD_EVERY = 64;
  */
 export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSocialCache {
   let generation = 0;
+  let activeRefreshController: AbortController | undefined;
   const snapshots = new Map<string, SocialSnapshot>();
 
   async function loadFollows(capturedPubkey: string): Promise<string[]> {
@@ -80,8 +81,12 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
     return [...follows];
   }
 
-  async function verifiedFollows(capturedPubkey: string, isStillCurrent?: () => boolean): Promise<string[]> {
-    const candidates = await options.loadContactList(capturedPubkey);
+  async function verifiedFollows(
+    capturedPubkey: string,
+    isStillCurrent?: () => boolean,
+    signal?: AbortSignal,
+  ): Promise<string[]> {
+    const candidates = await options.loadContactList(capturedPubkey, signal);
     const verified: NostrEvent[] = [];
     for (const candidate of candidates) {
       if (isStillCurrent && !isStillCurrent()) return [];
@@ -96,26 +101,37 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
   }
 
   async function refreshActiveIdentity(): Promise<void> {
+    activeRefreshController?.abort();
+    activeRefreshController = undefined;
     const currentGeneration = ++generation;
     const capturedPubkey = normalizePubkey(options.getActivePubkey() ?? '');
     if (!capturedPubkey) return;
-    const isStillCurrent = () => isCurrent(capturedPubkey, currentGeneration);
+    const controller = new AbortController();
+    activeRefreshController = controller;
+    const isStillCurrent = () => !controller.signal.aborted && isCurrent(capturedPubkey, currentGeneration);
 
     try {
-      const follows = await verifiedFollows(capturedPubkey, isStillCurrent);
+      const follows = await verifiedFollows(capturedPubkey, isStillCurrent, controller.signal);
       if (!isStillCurrent()) return;
       const snapshot: SocialSnapshot = { follows, profiles: new Map() };
       snapshots.set(capturedPubkey, snapshot);
       for (let index = 0; index < follows.length; index += 1) {
         if (!isStillCurrent()) return;
         const author = follows[index]!;
-        const warmed = await options.baseRouter.query(
-          [{ kinds: [0], authors: [author], limit: 1 }],
-          { authors: [author], limit: 1 },
-        );
+        let warmed: OutboxResult | undefined;
+        try {
+          warmed = await options.baseRouter.query(
+            [{ kinds: [0], authors: [author], limit: 1 }],
+            { authors: [author], limit: 1 },
+          );
+        } catch {
+          // One relay failure must not prevent later verified follows from warming.
+        }
         if (!isStillCurrent()) return;
-        const profile = profileResult(warmed, author);
-        if (profile) snapshot.profiles.set(author, profile);
+        if (warmed) {
+          const profile = profileResult(warmed, author);
+          if (profile) snapshot.profiles.set(author, profile);
+        }
         if ((index + 1) % PROFILE_WARM_YIELD_EVERY === 0 && index + 1 < follows.length) {
           if (!isStillCurrent()) return;
           await yieldToEventLoop();
@@ -124,6 +140,8 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
       }
     } catch {
       // Background warming is best-effort and must never delay Paja startup.
+    } finally {
+      if (activeRefreshController === controller) activeRefreshController = undefined;
     }
   }
 
@@ -136,11 +154,11 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
     return {
       ...(router.getEvent ? { getEvent: router.getEvent.bind(router) } : {}),
       async query(filters, queryOptions) {
-        const canAugment = canReadIdentity?.() ?? true;
+        const canAugmentAtStart = canReadIdentity?.() ?? true;
         const activePubkey = normalizePubkey(options.getActivePubkey() ?? '');
-        const snapshot = canAugment && activePubkey ? snapshots.get(activePubkey) : undefined;
+        const snapshot = canAugmentAtStart && activePubkey ? snapshots.get(activePubkey) : undefined;
         const base = await router.query(filters, queryOptions);
-        if (!canAugment) return base;
+        if (!canAugmentAtStart || !(canReadIdentity?.() ?? true)) return base;
         const cached = matchingCachedProfiles(snapshot?.profiles, filters);
         return mergeResult(base, cached, filters, queryOptions);
       },
@@ -158,7 +176,10 @@ export function createPajaSocialCache(options: PajaSocialCacheOptions): PajaSoci
     getFollows: loadFollows,
     refreshActiveIdentity,
     decorate,
-    dispose: () => unsubscribe?.(),
+    dispose: () => {
+      activeRefreshController?.abort();
+      unsubscribe?.();
+    },
   };
 }
 
