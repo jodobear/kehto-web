@@ -48,7 +48,7 @@ const KIND_NIP98 = 27235;
 /** Blossom authorization event kind. */
 const KIND_BLOSSOM_AUTH = 24242;
 /** Blossom auth-event lifetime, in seconds. */
-const BLOSSOM_AUTH_TTL_S = 3600;
+const BLOSSOM_AUTH_TTL_S = 300;
 
 /** Per-rail server configuration. The first server is the primary endpoint. */
 export interface RailServerConfig {
@@ -402,12 +402,17 @@ function nostrAuthHeader(event: NostrEvent): string {
 }
 
 function blossomAuthHeader(event: NostrEvent): string {
-  return `Nostr ${base64Utf8(JSON.stringify(event)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')}`;
+  return `Nostr ${base64UrlUtf8(JSON.stringify(event))}`;
 }
 
 function base64Utf8(s: string): string {
   // UTF-8 safe base64 (event content/tags may contain non-ASCII).
   return btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+}
+
+/** Encode UTF-8 JSON as unpadded Base64url, as required by BUD-11. */
+function base64UrlUtf8(s: string): string {
+  return base64Utf8(s).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
 function parseDimensions(dim: string | undefined): UploadDimensions | undefined {
