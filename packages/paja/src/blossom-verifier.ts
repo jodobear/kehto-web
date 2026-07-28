@@ -86,12 +86,14 @@ export function createPajaStoredBlobVerifier(options: PajaStoredBlobVerifierOpti
 
   async function fetchVerifiedUrl(value: string, signal: AbortSignal | undefined, redirects: number): Promise<Response> {
     if (redirects > MAX_REDIRECTS) throw new Error('too many redirects');
-    const parsed = await validateStoredUrl(value);
-    const response = await fetchFn(parsed, { method: 'GET', redirect: 'manual', signal });
+    const target = await validateStoredUrl(value);
+    const response = options.fetch
+      ? await fetchFn(target.url, { method: 'GET', redirect: 'manual', signal })
+      : await fetchPinned(target.url, target.addresses[0]!, signal);
     if (isRedirect(response.status)) {
       const location = response.headers.get('location');
       if (!location) throw new Error('redirect did not supply a location');
-      return fetchVerifiedUrl(new URL(location, parsed).href, signal, redirects + 1);
+      return fetchVerifiedUrl(new URL(location, target.url).href, signal, redirects + 1);
     }
     if (!response.ok) throw new Error(`stored blob returned HTTP ${response.status}`);
     const contentLength = response.headers.get('content-length');
@@ -101,7 +103,7 @@ export function createPajaStoredBlobVerifier(options: PajaStoredBlobVerifierOpti
     return response;
   }
 
-  async function validateStoredUrl(value: string): Promise<URL> {
+  async function validateStoredUrl(value: string): Promise<{ url: URL; addresses: readonly string[] }> {
     const parsed = new URL(value);
     const loopbackFixture = options.allowLoopbackForTests && parsed.protocol === 'http:' && isLoopbackHost(parsed.hostname);
     if (parsed.protocol !== 'https:' && !loopbackFixture) {
@@ -111,20 +113,92 @@ export function createPajaStoredBlobVerifier(options: PajaStoredBlobVerifierOpti
     if (addresses.length === 0 || addresses.some((address) => isPrivateAddress(address))) {
       if (!loopbackFixture) throw new Error('stored blob URL resolves to a blocked address');
     }
-    return parsed;
+    return { url: parsed, addresses };
   }
 }
 
+async function fetchPinned(url: URL, address: string, signal: AbortSignal | undefined): Promise<Response> {
+  const nodeHttps = await loadNodeModule(url.protocol === 'https:' ? 'node:https' : 'node:http') as {
+    request(options: Record<string, unknown>, callback: (response: NodeResponse) => void): NodeRequest;
+  };
+  return new Promise<Response>((resolve, reject) => {
+    const request = nodeHttps.request({
+      protocol: url.protocol,
+      hostname: url.hostname,
+      port: url.port || undefined,
+      path: `${url.pathname}${url.search}`,
+      method: 'GET',
+      lookup: (_hostname: string, _options: unknown, callback: (error: Error | null, ip: string, family: number) => void) => {
+        callback(null, address, address.includes(':') ? 6 : 4);
+      },
+    }, (response) => {
+      const chunks: Uint8Array[] = [];
+      response.on('data', (chunk: Uint8Array) => chunks.push(chunk));
+      response.on('end', () => {
+        const body = concatBytes(chunks);
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(response.headers)) {
+          if (typeof value === 'string') headers.set(name, value);
+          else if (Array.isArray(value)) headers.set(name, value.join(', '));
+        }
+        const bodyBuffer = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer;
+        resolve(new Response(bodyBuffer, { status: response.statusCode ?? 500, headers }));
+      });
+      response.on('error', reject);
+    });
+    request.on('error', reject);
+    signal?.addEventListener('abort', () => request.destroy(new DOMException('Aborted', 'AbortError')), { once: true });
+    request.end();
+  });
+}
+
+interface NodeRequest {
+  on(event: 'error', listener: (error: Error) => void): void;
+  destroy(error?: Error): void;
+  end(): void;
+}
+
+interface NodeResponse {
+  readonly statusCode?: number;
+  readonly headers: Record<string, string | readonly string[] | undefined>;
+  on(event: 'data', listener: (chunk: Uint8Array) => void): void;
+  on(event: 'end' | 'error', listener: (() => void) | ((error: Error) => void)): void;
+}
+
+function concatBytes(chunks: readonly Uint8Array[]): Uint8Array {
+  const length = chunks.reduce((total, chunk) => total + chunk.byteLength, 0);
+  const output = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return output;
+}
+
 async function defaultResolveHostname(hostname: string): Promise<readonly string[]> {
-  // The Paja host route runs behind the deployment's network-policy resolver.
-  // Literal addresses are still rejected locally before that route can fetch.
-  return isIpAddress(hostname) ? [hostname] : ['public-hostname'];
+  if (isIpAddress(hostname)) return [hostname];
+  const nodeDns = await loadNodeModule('node:dns/promises') as {
+    lookup(hostname: string, options: { all: true; verbatim: true }): Promise<readonly { address: string }[]>;
+  };
+  const addresses = await nodeDns.lookup(hostname, { all: true, verbatim: true });
+  return addresses.map((entry) => entry.address);
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const input = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-  const digest = await crypto.subtle.digest('SHA-256', input);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  const nodeCrypto = await loadNodeModule('node:crypto') as {
+    createHash(algorithm: string): { update(data: Uint8Array): { digest(encoding: 'hex'): string } };
+  };
+  return nodeCrypto.createHash('sha256').update(bytes).digest('hex');
+}
+
+async function loadNodeModule(specifier: string): Promise<unknown> {
+  try {
+    return await import(specifier);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`host verifier dependency unavailable: ${detail}`);
+  }
 }
 
 function isRedirect(status: number): boolean {

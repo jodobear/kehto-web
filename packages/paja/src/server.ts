@@ -61,7 +61,7 @@ export async function startPajaServer(input: PajaServerOptions): Promise<PajaSer
     return hostConfig;
   };
 
-  const handleRequest = async (requestUrl: string, request: HttpRequest, response: HttpResponse): Promise<void> => {
+  const handleRequest = async (requestUrl: string, request: unknown, response: HttpResponse): Promise<void> => {
     if (requestUrl === '/' || requestUrl.startsWith('/?')) {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       response.end(html);
@@ -111,7 +111,7 @@ export async function startPajaServer(input: PajaServerOptions): Promise<PajaSer
   };
 
   const server = createServer((request, response) => {
-    void handleRequest(request.url ?? '/', request as unknown as HttpRequest, response).catch((error) => {
+    void handleRequest(request.url ?? '/', request, response).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       response.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
       response.end(message);
@@ -151,11 +151,11 @@ async function fetchTargetHtml(targetUrl: string): Promise<string> {
 }
 
 async function handleBlossomVerification(
-  request: HttpRequest,
+  request: unknown,
   response: HttpResponse,
   verifier: PajaStoredBlobVerifier,
 ): Promise<void> {
-  if (request.method !== 'POST') {
+  if (!isPostRequest(request)) {
     response.writeHead(405, { 'content-type': 'application/json; charset=utf-8' });
     response.end(JSON.stringify({ error: 'method not allowed' }));
     return;
@@ -187,11 +187,20 @@ async function handleBlossomVerification(
   }
 }
 
-async function readRequestBody(request: HttpRequest): Promise<string> {
+function isPostRequest(request: unknown): boolean {
+  return typeof request === 'object' && request !== null && (request as { method?: unknown }).method === 'POST';
+}
+
+async function readRequestBody(request: unknown): Promise<string> {
+  if (!isAsyncIterable(request)) throw new Error('invalid verification request body');
   const decoder = new TextDecoder();
   let body = '';
   for await (const chunk of request) body += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
   return body + decoder.decode();
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<Uint8Array | string> {
+  return typeof value === 'object' && value !== null && Symbol.asyncIterator in value;
 }
 
 function arrayBufferToBase64(value: ArrayBuffer): string {
@@ -226,10 +235,6 @@ function close(server: HttpServer): Promise<void> {
     });
     server.closeIdleConnections?.();
   });
-}
-
-interface HttpRequest extends AsyncIterable<Uint8Array | string> {
-  readonly method?: string;
 }
 
 interface HttpServer {

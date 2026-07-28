@@ -56,12 +56,21 @@ describe('createPajaStoredBlobVerifier', () => {
     });
   });
 
-  it('rejects production HTTP and an altered stored object before it can be granted', async () => {
+  it('rejects production HTTP, private DNS resolution, and altered stored bytes before a grant exists', async () => {
     const server = await createVerifierTestServer(new Uint8Array([9, 9, 9]));
     const verifier = createPajaStoredBlobVerifier({ allowLoopbackForTests: true });
+    const privateResolver = createPajaStoredBlobVerifier({
+      fetch: async () => new Response(VECTOR),
+      resolveHostname: async () => ['127.0.0.1'],
+    });
 
     await expect(verifier.verify({
       url: 'http://public.example/blob',
+      sha256: SHA256,
+      size: VECTOR.byteLength,
+    })).rejects.toThrow('upload-verification-failed');
+    await expect(privateResolver.verify({
+      url: 'https://public.example/blob',
       sha256: SHA256,
       size: VECTOR.byteLength,
     })).rejects.toThrow('upload-verification-failed');
