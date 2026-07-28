@@ -331,4 +331,21 @@ describe('@kehto/paja browser host runtime source guards', () => {
       Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: priorHTMLElement });
     }
   });
+
+  it('discloses every replica target before authorization and retains partial-copy truth in the host only', () => {
+    const signerSource = readFileSync(new URL('./browser-host-signer.ts', import.meta.url), 'utf8');
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const adapterSource = readFileSync(new URL('./browser-adapter.ts', import.meta.url), 'utf8');
+    const namespaceSource = readFileSync(new URL('../../shell/src/napplet-namespace.ts', import.meta.url), 'utf8');
+
+    expect(signerSource).toContain('ordered targets:');
+    expect(signerSource).toContain('`replicas: ${request.replicaCount}`');
+    expect(signerSource).toContain('`worst-case transferred bytes: ${request.worstCaseBytes}`');
+    expect(signerSource).toContain('request.warning');
+    expect(adapterSource).toContain('onUploadDiagnostic?: (diagnostic: PajaUploadDiagnostic) => void');
+    expect(hostSource).toContain("type: 'paja.upload.partial-copy'");
+    expect(hostSource).toContain('durable copies may remain');
+    expect(namespaceSource).not.toContain('paja.upload.partial-copy');
+    expect(namespaceSource).not.toContain('blossom');
+  });
 });
