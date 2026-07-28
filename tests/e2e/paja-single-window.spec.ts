@@ -15,12 +15,16 @@ interface BlossomPut {
   readonly bytes: Buffer;
   readonly authorization: string;
   readonly contentType: string;
+  readonly sha256: string;
+  readonly contentLength: string;
 }
 
 interface BlossomTestServer extends TargetServer {
   readonly puts: BlossomPut[];
+  readonly gets: string[];
   readonly requestMethods: string[];
   omitSizeOnce(): void;
+  alterNextGet(): void;
 }
 
 const shimPrelude = readFileSync(
@@ -400,6 +404,7 @@ test('stores disclosed bytes through a signed Blossom upload and fails closed on
         },
       },
     },
+    allowLoopbackVerifierForTests: true,
     now: new Date('2026-06-21T00:00:00.000Z'),
   });
   const dialogs: string[] = [];
@@ -461,14 +466,28 @@ test('stores disclosed bytes through a signed Blossom upload and fails closed on
         ],
       },
     });
+    await sendFixtureMessage(frame, { type: 'resource.bytes', id: 'verified-preview', url: `${blossom.url}/${expectedSha}` });
+    await expect.poll(() => readFixtureMessage(frame, 'resource.bytes.result', 'verified-preview')).toMatchObject({
+      mime: 'application/octet-stream',
+    });
+    await expect(frame.locator('body').evaluate(async (_body) => {
+      const messages = (window as Window & { __pajaTestMessages?: Array<{ type: string; id?: string; blob?: Blob }> }).__pajaTestMessages ?? [];
+      const result = messages.find((message) => message.type === 'resource.bytes.result' && message.id === 'verified-preview');
+      return result?.blob ? Array.from(new Uint8Array(await result.blob.arrayBuffer())) : null;
+    })).resolves.toEqual(bytes);
     expect(blossom.puts).toHaveLength(1);
+    expect(blossom.gets).toEqual([`/${expectedSha}`]);
     expect([...blossom.puts[0]!.bytes]).toEqual(bytes);
     expect(blossom.puts[0]!.contentType).toBe('application/octet-stream');
+    expect(blossom.puts[0]!.sha256).toBe(expectedSha);
+    expect(blossom.puts[0]!.contentLength).toBe(String(bytes.length));
+    expect(blossom.puts[0]!.authorization).not.toMatch(/[+/=]$/);
     const authEvent = decodeNostrAuthorization(blossom.puts[0]!.authorization);
     expect(verifyEvent(authEvent as Parameters<typeof verifyEvent>[0])).toBe(true);
     expect(authEvent.kind).toBe(24_242);
     expect(authEvent.tags).toContainEqual(['t', 'upload']);
     expect(authEvent.tags).toContainEqual(['x', expectedSha]);
+    expect(authEvent.tags).toContainEqual(['server', '127.0.0.1']);
     expect(Number(authEvent.tags.find((tag) => tag[0] === 'expiration')?.[1])).toBeGreaterThan(authEvent.created_at);
 
     putsBeforeConsent = 1;
@@ -479,14 +498,22 @@ test('stores disclosed bytes through a signed Blossom upload and fails closed on
     });
     expect(blossom.puts).toHaveLength(1);
 
+    blossom.alterNextGet();
+    await sendUploadMessage(frame, 'altered-stored-bytes', [4, 5, 6]);
+    await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'altered-stored-bytes')).toMatchObject({
+      result: { ok: false, status: 'failed', error: expect.stringContaining('upload-verification-failed') },
+    });
+    expect(blossom.puts).toHaveLength(2);
+
+    putsBeforeConsent = 2;
     blossom.omitSizeOnce();
     await sendUploadMessage(frame, 'missing-size', [7, 8, 9]);
     await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'missing-size')).toMatchObject({
       result: { ok: false, status: 'failed', error: 'server returned invalid size' },
     });
-    expect(blossom.puts).toHaveLength(2);
-    expect(dialogs.filter((message) => message.includes('Paja upload request'))).toHaveLength(3);
-    expect(dialogs.filter((message) => message.includes('Paja sign request'))).toHaveLength(2);
+    expect(blossom.puts).toHaveLength(3);
+    expect(dialogs.filter((message) => message.includes('Paja upload request'))).toHaveLength(4);
+    expect(dialogs.filter((message) => message.includes('Paja sign request'))).toHaveLength(3);
   } finally {
     await uploadRuntime.close();
     await blossom.close();
@@ -880,17 +907,34 @@ function decodeNostrAuthorization(value: string): {
 
 async function startBlossomServer(): Promise<BlossomTestServer> {
   const puts: BlossomPut[] = [];
+  const gets: string[] = [];
+  const stored = new Map<string, Buffer>();
   const requestMethods: string[] = [];
   let omitSize = false;
+  let alterNextGet = false;
   let url = '';
   const server = createServer((request, response) => {
     requestMethods.push(request.method ?? 'UNKNOWN');
     response.setHeader('access-control-allow-origin', '*');
-    response.setHeader('access-control-allow-methods', 'PUT, OPTIONS');
-    response.setHeader('access-control-allow-headers', 'authorization, content-type');
+    response.setHeader('access-control-allow-methods', 'GET, PUT, OPTIONS');
+    response.setHeader('access-control-allow-headers', 'authorization, content-type, x-sha-256, content-length');
     if (request.method === 'OPTIONS') {
       response.writeHead(204);
       response.end();
+      return;
+    }
+    if (request.method === 'GET' && request.url) {
+      gets.push(request.url);
+      const storedBytes = stored.get(request.url);
+      if (!storedBytes) {
+        response.writeHead(404, { 'content-type': 'text/plain' });
+        response.end('Not found');
+        return;
+      }
+      const body = alterNextGet ? Buffer.from([9, 9, 9]) : storedBytes;
+      alterNextGet = false;
+      response.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': String(body.byteLength) });
+      response.end(body);
       return;
     }
     if (request.method !== 'PUT' || request.url !== '/upload') {
@@ -904,13 +948,17 @@ async function startBlossomServer(): Promise<BlossomTestServer> {
       const bytes = Buffer.concat(chunks);
       const authorization = String(request.headers.authorization ?? '');
       const contentType = String(request.headers['content-type'] ?? '');
-      puts.push({ bytes, authorization, contentType });
+      const sha256Header = String(request.headers['x-sha-256'] ?? '');
+      const contentLength = String(request.headers['content-length'] ?? '');
+      puts.push({ bytes, authorization, contentType, sha256: sha256Header, contentLength });
       const sha256 = createHash('sha256').update(bytes).digest('hex');
+      stored.set(`/${sha256}`, bytes);
       const descriptor = {
         url: `${url}/${sha256}`,
         sha256,
         ...(!omitSize ? { size: bytes.byteLength } : {}),
         type: contentType,
+        uploaded: 1,
       };
       omitSize = false;
       response.writeHead(200, { 'content-type': 'application/json' });
@@ -933,9 +981,13 @@ async function startBlossomServer(): Promise<BlossomTestServer> {
   return {
     url,
     puts,
+    gets,
     requestMethods,
     omitSizeOnce() {
       omitSize = true;
+    },
+    alterNextGet() {
+      alterNextGet = true;
     },
     close: () => new Promise((resolve, reject) => {
       server.close((error) => {
