@@ -1565,4 +1565,64 @@ describe('NIP-5D napplet namespace prelude', () => {
       uploadSubscription.close();
     });
   });
+
+  // Pinned NAP-UPLOAD/RESOURCE drafts a7cc174/fa6bcc6 remain the authority;
+  // current napplet/naps master lacks these draft paths, so this is not a master claim.
+  it('keeps upload and resource limited to correlated standard parent-mediated methods', async () => {
+    const target = createPreludeTestWindow({
+      blossom: { upload: () => Promise.resolve('forged') },
+      upload: { directNetwork: () => Promise.resolve('forged') },
+    });
+    runPrelude(renderNappletNamespacePrelude({ domains: ['upload', 'resource'] }), target);
+
+    const namespace = target.napplet as Record<string, Record<string, (...args: unknown[]) => unknown>>;
+    expect(Object.keys(namespace.upload)).toEqual(['info', 'upload', 'status', 'onStatus']);
+    expect(Object.keys(namespace.resource)).toEqual([
+      'info',
+      'bytes',
+      'bytesMany',
+      'bytesAsObjectURL',
+      'hydrateResourceCache',
+      'revokeAllObjectURLs',
+    ]);
+    expect(namespace.blossom).toBeUndefined();
+    expect('directNetwork' in namespace.upload).toBe(false);
+    expect('authorization' in namespace.upload).toBe(false);
+
+    const info = namespace.upload.info() as Promise<unknown>;
+    const infoRequest = withoutShellReady(target).at(-1);
+    expect(infoRequest).toMatchObject({ type: 'upload.info', id: 'id-1' });
+    target.dispatchMessage({}, {
+      type: 'upload.info.result',
+      id: infoRequest?.id,
+      info: { rails: [{ rail: 'blossom', enabled: true }] },
+    });
+    target.dispatchParentMessage({
+      type: 'upload.info.result',
+      id: infoRequest?.id,
+      info: { rails: [{ rail: 'blossom', enabled: false }] },
+    });
+    await expect(info).resolves.toEqual({ rails: [{ rail: 'blossom', enabled: false }] });
+
+    const bytes = namespace.resource.bytes('https://verified.example/blob') as Promise<unknown>;
+    const bytesRequest = withoutShellReady(target).at(-1);
+    expect(bytesRequest).toMatchObject({
+      type: 'resource.bytes',
+      id: 'id-2',
+      url: 'https://verified.example/blob',
+    });
+    target.dispatchMessage({}, {
+      type: 'resource.bytes.result',
+      id: bytesRequest?.id,
+      blob: 'forged',
+      mime: 'application/octet-stream',
+    });
+    target.dispatchParentMessage({
+      type: 'resource.bytes.result',
+      id: bytesRequest?.id,
+      blob: 'verified-blob',
+      mime: 'application/octet-stream',
+    });
+    await expect(bytes).resolves.toBe('verified-blob');
+  });
 });

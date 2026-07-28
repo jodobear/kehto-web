@@ -1508,7 +1508,9 @@ function nappletNamespacePrelude(domains: string[]): void {
     if (domain === 'identity') return makeProtectedIdentity();
     if (domain === 'theme') return makeProtectedTheme();
     if (domain === 'intent') return makeProtectedIntent();
-    if (existing && typeof existing === 'object' && Object.keys(existing).length > 0) return existing;
+    // Upload and resource are shell-owned mediation boundaries. An authored or
+    // shim-provided object must not replace their standard request-only methods.
+    if (existing && typeof existing === 'object' && Object.keys(existing).length > 0 && domain !== 'upload' && domain !== 'resource') return existing;
     switch (domain) {
       case 'relay': return makeRelay();
       case 'storage': return makeStorage();
