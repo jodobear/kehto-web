@@ -33,6 +33,7 @@ type ContactListCandidateQuery = (
   relayUrls: string[],
   filters: NostrFilter[],
   maxWaitMs?: number,
+  signal?: AbortSignal,
 ) => Promise<NostrEvent[]>;
 
 const contactListCandidateQueries = new WeakMap<PajaRelayBackend, ContactListCandidateQuery>();
@@ -112,25 +113,32 @@ function queryLiveBounded(
   filter: NostrFilter,
   maxWaitMs: number,
   limit: number,
+  signal?: AbortSignal,
 ): Promise<NostrEvent[]> {
-  if (limit === 0) return Promise.resolve([]);
+  if (limit === 0 || signal?.aborted) return Promise.resolve([]);
   return new Promise((resolve) => {
     const events: NostrEvent[] = [];
     let settled = false;
     let closeRequested = false;
+    let closeReason = 'paja query limit reached';
     let subscription: ReturnType<SimplePool['subscribeEose']> | undefined;
+    let abort: (() => void) | undefined;
     const finish = () => {
       if (settled) return;
       settled = true;
+      if (abort) signal?.removeEventListener('abort', abort);
       resolve(events);
     };
-    const close = () => {
+    const close = (reason = closeReason) => {
       closeRequested = true;
+      closeReason = reason;
       if (!subscription) return;
       // nostr-tools currently types close() as void, although implementations can reject.
-      void Promise.resolve(subscription.close('paja query limit reached')).catch(() => {});
+      void Promise.resolve(subscription.close(reason)).catch(() => {});
       finish();
     };
+    abort = () => close('paja query aborted');
+    signal?.addEventListener('abort', abort, { once: true });
     subscription = pool.subscribeEose(relayUrls, filter as Filter, {
       label: 'kehto-paja-runtime',
       maxWait: maxWaitMs,
@@ -151,11 +159,12 @@ async function queryLive(
   filters: NostrFilter[],
   maxWaitMs = PAJA_LIVE_QUERY_WAIT_MS,
   collectUntilLimit = false,
+  signal?: AbortSignal,
 ): Promise<NostrEvent[]> {
   const activeFilters = filters.length > 0 ? filters : [{} as NostrFilter];
   const batches = await Promise.all(activeFilters.map((filter) => {
     const limit = typeof filter.limit === 'number' && filter.limit >= 0 ? filter.limit : undefined;
-    if (collectUntilLimit && limit !== undefined) return queryLiveBounded(pool, relayUrls, filter, maxWaitMs, limit);
+    if (collectUntilLimit && limit !== undefined) return queryLiveBounded(pool, relayUrls, filter, maxWaitMs, limit, signal);
     return pool.querySync(relayUrls, filter as Filter, {
       label: 'kehto-paja-runtime',
       maxWait: maxWaitMs,
@@ -191,10 +200,10 @@ export function createPajaRelayBackend(
     for (const event of [...memoryEvents, ...liveEvents]) out.set(event.id, event);
     return [...out.values()].sort((a, b) => b.created_at - a.created_at);
   };
-  const queryContactListCandidates: ContactListCandidateQuery = async (relayUrls, filters, maxWaitMs) => {
+  const queryContactListCandidates: ContactListCandidateQuery = async (relayUrls, filters, maxWaitMs, signal) => {
     const memoryEvents = collectMemoryEvents(events, filters);
-    if (getSimulation().relay.mode !== 'live' || relayUrls.length === 0) return memoryEvents;
-    const liveEvents = await queryLive(livePool, relayUrls, filters, maxWaitMs, true);
+    if (signal?.aborted || getSimulation().relay.mode !== 'live' || relayUrls.length === 0) return memoryEvents;
+    const liveEvents = await queryLive(livePool, relayUrls, filters, maxWaitMs, true, signal);
     const out = new Map<string, NostrEvent>();
     for (const event of [...memoryEvents, ...liveEvents]) out.set(event.id, event);
     return [...out.values()].sort((a, b) => b.created_at - a.created_at);
@@ -355,16 +364,21 @@ export function createPajaContactListLoader(
   backend: PajaRelayBackend,
   getSimulation: () => PajaSimulation,
   signerProvider?: PajaSignerProvider,
-): (pubkey: string) => Promise<NostrEvent[]> {
-  return async (pubkey: string): Promise<NostrEvent[]> => {
-    if (!/^[0-9a-fA-F]{64}$/.test(pubkey)) return [];
-    const candidates = await (contactListCandidateQueries.get(backend) ?? backend.query.bind(backend))(
-      await getBootstrapRelayUrls(getSimulation, signerProvider), [{
-        kinds: [PAJA_CONTACT_LIST_KIND],
-        authors: [pubkey],
-        limit: PAJA_CONTACT_LIST_CANDIDATE_LIMIT,
-      }], PAJA_LIVE_QUERY_WAIT_MS,
-    );
+): (pubkey: string, signal?: AbortSignal) => Promise<NostrEvent[]> {
+  return async (pubkey: string, signal?: AbortSignal): Promise<NostrEvent[]> => {
+    if (!/^[0-9a-fA-F]{64}$/.test(pubkey) || signal?.aborted) return [];
+    const relayUrls = await getBootstrapRelayUrls(getSimulation, signerProvider);
+    if (signal?.aborted) return [];
+    const filters = [{
+      kinds: [PAJA_CONTACT_LIST_KIND],
+      authors: [pubkey],
+      limit: PAJA_CONTACT_LIST_CANDIDATE_LIMIT,
+    }];
+    const contactQuery = contactListCandidateQueries.get(backend);
+    const candidates = contactQuery
+      ? await contactQuery(relayUrls, filters, PAJA_LIVE_QUERY_WAIT_MS, signal)
+      : await backend.query(relayUrls, filters, PAJA_LIVE_QUERY_WAIT_MS);
+    if (signal?.aborted) return [];
     return candidates
       .filter((event) => event.kind === PAJA_CONTACT_LIST_KIND && event.pubkey.toLowerCase() === pubkey.toLowerCase())
       .sort((left, right) => right.created_at - left.created_at || left.id.localeCompare(right.id))
