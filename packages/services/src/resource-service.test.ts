@@ -91,6 +91,43 @@ describe('createResourceService', () => {
     expect(svc.descriptor.version).toBe('1.0.0');
   });
 
+  it('serves a verifier-produced blob only to its exact URL, window, and identity', async () => {
+    const opts = makeOpts();
+    const svc = createResourceService(opts) as ReturnType<typeof createResourceService> & {
+      grantVerifiedResource(grant: {
+        windowId: string;
+        identity: { dTag: string; aggregateHash: string };
+        url: string;
+        blob: Blob;
+        mime: string;
+      }): void;
+    };
+    const verifiedUrl = 'https://cdn.example/verified.bin';
+    svc.grantVerifiedResource({
+      windowId: WINDOW_ID,
+      identity: { dTag: DTAG, aggregateHash: HASH },
+      url: verifiedUrl,
+      blob: new Blob([new Uint8Array([0, 1, 2, 3, 254, 255])]),
+      mime: 'application/octet-stream',
+    });
+    const owner = collectSent();
+    svc.handleMessage(WINDOW_ID, { type: 'resource.bytes', id: 'verified-owner', url: verifiedUrl } as NappletMessage, owner.send);
+    await flushPromises();
+    expect(opts.fetch).not.toHaveBeenCalled();
+    expect(owner.sent[0]).toMatchObject({ type: 'resource.bytes.result', id: 'verified-owner', mime: 'application/octet-stream' });
+
+    const otherWindow = collectSent();
+    svc.handleMessage('other-window', { type: 'resource.bytes', id: 'verified-other', url: verifiedUrl } as NappletMessage, otherWindow.send);
+    await flushPromises();
+    expect(otherWindow.sent[0]).toMatchObject({ type: 'resource.bytes.error', error: 'blocked-by-policy' });
+
+    svc.onWindowDestroyed?.(WINDOW_ID);
+    const destroyed = collectSent();
+    svc.handleMessage(WINDOW_ID, { type: 'resource.bytes', id: 'verified-destroyed', url: verifiedUrl } as NappletMessage, destroyed.send);
+    await flushPromises();
+    expect(destroyed.sent[0]).toMatchObject({ type: 'resource.bytes.error', error: 'blocked-by-policy' });
+  });
+
   // ─── (d) ungranted origin: denied, fetch never called ─────────────────────
   it('(d) resource.bytes for ungranted origin emits bytes.error code=denied; fetch NOT called', async () => {
     const opts = makeOpts();

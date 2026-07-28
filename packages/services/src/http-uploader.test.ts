@@ -217,6 +217,56 @@ describe('createHttpUploader', () => {
       ]);
     });
 
+    it('uses only a host-produced stored-byte proof for its standard NIP-94 result', async () => {
+      const verifyBlossomStoredBlob = vi.fn(async () => ({
+        url: 'https://cdn.test/verified.bin',
+        sha256: SHA,
+        size: 8,
+        mimeType: 'application/octet-stream',
+      }));
+      const uploader = createHttpUploader({
+        rails: { blossom: { servers: ['https://blossom.test'] } },
+        signEvent: signer(),
+        fetch: vi.fn(async () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            url: 'https://forged.test/descriptor.bin',
+            sha256: SHA,
+            size: 8,
+            type: 'text/plain',
+            uploaded: 1,
+            nip94: [['url', 'https://forged.test/descriptor.bin'], ['m', 'text/plain']],
+          }),
+        }) as unknown as Response) as unknown as typeof fetch,
+        digestSha256: DIGEST,
+        now: NOW,
+        verifyBlossomStoredBlob,
+      });
+
+      const result = await uploader.upload({ rail: 'blossom', data: new ArrayBuffer(8), mimeType: 'application/octet-stream' }, ctx());
+
+      expect(verifyBlossomStoredBlob).toHaveBeenCalledWith(expect.objectContaining({
+        url: 'https://forged.test/descriptor.bin',
+        sha256: SHA,
+        size: 8,
+        descriptorMimeType: 'text/plain',
+      }));
+      expect(result).toMatchObject({
+        ok: true,
+        url: 'https://cdn.test/verified.bin',
+        mimeType: 'application/octet-stream',
+        sha256: SHA,
+        size: 8,
+      });
+      expect(result.nip94).toEqual([
+        ['url', 'https://cdn.test/verified.bin'],
+        ['m', 'application/octet-stream'],
+        ['x', SHA],
+        ['size', '8'],
+      ]);
+    });
+
     it.each([
       ['missing hash', { url: 'https://blossom.test/blob', size: 8 }, /sha256/i],
       ['mismatched hash', { url: 'https://blossom.test/blob', sha256: OX, size: 8 }, /mismatched sha256/i],
