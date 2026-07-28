@@ -31,7 +31,7 @@
 - [ ] **v1.26: NAP-SERIAL Runtime Parity** - 1 phase (98), 6 requirements, PR #74 open
 - [ ] **v1.27: NAP-BLE Runtime Parity** - 1 phase (99), 6 requirements, PR #75 open
 - [x] **v1.28: NAP-WEBRTC Runtime Parity** - 1 phase (100), 6 requirements, PR #76 open
-- [ ] **v1.29: Napplet Convention and Runtime Conformance** - 6/6 phases complete (101-106), 49 requirements, PR #204 ready for maintainer review; milestone archival and release remain pending
+- [x] **v1.29: Napplet Convention and Runtime Conformance** - 6/6 phases complete (101-106), 49 requirements, PR #204 merged, seven-package npm/JSR release published and downstream-verified; archival remains pending
 
 ---
 
@@ -88,7 +88,7 @@ final host integration wait for mutually compatible convention-capable
 - [x] **Phase 103: Identity and Theme Wire Parity** - identity and theme services use only contract-shaped result and change behavior.
 - [x] **Phase 104: NAP-INTENT and Manifest Contract Parity** - resolve authoritative convention URIs through verified contracts and retain carrier-neutral delivery independently of source lifetime. (completed 2026-07-26)
 - [x] **Phase 105: Published Convention Adoption and Host Flows** - consume released Napplet contracts and prove intent, profile, resource, and theme behavior in Paja and playground. (completed 2026-07-27)
-- [x] **Phase 106: Active-Surface Conformance and Release** - prove the complete migration, regression health, and release readiness. (completed 2026-07-27)
+- [x] **Phase 106: Active-Surface Conformance and Release** - prove the complete migration and regression health, then close publication with exact-main, registry, and downstream evidence. (release published 2026-07-28)
 
 ## Phase Details
 
@@ -336,6 +336,13 @@ users rely on.
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 106-03-PLAN.md — Run final release gates, preserve exact changesets, and make existing PR #204 green and mergeable.
+
+**Post-phase publication follow-up (2026-07-28):** PRs #204, #209, #210, and
+#211 merged; exact `main` SHA `54ef2ead03ee0c37783727468b8658b6dc224137`
+passed CI and Pages; Release #30350331202 published all seven intended versions
+to npm and JSR; a clean Paja/core/nap consumer install, ESM import, and bundle
+smoke passed. This evidence is separate from the earlier Plan 106-03
+PR-readiness endpoint.
 
 ## Progress
 

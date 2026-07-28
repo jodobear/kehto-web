@@ -21,18 +21,18 @@ current_phase_name: Active-Surface Conformance and Release
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-27)
+See: .planning/PROJECT.md (updated 2026-07-28)
 
 **Core value:** Modular, framework-agnostic runtime for hosting napplet applications.
-**Current focus:** v1.29 milestone closeout and maintainer review of PR #204
+**Current focus:** v1.29 publication complete; milestone archival and the separate Phase 105 UI-debt follow-up remain
 
 ## Current Position
 
 Phase: 106 (Active-Surface Conformance and Release) — COMPLETE
 Plan: 3 of 3
-Status: All v1.29 phases complete — ready for milestone completion
+Status: All v1.29 phases complete — seven-package npm/JSR release published and downstream-verified
 
-Last activity: 2026-07-27 — Phase 106 complete
+Last activity: 2026-07-28 — Phase 106 publication gap closed
 
 ## Performance Metrics
 
@@ -139,8 +139,7 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ### Blockers/Concerns
 
-- PR #204 remains intentionally unmerged. Version Packages metadata, exact-main release verification, tagging, and publishing have not been performed.
-- Phase 105's 12/24 desktop/mobile UI audit remains non-passing post-merge debt owned by Kehto maintainers; it is not visual sign-off for PR #204.
+- Phase 105's 12/24 desktop/mobile UI audit remains non-passing post-merge debt owned by Kehto maintainers; it is not visual sign-off for the released package line.
 
 ### Quick Tasks Completed
 
@@ -216,18 +215,18 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 | 260723-cvz | Diagnose and document Paja dev-mode opaque-origin CORS failure blocking napplet module scripts | 2026-07-23 | 0af445b | Verified | [260723-cvz-fix-paja-dev-mode-napplet-load-failure-c](./quick/260723-cvz-fix-paja-dev-mode-napplet-load-failure-c/) |
 | 260724-czo | Inject a full Class-1 CSP into verified srcdoc loaders | 2026-07-24 | d3d966a | Verified | [260724-czo-inject-a-full-class-1-csp-into-verified-](./quick/260724-czo-inject-a-full-class-1-csp-into-verified-/) |
 | 260726-g8r | Update AGENTS.md to require Kehto worktrees under ~/.worktrees/kehto | 2026-07-26 | 683018b | Verified | [260726-g8r-update-agents-md-to-require-kehto-worktr](./quick/260726-g8r-update-agents-md-to-require-kehto-worktr/) |
+| 260728-fv2 | Record completed Phase 106 npm and JSR publication and downstream proof | 2026-07-28 | bec8074 | Verified | [260728-fv2-record-completed-phase-106-npm-and-jsr-p](./quick/260728-fv2-record-completed-phase-106-npm-and-jsr-p/) |
 
 ## Session Continuity
 
-Last session: 2026-07-27T19:01:59Z
-Stopped at: Phase 106 complete; v1.29 ready for milestone completion
+Last session: 2026-07-28T10:24:00Z
+Stopped at: Phase 106 package line published and downstream-verified
 Resume file: None
 
 ## Operator Next Steps
 
-- Review and merge PR #204 through branch protection when maintainers are ready.
+- Archive the completed v1.29 milestone when maintainers are ready.
 - Track the Phase 105 12/24 UI findings as a separately scoped post-merge follow-up.
-- After merge, let the generated Version Packages PR run its release-metadata guard, verify the exact target `main` SHA, then tag or dispatch `release.yml` through the protected release process.
 
 ### Key Context for v1.22 (Phases 90–94)
 
@@ -327,6 +326,7 @@ Authoritative parity source inspected 2026-06-21: `/home/sandwich/Develop/napple
 - [Phase ?]: Phase 106 active scans explicitly separate current guidance from historical records.
 - [Phase ?]: Focused browser evidence records all five real-shell protocol flow classes; mandatory skips or failures block release readiness.
 - [Phase ?]: Phase 105's 12/24 desktop/mobile UI audit remains visible non-blocking protocol-release debt owned by Kehto maintainers.
-- [Phase ?]: Plan 106-02 ends at PR #204 readiness evidence; merge, versioning, exact-main CI, tag, and publishing remain unexecuted release-process steps.
+- [Phase ?]: At its original task boundary, Plan 106-02 ends at PR #204 readiness evidence; merge, versioning, exact-main CI, tag, and publishing were then-unexecuted release-process steps.
 - [Phase ?]: Phase 106 release readiness requires local gates plus exact-SHA CI before PR #204 can be called merge-ready.
 - [Phase ?]: Phase 105 UI audit remains explicit non-blocking Kehto-maintainer follow-up debt, not a visual pass.
+- [Phase ?]: The post-Phase-106 publication follow-up is distinct from the original PR-readiness boundary and is complete only with exact-main CI/Pages, successful npm/JSR publishing, direct registry metadata, and a clean downstream install/import/build.

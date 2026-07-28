@@ -5,6 +5,13 @@ status: passed
 score: 13/13 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
+publication_followup:
+  status: passed
+  verified: 2026-07-28T10:24:00Z
+  release_source_sha: 54ef2ead03ee0c37783727468b8658b6dc224137
+  release_run: 30350331202
+  registry_packages: 7/7
+  downstream_smoke: passed
 re_verification:
   previous_status: gaps_found
   previous_score: 12/13
@@ -29,7 +36,27 @@ human_verification:
 **Status:** passed
 **Re-verification:** Yes — after PR-head gap closure
 
-## Goal Achievement
+## Post-merge publication follow-up
+
+The original 13/13 report verified Phase 106's deliberately bounded
+PR-readiness goal. In particular, original truth 13 proved that the Phase 106
+execution had stopped before external release mutations; it was not evidence
+that registry publication had occurred. The authorized post-merge release is
+now verified separately:
+
+| # | Publication truth | Status | Evidence |
+| --- | --- | --- | --- |
+| P1 | The source, closeout, Version Packages, and release-gate repair PRs are merged. | ✓ VERIFIED | PRs #204, #210, #209, and #211 report `MERGED`; their merge commits are `b85db51`, `c3cc7f2`, `4eafa05`, and `54ef2ea`, respectively. |
+| P2 | The exact release source passed the required main and Pages gates. | ✓ VERIFIED | CI #30299386244 and Pages #30299386308 both succeeded on `54ef2ead03ee0c37783727468b8658b6dc224137`; CI includes build, type-check, docs, Vitest, and Playwright, while Pages includes artifact audit and deployment. |
+| P3 | The protected release published through both registries. | ✓ VERIFIED | Release #30350331202 succeeded on the exact source SHA; npm OIDC publishing and topologically ordered JSR publishing both completed successfully. |
+| P4 | All seven intended public versions expose the Napplet 0.29 compatibility line. | ✓ VERIFIED | Direct npm and JSR queries report acl 0.16.0, cli 0.3.0, firewall 0.4.0, Paja 0.9.0, runtime 0.19.0, services 0.17.0, and shell 0.18.0. npm peers use `>=0.29.0 <0.30.0`; published JSR mappings use `^0.29.0` where the Napplet contracts are imported directly. |
+| P5 | A public downstream consumer can install and build against the released line. | ✓ VERIFIED | A fresh npm project installed `@kehto/paja@latest`, `@napplet/core@latest`, and `@napplet/nap@latest` as 0.9.0/0.29.0/0.29.0 without peer errors; ESM import and a 182,507-byte Node esbuild bundle passed. |
+
+**Publication score:** 5/5 truths verified. No Phase 106 package-publication
+gap remains. The Phase 105 12/24 UI audit remains non-passing debt and is
+unaffected by this release result.
+
+## Original PR-readiness goal achievement
 
 ### Observable Truths
 
