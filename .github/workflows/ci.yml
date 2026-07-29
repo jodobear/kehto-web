@@ -51,6 +51,20 @@ jobs:
           node scripts/classify-ci-changes.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --github-output "$GITHUB_OUTPUT" --json
           echo "CI scope reason: $(grep '^reason=' "$GITHUB_OUTPUT" | cut -d= -f2-)"
 
+      - name: Reject Napplet dependency version decreases
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          BASE_SHA="${PR_BASE_SHA:-$PUSH_BEFORE_SHA}"
+          HEAD_SHA="${PR_HEAD_SHA:-$GITHUB_SHA}"
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            echo "No predecessor SHA available; dependency direction check skipped."
+            exit 0
+          fi
+          node scripts/check-napplet-dependency-direction.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
+
   build:
     name: Build & Type-Check
     needs: [change_scope]
