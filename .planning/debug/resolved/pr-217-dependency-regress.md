@@ -2,7 +2,7 @@
 status: resolved
 trigger: "PR #217 went in the wrong direction by changing packages back to older versions. Read all GitHub comments, identify what we did wrong, why we regressed, whether we misunderstood Napplet philosophy, required fixes, and prevention."
 created: 2026-07-29
-updated: 2026-07-29T17:00:48Z
+updated: 2026-07-29T17:05:52Z
 ---
 
 # Debug Session: PR #217 dependency-direction regression
@@ -19,8 +19,8 @@ updated: 2026-07-29T17:00:48Z
 
 - hypothesis: RESOLVED. The reconstructed PR #217 preserves the focused social-cache delta on current contracts and CI now rejects base-to-head `@napplet/*` dependency regressions.
 - test: Original stale-head comparison reproduced 112 decreases and failed the guard; reconstructed head has no package manifest, lockfile, or JSR metadata diff and passes local/live checks.
-- expecting: The planning-only archive diff contains exactly this resolved session and its knowledge-base entry; PR #217 stays open for maintainer re-review and is not merged.
-- next_action: Validate the two-file planning-only diff, stage those exact paths, commit and push the archive record, then post the requested factual PR comment.
+- expecting: The planning-only archive is pushed and PR #217 remains open without a merge. The requested factual re-review comment is not posted because the available GitHub token lacks `addComment` permission.
+- next_action: Append the exact GitHub API authorization blocker to Evidence and Resolution, commit/push that planning-only session update, then remove only the clean repair-temporary reconstruction worktree while preserving all refs.
 
 ## Evidence
 
@@ -328,6 +328,10 @@ updated: 2026-07-29T17:00:48Z
   observation: The resolved-session entry, including prevention branches and the verified recurrence guard, was appended to the durable planning knowledge base. MemPalace indexing is skipped because planning configuration sets `mempalace.enabled: false`.
   source: `.planning/debug/knowledge-base.md`; `gsd-tools query state.load`
 
+- timestamp: 2026-07-29T17:05:52Z
+  observation: The requested concise factual PR #217 comment requesting maintainer re-review could not be posted. GitHub rejected `gh pr comment` with `GraphQL: Resource not accessible by personal access token (addComment)`; no comment, review request, or merge action was created.
+  source: `gh pr comment 217 --repo kehto/web`
+
 ## Eliminated
 
 - hypothesis: The Paja social-cache feature intrinsically requires old @napplet package versions or a custom public protocol surface.
@@ -352,6 +356,7 @@ updated: 2026-07-29T17:00:48Z
     guardrail_verdict: accepted
     remote_ci: pass (Build & Type-Check, Vitest, Playwright, scope, and changeset checks)
     human_verification: pass (independent audit confirmed the current-main rewrite, zero dependency rollback, guard addition, and green CI)
+    maintainer_rereview_comment: blocked (GitHub token lacks `addComment`: `GraphQL: Resource not accessible by personal access token (addComment)`)
 - files_changed:
     - .changeset/paja-standard-nap-social-cache.md
     - .github/workflows/ci.yml
