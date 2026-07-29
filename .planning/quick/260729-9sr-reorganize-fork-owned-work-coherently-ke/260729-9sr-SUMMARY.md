@@ -67,6 +67,7 @@ status: complete
 - Every path in `BASE_TIP..EXTRACTION_TIP` begins `.planning/`; no implementation, test, package, changeset, published-document, or Graphify path entered the branch.
 - The saved pre-extraction worktree manifest retained every prior stanza, HEAD/branch or detached state, and lock metadata; only `/workspace/projects/kehto/v129-planning-only` was added.
 - Direct origin checks matched all captured remote-tracking values before extraction, including the D-01 cleanup OID.
+- The planning-scoped source-to-final path comparison is exactly `.planning/STATE.md` and this summary. A literal unscoped comparison also shows source-only implementation paths omitted by the clean local-main branch; that result is inherent to the required planning-only extraction, while the local-main baseline diff has zero paths outside `.planning/`.
 
 ## Task Commits
 
@@ -86,7 +87,7 @@ status: complete
 ### Scope-preserving verification exception
 
 - **Found during:** Task 2
-- **Issue:** The source `.planning` snapshot already contains trailing whitespace in twelve Markdown lines. `git diff --check BASE_TIP..EXTRACTION_TIP` therefore reports inherited findings.
+- **Issue:** The source `.planning` snapshot already contains trailing whitespace in eleven Markdown lines. `git diff --check BASE_TIP..EXTRACTION_TIP` therefore reports inherited findings.
 - **Resolution:** Preserved the snapshot byte-for-byte, because changing the whitespace would violate the task's required initial tree equality. The path-scope and source-tree equality proofs passed.
 - **Impact:** No source, test, runtime, dependency, or configuration path was changed. The inherited formatting findings remain in the copied planning record.
 
