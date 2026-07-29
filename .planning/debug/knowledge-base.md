@@ -47,3 +47,17 @@ Resolved debug sessions. Used by `gsd-debugger` to surface known-pattern hypothe
   - **Data branch:** Full restoration proof depends on preserving raw terminal-NUL argv/environment sequences and their pre-base64 SHA-256 method, not merely process arguments rendered as text.
   - **AND gate:** Yes — valid completion requires both an E2E pass with 4173 vacant and a later exact Writer restoration that leaves the Paja/5173 chain unchanged.
 ---
+
+## pr-217-typecheck — Synthetic PR merge combined incompatible test-contract halves
+- **Date:** 2026-07-29
+- **Error patterns:** TS2741, hasCapability missing, ServiceRuntimeContext fixture, synthetic pull-request merge, type-check
+- **Root cause(s):** PR #217 added required `ServiceRuntimeContext.hasCapability` while its actual base retained a three-method test fixture. GitHub pull-request CI type-checks the synthetic base-plus-head merge, where the base fixture and PR contract combined into TS2741; both the code-contract change and merge-checkout configuration were required.
+- **Fix:** Fast-forward-pushed content-preserving reconciliation merge `fd2615dd` that makes base `4fd4affd` an ancestor while retaining the type-complete PR tree. GitHub regenerated a byte-identical synthetic merge and all required checks passed.
+- **Files changed:** none; Git history only (`fd2615dd` content-preserving reconciliation merge)
+- **Why not caught:** GitHub's synthetic-merge type-check correctly caught the failure after PR creation, but local head-only type-checking and review had no pre-push gate that constructed the actual base-plus-head integration tree.
+- **Recurrence guard:** Knowledge-base pattern `pr-217-typecheck`: when a PR makes a runtime interface field required, type-check the actual GitHub synthetic merge ref or a clean no-commit merge of the exact PR base and head before accepting head-only local checks. The existing GitHub Build & Type-Check synthetic-merge job remains the authoritative integration gate.
+- **Prevention:**
+  - **Code branch:** Independently valid base fixtures and PR interface changes can form an invalid contract only when merged; trace the exact fixture owner and interface declaration in both parents.
+  - **Config branch:** `pull_request` checkout semantics use GitHub's synthetic merge rather than the fork head; reproduce that topology when local validation must predict CI.
+  - **AND gate:** Yes — the diagnostic required both the base's obsolete fixture and the PR's new required contract; ancestry reconciliation eliminated their incompatible combination without weakening either.
+---
