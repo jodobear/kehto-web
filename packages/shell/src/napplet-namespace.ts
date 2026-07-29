@@ -160,12 +160,18 @@ function nappletNamespacePrelude(domains: string[]): void {
     post(message);
   }
 
+  function isConventionTopic(topic: string): boolean {
+    const pathEnd = topic.search(/[?#]/);
+    const path = pathEnd === -1 ? topic : topic.slice(0, pathEnd);
+    return /^napplet:[^/?#]+\/[^/?#]+$/.test(path);
+  }
+
   function normalizeConventionUri(
     topic: unknown,
     hasExplicitPayload: boolean,
   ): { topic: string; payload?: Record<string, string> } {
     if (typeof topic !== 'string') throw new TypeError('INC topic must be text');
-    if (!topic.startsWith('napplet:')) return { topic };
+    if (!isConventionTopic(topic)) return { topic };
     if (topic.includes('#')) throw new TypeError('Convention topics cannot contain fragments');
     const queryStart = topic.indexOf('?');
     if (queryStart === -1) {
@@ -175,7 +181,7 @@ function nappletNamespacePrelude(domains: string[]): void {
       throw new TypeError('Convention queries cannot be combined with an explicit payload');
     }
 
-    const values: Record<string, string> = {};
+    const entries: Array<[string, string]> = [];
     const names = new Set<string>();
     const query = topic.slice(queryStart + 1);
     if (query) {
@@ -194,10 +200,10 @@ function nappletNamespacePrelude(domains: string[]): void {
         }
         if (names.has(name)) throw new TypeError('Convention query names must be unique');
         names.add(name);
-        values[name] = value;
+        entries.push([name, value]);
       }
     }
-    return { topic: topic.slice(0, queryStart), payload: values };
+    return { topic: topic.slice(0, queryStart), payload: Object.fromEntries(entries) };
   }
 
   function resultOrError(msg: RuntimeMessage): Record<string, unknown> {
@@ -402,7 +408,7 @@ function nappletNamespacePrelude(domains: string[]): void {
 
     function stableSubscriptionTopic(topic: unknown): string {
       if (typeof topic !== 'string') throw new TypeError('INC topic must be text');
-      if (topic.includes('?') || topic.includes('#')) {
+      if (isConventionTopic(topic) && (topic.includes('?') || topic.includes('#'))) {
         throw new TypeError('INC subscriptions require a queryless topic identity');
       }
       return topic;
