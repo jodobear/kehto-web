@@ -1,9 +1,9 @@
 ---
 schema_version: 1
-open_count: 20
+open_count: 22
 waived_count: 0
-fixed_count: 7
-total_count: 27
+fixed_count: 10
+total_count: 32
 last_updated: 2026-07-27T11:14:53.368Z
 ---
 
@@ -42,6 +42,11 @@ last_updated: 2026-07-27T11:14:53.368Z
 | 25 | 105 | deviation | tests/e2e/paja-single-window.spec.ts |  | Canonical INC reload assertion fails after target replacement; deferred outside Plan 105-07 pointer lifecycle scope. | fixed |  | 2026-07-27T10:18:12.404Z | 2026-07-27T10:25:54.201Z |
 | 26 | 105 | deviation | tests/unit/sdk-migration-guard.test.ts |  | Excluded generated dependency directories from classified active-source evidence. | open |  | 2026-07-27T11:14:53.294Z |  |
 | 27 | 105 | deviation | tests/unit/sdk-migration-guard.test.ts |  | Made guard classification assertions test declarations rather than their own literals. | open |  | 2026-07-27T11:14:53.368Z |  |
+| 28 | 102 | todo | packages/services/src/identity-service.test.ts | 384 | Pre-existing TODO(12-10) leaves ACL denial coverage at a service-shape assertion rather than runtime integration. | open |  | 2026-07-24T14:10:32.364Z |  |
+| 29 | 102 | deviation | packages/paja/src/browser-social-cache.ts |  | Added per-filter limits to cached OUTBOX profile additions. | fixed |  | 2026-07-24T14:21:35.716Z | 2026-07-24T14:22:01.268Z |
+| 30 | 102 | deviation | packages/paja/src/browser-social-cache.ts |  | Used Corepack because pnpm is absent from the executor PATH. | fixed |  | 2026-07-24T14:21:35.777Z | 2026-07-24T14:22:01.327Z |
+| 31 | 102 | deviation | .planning/STATE.md |  | Corrected plan-decision phase labels emitted by the state helper. | fixed |  | 2026-07-24T14:21:35.836Z | 2026-07-24T14:22:01.390Z |
+| 32 | 102 | deviation | docs/packages/firewall.md | 22 | Repository docs audit is blocked by the pre-existing @kehto/firewall 0.3.9 row while its manifest is 0.3.10. | open |  | 2026-07-24T16:20:25.749Z |  |
 
 ````json
 [
@@ -367,6 +372,66 @@ last_updated: 2026-07-27T11:14:53.368Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-07-27T11:14:53.368Z",
+    "resolved_at": null
+  },
+  {
+    "id": 28,
+    "kind": "todo",
+    "phase": "102",
+    "file": "packages/services/src/identity-service.test.ts",
+    "line": 384,
+    "description": "Pre-existing TODO(12-10) leaves ACL denial coverage at a service-shape assertion rather than runtime integration.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-07-24T14:10:32.364Z",
+    "resolved_at": null
+  },
+  {
+    "id": 29,
+    "kind": "deviation",
+    "phase": "102",
+    "file": "packages/paja/src/browser-social-cache.ts",
+    "line": null,
+    "description": "Added per-filter limits to cached OUTBOX profile additions.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-07-24T14:21:35.716Z",
+    "resolved_at": "2026-07-24T14:22:01.268Z"
+  },
+  {
+    "id": 30,
+    "kind": "deviation",
+    "phase": "102",
+    "file": "packages/paja/src/browser-social-cache.ts",
+    "line": null,
+    "description": "Used Corepack because pnpm is absent from the executor PATH.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-07-24T14:21:35.777Z",
+    "resolved_at": "2026-07-24T14:22:01.327Z"
+  },
+  {
+    "id": 31,
+    "kind": "deviation",
+    "phase": "102",
+    "file": ".planning/STATE.md",
+    "line": null,
+    "description": "Corrected plan-decision phase labels emitted by the state helper.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-07-24T14:21:35.836Z",
+    "resolved_at": "2026-07-24T14:22:01.390Z"
+  },
+  {
+    "id": 32,
+    "kind": "deviation",
+    "phase": "102",
+    "file": "docs/packages/firewall.md",
+    "line": 22,
+    "description": "Repository docs audit is blocked by the pre-existing @kehto/firewall 0.3.9 row while its manifest is 0.3.10.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-07-24T16:20:25.749Z",
     "resolved_at": null
   }
 ]
