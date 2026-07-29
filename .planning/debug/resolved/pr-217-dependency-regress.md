@@ -2,7 +2,7 @@
 status: resolved
 trigger: "PR #217 went in the wrong direction by changing packages back to older versions. Read all GitHub comments, identify what we did wrong, why we regressed, whether we misunderstood Napplet philosophy, required fixes, and prevention."
 created: 2026-07-29
-updated: 2026-07-29T17:05:52Z
+updated: 2026-07-29T17:06:58Z
 ---
 
 # Debug Session: PR #217 dependency-direction regression
@@ -19,8 +19,8 @@ updated: 2026-07-29T17:05:52Z
 
 - hypothesis: RESOLVED. The reconstructed PR #217 preserves the focused social-cache delta on current contracts and CI now rejects base-to-head `@napplet/*` dependency regressions.
 - test: Original stale-head comparison reproduced 112 decreases and failed the guard; reconstructed head has no package manifest, lockfile, or JSR metadata diff and passes local/live checks.
-- expecting: The planning-only archive is pushed and PR #217 remains open without a merge. The requested factual re-review comment is not posted because the available GitHub token lacks `addComment` permission.
-- next_action: Append the exact GitHub API authorization blocker to Evidence and Resolution, commit/push that planning-only session update, then remove only the clean repair-temporary reconstruction worktree while preserving all refs.
+- expecting: The resolved session and knowledge base are pushed on the planning-only branch; PR #217 remains open and unmerged. The requested comment remains blocked only by the token's missing `addComment` permission.
+- next_action: Commit/push this final cleanup record, then report completion with the exact PR-comment authorization blocker and preserved-source-worktree status.
 
 ## Evidence
 
@@ -331,6 +331,10 @@ updated: 2026-07-29T17:05:52Z
 - timestamp: 2026-07-29T17:05:52Z
   observation: The requested concise factual PR #217 comment requesting maintainer re-review could not be posted. GitHub rejected `gh pr comment` with `GraphQL: Resource not accessible by personal access token (addComment)`; no comment, review request, or merge action was created.
   source: `gh pr comment 217 --repo kehto/web`
+
+- timestamp: 2026-07-29T17:06:58Z
+  observation: Removed only `/workspace/projects/kehto/pr-217-current-contract-reconstruction`, the clean repair-temporary worktree created for this session and positively identified in its evidence. The local reconstruction branch/ref and all source, probe, audit, planning, and active agent worktrees were preserved.
+  source: clean worktree status at `fix/pr-217-current-contract-reconstruction` head `5a1cd985`; `git worktree remove`; post-removal `git worktree list --porcelain`
 
 ## Eliminated
 
