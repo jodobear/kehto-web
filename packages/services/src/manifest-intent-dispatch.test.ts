@@ -18,6 +18,7 @@ function runtime(): ServiceRuntimeContext {
   return {
     resolveDTag: () => 'feed',
     listWindowIds: () => Object.freeze([]),
+    hasCapability: () => false,
     sendToEligibleNapplet: () => false,
   };
 }
