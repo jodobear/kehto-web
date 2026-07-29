@@ -8,11 +8,12 @@
  * These tests cover the service registry lifecycle that remains functional.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { NappletMessage } from '@napplet/core';
 import { createRuntime } from './runtime.js';
 import type { Runtime } from './runtime.js';
-import { createMockRuntimeAdapter } from './test-utils.js';
-import type { MockRuntimeContext, SentMessage } from './test-utils.js';
+import { createMockRuntimeAdapter, createNip5dSessionEntry, findEnvelopeResponse } from './test-utils.js';
+import type { MockRuntimeContext } from './test-utils.js';
 import type { ServiceHandler } from './types.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -46,15 +47,54 @@ describe('service registry lifecycle', () => {
   });
 
   it('registerService adds a service to the registry', () => {
-    runtime.registerService('notifications', createMockServiceHandler('notifications', '2.0.0'));
-    // Registering should not throw and service is available for dispatch
-    expect(true).toBe(true);
+    const serviceCalls = vi.fn();
+    const envelope = {
+      type: 'keys.registerAction',
+      id: 'registered-action',
+      action: { id: 'editor.save', label: 'Save' },
+    } as NappletMessage;
+    runtime.sessionRegistry.register(
+      WINDOW_ID,
+      createNip5dSessionEntry(WINDOW_ID, 'discovery-napp', 'a'.repeat(64)),
+    );
+    runtime.registerService('keys', {
+      descriptor: { name: 'keys', version: '1.0.0' },
+      handleMessage: serviceCalls,
+    });
+
+    runtime.handleMessage(WINDOW_ID, envelope);
+
+    expect(serviceCalls).toHaveBeenCalledWith(WINDOW_ID, envelope, expect.any(Function));
+    expect(findEnvelopeResponse(ctx.sent, 'keys.registerAction.result')).toBeUndefined();
   });
 
   it('unregisterService removes a service from the registry', () => {
-    runtime.registerService('notifications', createMockServiceHandler('notifications', '2.0.0'));
-    runtime.unregisterService('notifications');
-    expect(true).toBe(true);
+    const onUnregistered = vi.fn();
+    const serviceCalls = vi.fn();
+    const envelope = {
+      type: 'keys.registerAction',
+      id: 'unregistered-action',
+      action: { id: 'editor.save', label: 'Save' },
+    } as NappletMessage;
+    runtime.sessionRegistry.register(
+      WINDOW_ID,
+      createNip5dSessionEntry(WINDOW_ID, 'discovery-napp', 'a'.repeat(64)),
+    );
+    runtime.registerService('keys', {
+      descriptor: { name: 'keys', version: '1.0.0' },
+      handleMessage: serviceCalls,
+      onUnregistered,
+    });
+    runtime.unregisterService('keys');
+
+    runtime.handleMessage(WINDOW_ID, envelope);
+
+    expect(onUnregistered).toHaveBeenCalledOnce();
+    expect(serviceCalls).not.toHaveBeenCalled();
+    expect(findEnvelopeResponse(ctx.sent, 'keys.registerAction.result')).toMatchObject({
+      id: 'unregistered-action',
+      actionId: 'editor.save',
+    });
   });
 
   it('unregisterService is a no-op for unknown service names', () => {
@@ -64,12 +104,34 @@ describe('service registry lifecycle', () => {
   });
 
   it('registering a service twice replaces the old handler', () => {
-    const handler1 = createMockServiceHandler('audio', '1.0.0');
-    const handler2 = createMockServiceHandler('audio', '2.0.0');
-    runtime.registerService('audio', handler1);
-    runtime.registerService('audio', handler2);
-    // No throw expected
-    expect(true).toBe(true);
+    const originalDetached = vi.fn();
+    const originalCalls = vi.fn();
+    const replacementCalls = vi.fn();
+    const envelope = {
+      type: 'keys.registerAction',
+      id: 'replacement-action',
+      action: { id: 'editor.save', label: 'Save' },
+    } as NappletMessage;
+    runtime.sessionRegistry.register(
+      WINDOW_ID,
+      createNip5dSessionEntry(WINDOW_ID, 'discovery-napp', 'a'.repeat(64)),
+    );
+    runtime.registerService('keys', {
+      descriptor: { name: 'keys', version: '1.0.0' },
+      handleMessage: originalCalls,
+      onUnregistered: originalDetached,
+    });
+    runtime.registerService('keys', {
+      descriptor: { name: 'keys', version: '2.0.0' },
+      handleMessage: replacementCalls,
+    });
+
+    runtime.handleMessage(WINDOW_ID, envelope);
+
+    expect(originalDetached).toHaveBeenCalledOnce();
+    expect(originalCalls).not.toHaveBeenCalled();
+    expect(replacementCalls).toHaveBeenCalledWith(WINDOW_ID, envelope, expect.any(Function));
+    expect(ctx.sent).toHaveLength(0);
   });
 
   it('onWindowDestroyed is called on destroyWindow when handler implements it', () => {

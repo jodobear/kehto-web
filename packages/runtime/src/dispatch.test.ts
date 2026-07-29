@@ -1384,13 +1384,56 @@ describe('NIP-5D Envelope Dispatch', () => {
       expect(event).toBeUndefined();
     });
 
-    it('registerService() and unregisterService() are functional', () => {
-      runtime.registerService('test-service', {
-        descriptor: { name: 'test-service', version: '1.0.0' },
-        handleMessage() { /* no-op */ },
+    it('routes registered keys handlers and falls back after unregistration', () => {
+      const serviceCalls = vi.fn();
+      runtime.registerService('keys', {
+        descriptor: { name: 'keys', version: '1.0.0' },
+        handleMessage(windowId, message, send) {
+          serviceCalls(windowId, message, send);
+          const request = message as NappletMessage & {
+            id: string;
+            action: { id: string };
+          };
+          send({
+            type: 'keys.registerAction.result',
+            id: request.id,
+            actionId: request.action.id,
+            binding: 'Custom+S',
+          } as NappletMessage);
+        },
       });
-      runtime.unregisterService('test-service');
-      expect(true).toBe(true);
+      const registeredRequest = {
+        type: 'keys.registerAction',
+        id: 'registered-handler',
+        action: { id: 'editor.save', label: 'Save' },
+      } as NappletMessage;
+
+      runtime.handleMessage(WINDOW_ID, registeredRequest);
+
+      expect(serviceCalls).toHaveBeenCalledWith(WINDOW_ID, registeredRequest, expect.any(Function));
+      expect(findEnvelopeResponse(ctx.sent, 'keys.registerAction.result')).toEqual({
+        type: 'keys.registerAction.result',
+        id: 'registered-handler',
+        actionId: 'editor.save',
+        binding: 'Custom+S',
+      });
+
+      runtime.unregisterService('keys');
+      ctx.sent.length = 0;
+      const fallbackRequest = {
+        type: 'keys.registerAction',
+        id: 'fallback-handler',
+        action: { id: 'editor.open', label: 'Open' },
+      } as NappletMessage;
+
+      runtime.handleMessage(WINDOW_ID, fallbackRequest);
+
+      expect(serviceCalls).toHaveBeenCalledTimes(1);
+      expect(findEnvelopeResponse(ctx.sent, 'keys.registerAction.result')).toEqual({
+        type: 'keys.registerAction.result',
+        id: 'fallback-handler',
+        actionId: 'editor.open',
+      });
     });
 
     it('registerConsentHandler() does not throw', () => {
