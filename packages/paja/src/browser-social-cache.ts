@@ -42,11 +42,9 @@ interface SocialSnapshot {
   readonly profiles: Map<string, RelayEventResult>;
 }
 
-// Authority recorded in 102-IMPLEMENTATION-NOTE.md: NAP-IDENTITY
-// 6461e4b37c29dc09a20dff35d9515889c4433874 is byte-identical to recorded
-// master. Pinned NAP-OUTBOX 4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e plus
-// installed @napplet/nap@0.29.0 types govern under upstream drift; this makes
-// no current-master OUTBOX conformance claim.
+// Authority: NAP-IDENTITY master 5ac0490 and NAP-OUTBOX draft PR #32
+// 4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e. Outbox remains draft-scoped,
+// so this implementation makes no current-master OUTBOX conformance claim.
 const HEX_PUBKEY = /^[0-9a-f]{64}$/i;
 /** Bounds synchronous follow-tag processing before yielding to the event loop. */
 const FOLLOW_PARSE_YIELD_EVERY = 64;
