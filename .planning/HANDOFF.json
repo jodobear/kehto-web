@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-30T22:17:03.042Z",
+  "phase": "103",
+  "phase_name": "paja-blossom-rail-poc",
+  "phase_dir": ".planning/phases/103-paja-blossom-rail-poc",
+  "plan": 6,
+  "task": 3,
+  "total_tasks": 3,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "Run full Phase 103 gates and enforce focused scope", "status": "done", "commit": "2bc4dc39"},
+    {"id": 2, "name": "Choose upstream NAP-UPLOAD feedback form", "status": "done"},
+    {"id": 3, "name": "Submit selected focused upstream feedback", "status": "done", "progress": "Comment posted manually at https://github.com/napplet/naps/pull/33#issuecomment-5136360580; planning closeout remains"}
+  ],
+  "remaining_tasks": [
+    {"id": 4, "name": "Update 103-06 summary, STATE, ROADMAP, verify phase closeout, commit and push planning-only branch", "status": "not_started"}
+  ],
+  "blockers": [
+    {"description": "PR #217 still awaits maintainer re-review", "type": "external", "workaround": "Development continues from origin/integration/v1.29-pr217-pinned@b004f203; repin after merge"},
+    {"description": "Phase 104 Writer work requires explicit user approval", "type": "human_action", "workaround": "Do not edit Writer source until approval and dedicated branch setup"}
+  ],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {"action": "Maintainer re-review PR #217", "context": "All technical checks pass; old CHANGES_REQUESTED review remains", "blocking": false},
+    {"action": "Explicitly approve Phase 104 Writer plan before Writer source edits", "context": "Milestone execution gate", "blocking": true}
+  ],
+  "decisions": [
+    {"decision": "Keep origin/main as exact upstream mirror and develop from integration/v1.29-pr217-pinned until PR #217 merges", "rationale": "Avoid blocking Phase 103 while retaining clean resync path", "phase": "103"},
+    {"decision": "Use focused PR #33 comment rather than draft schema PR", "rationale": "Document interoperability gap without prematurely defining normative wire format", "phase": "103"},
+    {"decision": "Fork milestone identity is fork-v1.29-paja-social-blossom", "rationale": "Avoid collision with upstream's unrelated v1.29 milestone", "phase": "103"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Verify PR #33 comment, update 103-06-SUMMARY.md to complete with comment URL, update STATE.md and ROADMAP.md to close Phase 103, run phase verification, commit and push docs/v1.29-planning-only.",
+  "context_notes": "Source branch 2bc4dc39 and integration pin b004f203 passed full gates including AI-slop 100/100 and Playwright. main refs are synced at 3a4d71a8. Never replay stale PR trees or downgrade current @napplet contracts."
+}
