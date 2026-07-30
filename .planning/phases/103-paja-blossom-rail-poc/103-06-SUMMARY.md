@@ -18,10 +18,10 @@ decisions:
   - "Kehto is pinned-draft aligned only; no current-master NAP conformance claim."
   - "User selected a focused PR #33 comment rather than a normative draft schema PR."
 metrics:
-  tasks_completed: 2
+  tasks_completed: 3
   tasks_total: 3
   completed: 2026-07-31
-status: blocked-auth
+status: complete
 ---
 
 # Phase 103 Plan 06: Release Evidence Summary
@@ -32,33 +32,17 @@ Task 1 revalidated the focused Phase 103 source contribution at `2bc4dc39d304832
 
 | Task | Result | Commit |
 | --- | --- | --- |
-| 1. Full gates and scope audit | Complete; all required local evidence is green. | pending planning-worktree commit |
+| 1. Full gates and scope audit | Complete; all required local evidence is green. | `2bc4dc39` source tip verified |
 | 2. Upstream feedback form | Complete; user selected `comment`. | no repository change |
-| 3. Submit selected feedback | Blocked by GitHub comment authorization. | no repository change |
+| 3. Submit selected feedback | Complete; focused implementation feedback posted. | [PR #33 comment](https://github.com/napplet/naps/pull/33#issuecomment-5136360580) |
 
-## Upstream Feedback Decision and Authentication Gate
+## Upstream Feedback Outcome
 
-The selected form is a focused PR #33 comment. The live PR remains open at `https://github.com/napplet/naps/pull/33`, head `a7cc17463cbf5d9cb87884b31071bc4fc826034c`.
+A concise implementation-feedback comment was posted to `napplet/naps` PR #33:
 
-Posting was attempted with `gh pr comment 33 --repo napplet/naps --body ...` and was refused before creating a comment:
+https://github.com/napplet/naps/pull/33#issuecomment-5136360580
 
-```text
-GraphQL: Resource not accessible by personal access token (addComment)
-```
-
-No external feedback artifact was created. The unrelated most-recent existing comment remains `https://github.com/napplet/naps/pull/33#issuecomment-4803690992`; it is not Phase 103 feedback.
-
-Paste-ready Markdown after authenticating a GitHub token with PR comment permission:
-
-```markdown
-Phase 103 Kehto upload-rail feedback (pinned authority checked: NAP-UPLOAD `a7cc17463cbf5d9cb87884b31071bc4fc826034c`; NAP-RESOURCE `fa6bcc6935aa19e7b70ab2a2c721dafca77c78e1`; NAP-BLOSSOM `ca1d7ba594e6790785dc770227085d8648d39631`; NAP-SHELL `a7cc17463cbf5d9cb87884b31071bc4fc826034c`).
-
-Kehto has a verified Paja Blossom upload rail that attempts only configured servers, sequentially in configured order. It returns the first verified success through the existing `url` field and later verified successes in `fallbackUrls`. Per-server network, rejection, malformed-descriptor, and stored-byte-proof outcomes remain host-only diagnostics; napplets receive only the current standard result fields.
-
-The implementation and focused/full release gates are green, including browser coverage and a 100/100 AI-slop scan. The remaining interoperability gap is that the current draft result shape cannot represent one structured outcome and machine-readable error code for every attempted replica, particularly where some replicas fail while another succeeds.
-
-This is feedback on the gap, not a proposed final schema: Kehto ships no new field and remains aligned only with the pinned drafts above. The current master tree does not contain these draft paths, so this is not a current-master conformance claim. A future NAP-UPLOAD discussion could decide whether and how to represent per-attempt outcomes while preserving the existing `url` and `fallbackUrls` behavior.
-```
+The comment explains the verified configured-order Blossom replication behavior, the existing `url` and `fallbackUrls` mapping, host-only per-server diagnostics, and the remaining inability to represent structured per-attempt outcomes. It explicitly avoids proposing a final schema or claiming current-master conformance.
 
 ## Source Route and Scope
 
@@ -112,7 +96,7 @@ The literal Corepack invocation exposed an inherited environment issue: Turbo ch
    - **Issue:** `corepack pnpm` launched Turbo, docs, and Playwright child processes without a discoverable `pnpm` binary.
    - **Fix:** Re-ran the exact release chain with the pre-existing `/tmp/kehto-pnpm-shim` on `PATH`.
    - **Files modified:** None.
-   - **Commit:** pending this evidence commit.
+   - **Commit:** recorded in the Phase 103 planning closeout commit.
 
 ## Known Stubs
 

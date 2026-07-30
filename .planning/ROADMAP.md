@@ -98,7 +98,7 @@ Plans:
   1. A controlled integration fixture that requests `upload.upload` with `rail: "blossom"` receives only standard NAP-UPLOAD statuses while Paja selects the server, obtains consent, signs kind-24242 authorization, transfers bytes, applies policy, and validates the returned descriptor.
   2. The fixture can obtain preview bytes through standard `resource.bytes` after a successful upload, while no custom Paja API, direct relay/HTTP/WebSocket access, `window.nostr`, private-key access, or napplet-side Blossom authorization is available.
 
-**Plans**: 5/6 plans executed
+**Plans**: 6/6 plans executed
 
 **Wave 1**
 
@@ -119,7 +119,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 103-06-PLAN.md — Run full release gates, enforce focused contribution scope, and route user-approved NAP-UPLOAD feedback upstream.
+- [x] 103-06-PLAN.md — Run full release gates, enforce focused contribution scope, and route user-approved NAP-UPLOAD feedback upstream.
 
 ### Phase 104: Approved Writer Integration
 
@@ -175,7 +175,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 101. Baseline & Writer Contribution Preflight | 0/1 | Not started | - |
 | 102. Paja Standard-NAP Social PoC | 4/4 | Complete | 2026-07-28 |
-| 103. Paja Blossom Rail PoC | 5/6 | In Progress|  |
+| 103. Paja Blossom Rail PoC | 6/6 | Complete | 2026-07-31 |
 | 104. Approved Writer Integration | 0/TBD | Blocked pending explicit user approval | - |
 | 105. Session, Profile, Resource & Upload Hardening | 0/TBD | Not started | - |
 | 106. Cross-Repository Browser Proof & PR Readiness | 0/TBD | Not started | - |

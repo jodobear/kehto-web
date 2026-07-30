@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: fork-v1.29-paja-social-blossom
 milestone_name: Paja Social Cache + Writer Blossom PoC
-current_phase: 103
-current_phase_name: paja-blossom-rail-poc
-status: executing
-stopped_at: context exhaustion at 75% (2026-07-28)
-last_updated: "2026-07-29T01:47:00Z"
-last_activity: 2026-07-29
-last_activity_desc: Published planning-only extraction record; Phase 103 remains blocked
+current_phase: 104
+current_phase_name: approved-writer-integration
+status: blocked
+stopped_at: Phase 103 complete; awaiting explicit Writer approval for Phase 104
+last_updated: "2026-07-30T22:31:32.821Z"
+last_activity: 2026-07-31
+last_activity_desc: Completed and verified Phase 103 on pinned PR #217 integration
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 11
-  completed_plans: 9
-  percent: 17
+  completed_plans: 10
+  percent: 33
 ---
 
 # Project State
@@ -24,16 +24,16 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-07-24)
 
 **Core value:** Provide a modular, framework-agnostic runtime for hosting napplet applications.
-**Current focus:** Phase 103 — paja-blossom-rail-poc
+**Current focus:** Phase 104 — approved-writer-integration (blocked pending explicit approval)
 
 ## Current Position
 
-Phase: 103 (paja-blossom-rail-poc) — EXECUTING
-Plan: 6 of 6
-Status: Plan 103-06 blocked at mandatory AI-slop 85/100 gate
-Last activity: 2026-07-29 — Planning-only extraction recorded; Phase 103 final plan remains blocked
+Phase: 104 (approved-writer-integration) — BLOCKED
+Plan: 0 of TBD
+Status: Phase 103 complete and verified; Phase 104 requires explicit Writer approval and dedicated branch setup
+Last activity: 2026-07-31 — Completed Phase 103 on pinned PR #217 integration and posted NAP-UPLOAD feedback
 
-Progress: [████████░░] 82%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -93,8 +93,11 @@ Progress: [████████░░] 82%
 - [Phase 102 revalidation]: Final post-review gates pass at `81185b45`: build, type-check, 1,605 unit tests, docs, focused tests, AI-slop no-regression, and Chromium 80 passed / 1 skipped.
 - [Phase 102 final review]: Recheck source-bound `identity:read` after awaited base OUTBOX work, isolate each author warm failure, and abort superseded live contact-list reads; independent re-review found no surviving defect.
 - [Phase 102 publication]: Focused 19-path contribution opened as kehto/web PR #217 at `81185b45`; planning, Graphify output, Writer work, generated artifacts, and Blossom scope remain excluded.
-- [Phase 103]: Pause Plan 103-06 rather than broaden the focused contribution; resume only after PR #217 and a separate runtime AI-slop cleanup are merged, then deliberately rebase and revalidate. — Mandatory 100/100 gate conflicts with four inherited unrelated runtime warnings; D-26 forbids absorbing that cleanup into Phase 103.
-- [Quick 260729-9sr]: Preserve the mixed planning history at `82b4238b` and use the fork-owned `docs/fork-v1.29-paja-social-blossom-planning-only` branch, rooted at local main `15822032`, for planning-only publication. The initial extraction `.planning` tree is exactly `a4ba8a7a`.
+- [Phase 103]: Continue without waiting for PR #217 by pinning `origin/integration/v1.29-pr217-pinned@b004f203`; rebase only the Phase 103 suffix onto that pin and repin after PR #217 eventually merges.
+- [Phase 103]: Full source gates pass at `feat/103-paja-blossom-rail@2bc4dc39`: build, type-check, 1,577 unit tests, docs, focused/full Playwright, dependency-direction guard, whitespace, and AI-slop 100/100.
+- [Phase 103]: Keep configured-order replica diagnostics host-private and use existing `url`/`fallbackUrls`; document the per-attempt structured-outcome gap through focused PR #33 feedback rather than adding a custom field or premature normative schema.
+- [Phase 103]: Phase result is pinned-draft aligned against NAP-UPLOAD `a7cc174`, NAP-RESOURCE `fa6bcc6`, NAP-BLOSSOM `ca1d7ba`, and NAP-SHELL `a7cc174`; make no current-master conformance claim.
+- [Quick 260729-9sr]: Preserve the mixed planning history at `82b4238b` and use the fork-owned `docs/v1.29-planning-only` branch for planning-only publication; source work remains on focused topic branches.
 
 ### Pending Todos
 
@@ -105,8 +108,7 @@ None yet.
 - Phase 104 is explicitly blocked pending user approval of the Writer plan and Writer remote/upstream-baseline setup.
 - Current Writer shortcut WIP is unrelated, dirty, local-only, ahead of `master`, and has no remote; never absorb, discard, or mix it into the Writer integration branch.
 - The real Writer/Paja browser journey is the acceptance target; a controlled fixture is only a focused PoC aid.
-- Plan 103-06 mandatory AI-slop gate is blocked at inherited 85/100: four unrelated runtime tautological-test warnings must be fixed outside the focused Phase 103 contribution or the plan quality requirement must be revised.
-- Cleanup PR creation remains blocked on GitHub PR authentication. No cleanup PR was attempted here; later cleanup and stack continuation must use fork-owned topic branches only.
+- PR #217 remains under maintainer review. This does not block fork development because the verified integration pin `b004f203` is the active base; repin after merge.
 
 ## Deferred Items
 
@@ -118,9 +120,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-28T23:45:48.766Z
-Stopped at: context exhaustion at 75% (2026-07-28)
-Resume file: .planning/phases/103-paja-blossom-rail-poc/103-06-BLOCKER.md
+Last session: 2026-07-31
+Stopped at: Phase 103 complete; Phase 104 blocked pending explicit Writer approval
+Resume file: none
 
 ## Fork integration continuation
 
