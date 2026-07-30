@@ -1,0 +1,37 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-30T23:22:35.097Z",
+  "phase": "104",
+  "phase_name": "approved-writer-integration",
+  "phase_dir": ".planning/phases/104-approved-writer-integration",
+  "plan": 0,
+  "task": 0,
+  "total_tasks": 0,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "Complete and verify Phase 103 Paja Blossom rail", "status": "done", "commit": "2bc4dc39"},
+    {"id": 2, "name": "Synchronize fork and local main with upstream", "status": "done", "commit": "3a4d71a8"},
+    {"id": 3, "name": "Establish dedicated PR #217 integration pin", "status": "done", "commit": "b004f203"}
+  ],
+  "remaining_tasks": [
+    {"id": 1, "name": "Execute Phase 101 Writer preflight and approval plan", "status": "not_started"},
+    {"id": 2, "name": "Discuss and plan Phase 104 after explicit Writer approval", "status": "blocked"}
+  ],
+  "blockers": [
+    {"description": "Phase 104 requires explicit Writer integration approval and dedicated branch setup", "type": "human_action", "workaround": "Run Phase 101 preflight first"},
+    {"description": "PR #217 awaits maintainer re-review", "type": "external", "workaround": "Continue against integration/v1.29-pr217-pinned@b004f203"}
+  ],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {"action": "Review and explicitly approve Writer integration plan", "context": "Required before any Writer source edit", "blocking": true},
+    {"action": "Maintainer re-review PR #217", "context": "Technical CI is green; fork development is pinned and not blocked", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Keep local and fork main exact upstream mirrors", "rationale": "Avoid mixing unmerged feature work into main", "phase": "103"},
+    {"decision": "Build further work on dedicated integration/v1.29-pr217-pinned branch", "rationale": "Continue without waiting for PR #217 merge", "phase": "103"},
+    {"decision": "Keep planning on docs/v1.29-planning-only", "rationale": "Separate planning from implementation branches", "phase": "103"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Run /gsd-execute-phase 101 to complete Writer baseline/preflight and obtain explicit approval before Phase 104.",
+  "context_notes": "Main is clean and synced at 3a4d71a8. PR #217 stays on feat/paja-standard-nap-social-cache-current@5a1cd985. Integration pin b004f203 carries PR #217 on upstream; Phase 103 branch 2bc4dc39 is based on it and fully gated. Never put PR #217 commits on main."
+}
