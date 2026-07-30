@@ -1,7 +1,7 @@
 # Phase 103: Paja Blossom Rail PoC - Pattern Map
 
-**Mapped:** 2026-07-29  
-**Files analyzed:** 19 planned repository artifacts plus one external upstream follow-up  
+**Mapped:** 2026-07-29
+**Files analyzed:** 19 planned repository artifacts plus one external upstream follow-up
 **Analogs found:** 19 / 19 repository artifacts
 
 ## Scope, dependency, and authority checkpoint
@@ -356,7 +356,7 @@ Keep the eventual upstream contribution limited to Phase 103 implementation, tes
 
 ## Metadata
 
-**Graphify query used:** `graphify-out/graph.json`, queried for Paja browser upload/adapter, services upload/resource, runtime, shell, and E2E nodes; live-file reads above supersede graph data.  
-**Analog search scope:** `packages/paja/src`, `packages/services/src`, `packages/runtime/src`, `packages/shell/src`, `tests/e2e`, `docs`, `.changeset`, Phase 102 planning artifacts.  
-**Files scanned/read:** 22 source/test/doc/plan analogs plus CONTEXT.md, RESEARCH.md, VALIDATION.md, CLAUDE.md, and Graphify hints.  
+**Graphify query used:** `graphify-out/graph.json`, queried for Paja browser upload/adapter, services upload/resource, runtime, shell, and E2E nodes; live-file reads above supersede graph data.
+**Analog search scope:** `packages/paja/src`, `packages/services/src`, `packages/runtime/src`, `packages/shell/src`, `tests/e2e`, `docs`, `.changeset`, Phase 102 planning artifacts.
+**Files scanned/read:** 22 source/test/doc/plan analogs plus CONTEXT.md, RESEARCH.md, VALIDATION.md, CLAUDE.md, and Graphify hints.
 **Pattern extraction date:** 2026-07-29

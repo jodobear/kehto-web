@@ -1,7 +1,7 @@
 # Phase 102: Paja Standard-NAP Social PoC - Pattern Map
 
-**Mapped:** 2026-07-24  
-**Files analyzed:** 7 planned new/modified files  
+**Mapped:** 2026-07-24
+**Files analyzed:** 7 planned new/modified files
 **Analogs found:** 7 / 7
 
 ## Scope and Authority Boundaries
@@ -143,7 +143,7 @@ Use deterministic Nostr event factories, injected async seams, and spies. Do not
 **Identity-change and refresh assertion pattern** (lines 204-234):
 ```ts
 let listener: (() => void) | undefined;
-// ...construct runtime with subscribeSignerChange... 
+// ...construct runtime with subscribeSignerChange...
 await runtime.refreshIdentity();
 
 pubkey = 'b'.repeat(64);
@@ -482,6 +482,6 @@ None. The closest structural analog is Paja's private, generation-guarded upload
 
 **Graphify query used:** existing `graphify-out/graph.json`; expanded graph-vocabulary tokens: `paja`, `browser`, `adapter`, `identity`, `outbox`, `cache`, `relay`, `router`, `service`, `follows`. It identified the Paja adapter, relay runtime, identity/outbox services, relay-pool router, and browser host guard as the relevant code cluster.
 
-**Analog search scope:** `packages/paja/src`, `packages/services/src`, `packages/acl/src`, `graphify-out/graph.json`  
-**Files scanned/read:** 11 source/test analogs plus planning inputs  
+**Analog search scope:** `packages/paja/src`, `packages/services/src`, `packages/acl/src`, `graphify-out/graph.json`
+**Files scanned/read:** 11 source/test analogs plus planning inputs
 **Pattern extraction date:** 2026-07-24
