@@ -34,7 +34,7 @@
 
 ---
 
-## Active Milestone: v1.29 Paja Social Cache + Writer Blossom PoC
+## Active Milestone: fork-v1.29-paja-social-blossom Paja Social Cache + Writer Blossom PoC
 
 **Milestone Goal:** The real Writer napplet can use Paja's standard NAP identity/outbox path for followed-profile tagging and Paja's explicit Blossom upload rail for media, before those journeys are hardened and proven in a real browser.
 
@@ -54,7 +54,7 @@
 ### Phase 101: Baseline & Writer Contribution Preflight
 
 **Goal**: Maintainers have a safe, reviewable starting point for Kehto/Paja and Writer work without losing Writer's unrelated shortcut WIP.
-**Depends on**: Nothing (first phase of v1.29)
+**Depends on**: Nothing (first phase of fork-v1.29-paja-social-blossom)
 **Requirements**: PRE-01, PRE-02
 **Success Criteria** (what must be TRUE):
 
@@ -182,4 +182,4 @@ Plans:
 
 ---
 
-*ROADMAP.md last updated: 2026-07-24 — v1.29 roadmap created with Phases 101-106 and 21/21 requirements mapped.*
+*ROADMAP.md last updated: 2026-07-24 — fork-v1.29-paja-social-blossom roadmap created with Phases 101-106 and 21/21 requirements mapped.*

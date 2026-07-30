@@ -4,7 +4,7 @@ plan: 01
 subsystem: runtime-shell-session-security
 tags: [nap-shell, session-integrity, acl, firewall, nip-5d]
 requires:
-  - phase: v1.29 planning
+  - phase: fork-v1.29-paja-social-blossom planning
     provides: "Pinned NAP-SHELL lifecycle contract at napplet/naps@6461e4b"
 provides:
   - "A total runtime ingress gate requiring a NAP-SHELL session before any capability work"

@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Establish the smallest safe preflight needed to begin the v1.29 Paja and Writer work quickly: pin Kehto's upstream implementation baseline, classify the existing Writer branch and dirty shortcut WIP without changing it, and produce an executable Writer contribution plan with a hard approval checkpoint. This phase may create planning/audit artifacts in this Kehto fork. It does not implement Paja social/upload behavior and does not edit Writer source files.
+Establish the smallest safe preflight needed to begin the fork-v1.29-paja-social-blossom Paja and Writer work quickly: pin Kehto's upstream implementation baseline, classify the existing Writer branch and dirty shortcut WIP without changing it, and produce an executable Writer contribution plan with a hard approval checkpoint. This phase may create planning/audit artifacts in this Kehto fork. It does not implement Paja social/upload behavior and does not edit Writer source files.
 
 </domain>
 
@@ -58,7 +58,7 @@ Establish the smallest safe preflight needed to begin the v1.29 Paja and Writer 
 
 ### Phase scope and repository rules
 - `.planning/ROADMAP.md` — Phase 101 goal, PRE-01/PRE-02 ownership, dependencies, and success criteria.
-- `.planning/REQUIREMENTS.md` — frozen v1.29 requirements, Writer approval boundary, standard-NAP constraints, and PR exclusions.
+- `.planning/REQUIREMENTS.md` — frozen fork-v1.29-paja-social-blossom requirements, Writer approval boundary, standard-NAP constraints, and PR exclusions.
 - `.planning/PROJECT.md` — milestone goal, Paja/Writer scope, protocol pins, and contribution hygiene.
 - `.planning/STATE.md` — current phase position, preserved Writer WIP decision, blockers, and protocol-ref recheck requirement.
 - `AGENTS.md` — dirty-state protocol, branch/PR workflow, NAP conformance guardrails, verification gates, and explicit-path staging rules.
@@ -110,7 +110,7 @@ Establish the smallest safe preflight needed to begin the v1.29 Paja and Writer 
 ## Specific Ideas
 
 - User priority: stop discussion overhead and get Paja functionality plus the real Writer flow working as soon as safely possible.
-- Current Writer WIP is valuable unrelated shortcut/settings work, not disposable noise. Its paused checkpoint also records blocking shortcut-collision and placeholder-profile issues; those remain outside the clean milestone branch unless the v1.29 plan explicitly requires the corresponding profile/upload seam.
+- Current Writer WIP is valuable unrelated shortcut/settings work, not disposable noise. Its paused checkpoint also records blocking shortcut-collision and placeholder-profile issues; those remain outside the clean milestone branch unless the fork-v1.29-paja-social-blossom plan explicitly requires the corresponding profile/upload seam.
 - Kehto upstream baseline check on 2026-07-24 found `kehto/web/main` identical to local implementation commit `d4ba157`; Phase 101 should record this as a no-op rebase result rather than manufacture source churn.
 
 </specifics>

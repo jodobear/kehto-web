@@ -23,7 +23,7 @@ including the
 
 All four upstream PRs are open drafts and are not merged. PR #92 is stacked on
 #89. This audit treats
-their exact heads as the proposed contract requested for the v1.29 chase. It
+their exact heads as the proposed contract requested for the fork-v1.29-paja-social-blossom chase. It
 does not silently fill gaps or treat the draft text as a published package API.
 Every head must be re-fetched and this audit re-run before final dependency
 adoption or merge.

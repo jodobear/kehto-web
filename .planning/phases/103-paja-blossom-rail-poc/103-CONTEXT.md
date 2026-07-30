@@ -71,7 +71,7 @@ Writer source work, NIP-96 expansion, napplet-visible server choice, low-level N
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Phase scope and repository rules
-- `.planning/PROJECT.md` — v1.29 standard-NAP boundary, contribution hygiene, Writer approval gate, and pinned protocol refs.
+- `.planning/PROJECT.md` — fork-v1.29-paja-social-blossom standard-NAP boundary, contribution hygiene, Writer approval gate, and pinned protocol refs.
 - `.planning/REQUIREMENTS.md` — current UPLOAD-02/POC-02 ownership plus terminology and hardening placement that planning must re-scope.
 - `.planning/ROADMAP.md` — current Phase 103 goal/dependencies and Phase 102→103→104 ordering; PoC wording is superseded by this discussion and must be revised during planning.
 - `.planning/STATE.md` — current phase position, PR #217 dependency, and carried Writer/branch constraints.

@@ -1,11 +1,11 @@
-# Requirements: v1.29 Paja Social Cache + Writer Blossom PoC
+# Requirements: fork-v1.29-paja-social-blossom Paja Social Cache + Writer Blossom PoC
 
 **Defined:** 2026-07-24
 **Core Value:** Provide a modular, framework-agnostic runtime for hosting napplet applications — so any Nostr client can embed sandboxed mini-apps by integrating `@kehto/shell`.
 
 ## v1 Requirements
 
-Requirements for milestone v1.29. Planning lives on this fork's planning branch and merges only to the fork's `master`; planning artifacts never enter upstream implementation PRs. Implementation spans Kehto/Paja and, only after explicit user approval, `/workspace/projects/writer`. Each requirement maps to exactly one roadmap phase. Phase order must reconcile upstream/WIP first, produce a working PoC next, then refine and harden.
+Requirements for milestone fork-v1.29-paja-social-blossom. Planning lives on this fork's planning branch and merges only to the fork's `master`; planning artifacts never enter upstream implementation PRs. Implementation spans Kehto/Paja and, only after explicit user approval, `/workspace/projects/writer`. Each requirement maps to exactly one roadmap phase. Phase order must reconcile upstream/WIP first, produce a working PoC next, then refine and harden.
 
 ### Preflight and Contribution Hygiene
 
@@ -51,7 +51,7 @@ Requirements for milestone v1.29. Planning lives on this fork's planning branch 
 
 ## Future Requirements
 
-Deferred beyond v1.29 and excluded from this roadmap.
+Deferred beyond fork-v1.29-paja-social-blossom and excluded from this roadmap.
 
 ### Content-Addressed Blossom Reads
 
@@ -120,4 +120,4 @@ Every v1 requirement maps to exactly one roadmap phase.
 
 ---
 *Requirements defined: 2026-07-24*
-*Last updated: 2026-07-24 — v1.29 roadmap traceability assigned to Phases 101-106.*
+*Last updated: 2026-07-24 — fork-v1.29-paja-social-blossom roadmap traceability assigned to Phases 101-106.*

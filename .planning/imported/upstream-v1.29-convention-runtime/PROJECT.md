@@ -6,7 +6,7 @@
 
 Provide a modular, framework-agnostic runtime for hosting napplet applications — so any Nostr client can embed sandboxed mini-apps by integrating @kehto/shell.
 
-## Current Milestone: fork-v1.29-paja-social-blossom Napplet Convention and Runtime Conformance
+## Current Milestone: v1.29 Napplet Convention and Runtime Conformance
 
 **Goal:** Conform Kehto to `napplet/naps@6461e4b`: remove numbered cross-napplet negotiation, adopt `napplet:<archetype>/<intent>[...?params]` conventions, and close every active contract gap in NAP-SHELL, NAP-INTENT, NAP-INC, NAP-IDENTITY, and NAP-THEME.
 
@@ -66,7 +66,7 @@ This repo was extracted from the [@napplet monorepo](https://github.com/sandwich
 
 ## Current State
 
-**Status:** All six fork-v1.29-paja-social-blossom phases are complete and the current package line is
+**Status:** All six v1.29 phases are complete and the current package line is
 published. Corrective source PR #220 supplied the missing Changeset and merged
 as `9390eca7d294375e8330730c411ed5aef74a7a61`; generated Version Packages PR
 #221 merged as exact release source
@@ -294,10 +294,10 @@ v1.6 unblocked hyprgate v2.0 by closing 6 of 8 Kehto Migration gap-analysis issu
 | 38 | Static portal branding is progressive enhancement, not navigation infrastructure | v1.17 keeps real `/web/playground/` and `/web/docs/` anchors as the contract, then layers GSAP entrance/exit motion and liquid accent rendering on top. Reduced-motion and no-JS behavior must preserve direct navigation. | 2026-06-06 |
 | 38 | VitePress public base is a build cache input | `VITEPRESS_BASE=/web/docs/` changes generated asset URLs, so `turbo.json` includes it in `docs:build` env to prevent cached docs output from reusing an old base path. | 2026-05-23 |
 | 39 | Structural scanner closure must come from source decomposition, not threshold loosening | v1.16 proved the final clean `aislop` result with `.aislop/config.yml` unchanged from the milestone start commit. Future complexity-policy work should be explicit and separately justified. | 2026-05-24 |
-| 40 | fork-v1.29-paja-social-blossom conformance evidence classifies active surfaces separately from preserved history | Current source and guidance fail closed on obsolete protocol shapes, while archived planning, changesets, changelogs, migrations, and deliberate fixtures remain intact and non-authoritative. | 2026-07-27 |
-| 41 | fork-v1.29-paja-social-blossom release readiness ends at a green exact-SHA PR | PR #204 must match the locally reviewed head and have green required checks; merge, generated Version Packages metadata, exact-main verification, tagging, and publishing remain distinct maintainer actions. | 2026-07-27 |
+| 40 | v1.29 conformance evidence classifies active surfaces separately from preserved history | Current source and guidance fail closed on obsolete protocol shapes, while archived planning, changesets, changelogs, migrations, and deliberate fixtures remain intact and non-authoritative. | 2026-07-27 |
+| 41 | v1.29 release readiness ends at a green exact-SHA PR | PR #204 must match the locally reviewed head and have green required checks; merge, generated Version Packages metadata, exact-main verification, tagging, and publishing remain distinct maintainer actions. | 2026-07-27 |
 | 42 | The Phase 105 12/24 UI audit remains non-passing post-merge debt | The audit is acknowledged and owned by Kehto maintainers, but Phase 106 closes protocol/runtime conformance only and must not imply visual approval. | 2026-07-27 |
-| 43 | fork-v1.29-paja-social-blossom registry publication is a separate terminal proof after PR readiness | Release completion requires exact-main CI and Pages, successful npm/JSR workflow steps, direct registry metadata for all seven versions, and a clean downstream install/import/build; Release #30350331202 and the recorded consumer smoke provide that proof. | 2026-07-28 |
+| 43 | v1.29 registry publication is a separate terminal proof after PR readiness | Release completion requires exact-main CI and Pages, successful npm/JSR workflow steps, direct registry metadata for all seven versions, and a clean downstream install/import/build; Release #30350331202 and the recorded consumer smoke provide that proof. | 2026-07-28 |
 | 44 | Phase 106 publication must remain compatible with the current Napplet `latest` line | PR #211 had no package changeset and the former Kehto release accepted only Napplet 0.29. Corrective PR #220 added explicit eight-package release intent and canonical 0.31 adoption; Version Packages PR #221 plus Release #30389303760 published and downstream-verified the current line. | 2026-07-28 |
 
 ## Evolution
@@ -318,4 +318,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-28 after the Phase 106 publication follow-up — the fork-v1.29-paja-social-blossom package line is available on npm and JSR; the 12/24 UI audit remains explicit non-passing debt.*
+*Last updated: 2026-07-28 after the Phase 106 publication follow-up — the v1.29 package line is available on npm and JSR; the 12/24 UI audit remains explicit non-passing debt.*

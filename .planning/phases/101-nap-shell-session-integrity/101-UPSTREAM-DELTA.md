@@ -2,7 +2,7 @@
 
 > **Milestone-wide reference.** Phase 101 consumes the NAP-SHELL portions of
 > this document. NAP-INC, NAP-INTENT, archetype, host-flow, and release sections
-> are routed to Phases 102-106 by the active v1.29 roadmap and requirements.
+> are routed to Phases 102-106 by the active fork-v1.29-paja-social-blossom roadmap and requirements.
 
 > **Non-normative implementation audit.** The authoritative sources are
 > `napplet/naps` master at

@@ -56,7 +56,7 @@ status: complete
 ## Accomplishments
 
 - Captured the committed mixed planning source and local-main baseline under `refs/backup/260729-9sr/`, while mirroring every pre-existing backup ref under `refs/backup/260729-9sr/preexisting/`.
-- Created `/workspace/projects/kehto/v129-planning-only` on `docs/v1.29-planning-only` at `BASE_TIP` without repurposing any existing worktree.
+- Created `/workspace/projects/kehto/v129-planning-only` on `docs/fork-v1.29-paja-social-blossom-planning-only` at `BASE_TIP` without repurposing any existing worktree.
 - Restored the complete `.planning` subtree from `SOURCE_TIP` into one extraction commit. Both source and extraction resolve to initial tree `a4ba8a7a34b4d0fd2c14ddc082922596b5161b6b`.
 - Retained Phase 103's blocked state. No cleanup PR, upstream branch, upstream push, `origin/main` merge, or mixed-branch publication was attempted.
 
@@ -77,7 +77,7 @@ status: complete
 
 ## Decisions Made
 
-- Keep the source branch `docs/phase-101-preflight-context` as preserved recovery history; publish only `docs/v1.29-planning-only` from the local-main baseline.
+- Keep the source branch `docs/phase-101-preflight-context` as preserved recovery history; publish only `docs/fork-v1.29-paja-social-blossom-planning-only` from the local-main baseline.
 - D-01 remains in force: `origin/test/runtime-registry-assertions` must remain exactly `3866fbc041463a6de0c82bd325256a9e5ede189b`.
 - The cleanup PR remains separately blocked on GitHub PR authentication. This task does not create or attempt that PR.
 - Later cleanup and stack continuation must begin from fork-owned topic branches only, after the cleanup blocker is resolved; it must not repurpose this planning branch or alter protected refs/worktrees.
@@ -96,7 +96,7 @@ status: complete
 The only permitted remote write is the ordinary, non-force command:
 
 ```sh
-git push -u origin docs/v1.29-planning-only:refs/heads/docs/v1.29-planning-only
+git push -u origin docs/fork-v1.29-paja-social-blossom-planning-only:refs/heads/docs/fork-v1.29-paja-social-blossom-planning-only
 ```
 
 It must be issued only after the final source-to-final delta contains exactly this summary and `.planning/STATE.md`, every baseline delta path remains under `.planning/`, all protected refs/worktrees match their snapshots, and the returned origin head equals the final local tip. No upstream remote operation is authorized.

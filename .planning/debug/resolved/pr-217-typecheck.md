@@ -21,7 +21,7 @@ updated: 2026-07-29T11:03:22Z
 - hypothesis: Confirmed. The base fixture and PR-required `hasCapability` contract were incompatible only in GitHub's pull-request merge tree. Reconciliation merge `fd2615dd` retained the type-complete PR tree while making base `4fd4affd` an ancestor, preventing the obsolete three-method fixture from returning.
 - test: Reporter independently verified PR #217's exact head, mergeability, clean merge state, and all required checks in GitHub.
 - expecting: The independent GitHub result agrees with the self-verification and clears the human-verify checkpoint.
-- next_action: Verify the planning-only diff contains exactly the archived session and knowledge-base entry, then stage those paths explicitly, commit the artifacts, and push `docs/v1.29-planning-only`.
+- next_action: Verify the planning-only diff contains exactly the archived session and knowledge-base entry, then stage those paths explicitly, commit the artifacts, and push `docs/fork-v1.29-paja-social-blossom-planning-only`.
 - human_verification: "Confirmed fixed through independent GitHub verification: head fd2615dda1d08102a9fad8a70f38fdf7daba70e4; base 4fd4affd; state OPEN; mergeable MERGEABLE; mergeStateStatus CLEAN; Build & Type-Check, Vitest, Playwright, scope detection, and Changeset Guard pass in run 30444798619."
 - reasoning_checkpoint:
     hypothesis: "The automatic GitHub PR merge combines base `4fd4affd`'s three-method test fixture with the PR's required `hasCapability` contract; `fd2615dd` resolves this topology while preserving the PR source tree."

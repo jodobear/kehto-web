@@ -1,6 +1,6 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.29
+milestone: fork-v1.29-paja-social-blossom
 milestone_name: Paja Social Cache + Writer Blossom PoC
 current_phase: 103
 current_phase_name: paja-blossom-rail-poc
@@ -39,7 +39,7 @@ Progress: [████████░░] 82%
 
 **Velocity:**
 
-- Total plans completed: 0 (v1.29)
+- Total plans completed: 0 (fork-v1.29-paja-social-blossom)
 - Average duration: —
 - Total execution time: —
 
@@ -94,7 +94,7 @@ Progress: [████████░░] 82%
 - [Phase 102 final review]: Recheck source-bound `identity:read` after awaited base OUTBOX work, isolate each author warm failure, and abort superseded live contact-list reads; independent re-review found no surviving defect.
 - [Phase 102 publication]: Focused 19-path contribution opened as kehto/web PR #217 at `81185b45`; planning, Graphify output, Writer work, generated artifacts, and Blossom scope remain excluded.
 - [Phase 103]: Pause Plan 103-06 rather than broaden the focused contribution; resume only after PR #217 and a separate runtime AI-slop cleanup are merged, then deliberately rebase and revalidate. — Mandatory 100/100 gate conflicts with four inherited unrelated runtime warnings; D-26 forbids absorbing that cleanup into Phase 103.
-- [Quick 260729-9sr]: Preserve the mixed planning history at `82b4238b` and use the fork-owned `docs/v1.29-planning-only` branch, rooted at local main `15822032`, for planning-only publication. The initial extraction `.planning` tree is exactly `a4ba8a7a`.
+- [Quick 260729-9sr]: Preserve the mixed planning history at `82b4238b` and use the fork-owned `docs/fork-v1.29-paja-social-blossom-planning-only` branch, rooted at local main `15822032`, for planning-only publication. The initial extraction `.planning` tree is exactly `a4ba8a7a`.
 
 ### Pending Todos
 
@@ -112,12 +112,18 @@ None yet.
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| Content-addressed reads | `blossom:sha256` reads and low-level NAP-BLOSSOM operations | Future scope | v1.29 planning |
-| Social expansion | Profile editing, follows mutation, pagination, moderation, and per-author completeness | Future scope | v1.29 planning |
-| Upload expansion | Progress, user cancellation initiation, and multi-rail choice | Future scope | v1.29 planning |
+| Content-addressed reads | `blossom:sha256` reads and low-level NAP-BLOSSOM operations | Future scope | fork-v1.29-paja-social-blossom planning |
+| Social expansion | Profile editing, follows mutation, pagination, moderation, and per-author completeness | Future scope | fork-v1.29-paja-social-blossom planning |
+| Upload expansion | Progress, user cancellation initiation, and multi-rail choice | Future scope | fork-v1.29-paja-social-blossom planning |
 
 ## Session Continuity
 
 Last session: 2026-07-28T23:45:48.766Z
 Stopped at: context exhaustion at 75% (2026-07-28)
 Resume file: .planning/phases/103-paja-blossom-rail-poc/103-06-BLOCKER.md
+
+## Fork integration continuation
+
+- Active fork milestone: `fork-v1.29-paja-social-blossom` (Paja Social Cache + Writer Blossom PoC).
+- Pinned integration: `b004f20341d87b04bbb6e46ad293b4615108058b`; rebased Phase 103: `2bc4dc39d304832a354494eaef83dfb354131db6`; PR #217 remains pending review at `5a1cd985cbf05a31c1789aecf32a4bac4dc4d3c3`.
+- Upstream convention/runtime planning remains imported at `.planning/imported/upstream-v1.29-convention-runtime/` from `3a4d71a8f8860890cdcbf8fa25a11780fbe7a55f`.
