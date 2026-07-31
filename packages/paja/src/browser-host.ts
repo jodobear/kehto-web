@@ -17,7 +17,8 @@ import { type PajaSignerState } from './browser-signers.js';
 import {
   activateRuntimeTab, addRuntimeTab, closeRuntimeTab, getActiveTab,
   PAJA_RUNTIME_TABS_STORAGE_KEY, parseRuntimeTabsSnapshot, reloadActiveRuntimeTab,
-  renderRuntimeTabs, resolvedTargetKey, setEmptyStageVisible, showDuplicatePointerDialog,
+  projectActiveRuntimeTabLifecycle, renderRuntimeTabs, resolvedTargetKey,
+  setEmptyStageVisible, showDuplicatePointerDialog,
   snapshotRuntimeTabs, type PajaRuntimeTabsSnapshot, type PajaRuntimeTab,
   type PajaRuntimeTabContext, type PajaRuntimeTabRuntime,
 } from './browser-runtime-tabs.js';
@@ -207,8 +208,6 @@ function persistRuntimeTabs(state: PajaBrowserState): void {
 
 function setStatus(state: PajaBrowserState, status: PajaBrowserState['status']): void {
   state.status = status;
-  const statusEl = document.getElementById('lifecycle-status');
-  if (statusEl) statusEl.textContent = status;
 }
 
 function setLifecycleStatus(message: string): void {
@@ -423,6 +422,7 @@ async function loadRuntimePointer(
       if (choice === 'cancel') {
         context.pointerTargetSurface?.hide();
         setStatus(state, getActiveTab(state)?.status ?? 'ready');
+        projectActiveRuntimeTabLifecycle(state, context);
         setPointerStatus(state, `already running: ${duplicate.title}`);
         appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.duplicate.cancelled', tabId: duplicate.id });
         return;
@@ -691,6 +691,7 @@ async function installPajaHost(): Promise<void> {
         sourceTab.targetSurface.showReady({
           focusFrame: sourceTab.focusFrameOnReady && isActiveTab,
         });
+        projectActiveRuntimeTabLifecycle(state, context);
         sourceTab.focusFrameOnReady = false;
         sourceTab.frame.hidden = !isActiveTab;
       } else {
@@ -721,6 +722,7 @@ async function installPajaHost(): Promise<void> {
     else if (persistedTabs) void restorePersistedRuntimeTabs(state, context, persistedTabs);
     else {
       setStatus(state, 'ready');
+      setLifecycleStatus('No runtime loaded');
       setEmptyStageVisible(true);
       renderRuntimeTabs(state);
     }

@@ -73,7 +73,8 @@ describe('@kehto/paja runtime tabs', () => {
     expect(reload).toContain('tab.focusFrameOnReady = options.focusFrameOnReady === true;');
     expect(navigation).toContain('() => tab.generation === generation');
     expect(navigation).toContain('if (tab.generation !== generation) return;');
-    expect(navigation).toContain('handleRuntimeTabError(tab, state, context, error);');
+    expect(navigation).toContain('handleRuntimeTabError(tab, state, context, error, generation);');
+    expect(navigation).toContain('projectRuntimeTabLifecycle(tab, state, context, generation);');
     expect(navigation).not.toContain('renderTargetErrorHtml');
     expect(navigation).not.toContain('srcdoc =');
   });

@@ -40,6 +40,7 @@ export interface PajaRuntimeTab {
   surfaceHost: HTMLElement;
   targetSurface: PajaTargetSurface;
   focusFrameOnReady: boolean;
+  frameErrorHandler: (() => void) | null;
   generation: number;
   windowId: string | null;
   status: PajaRuntimeStatus;
@@ -195,6 +196,7 @@ export function activateRuntimeTab(
   if (input instanceof HTMLInputElement) input.value = tab.pointerValue;
   context.setPointerStatus(state, tab.pointerStatus);
   context.setStatus(state, tab.status);
+  projectRuntimeTabLifecycle(tab, state, context, tab.generation);
   context.setActiveTarget(tab);
   setEmptyStageVisible(false);
   for (const entry of state.tabs) {
@@ -231,6 +233,7 @@ export function closeRuntimeTab(
   state.pointerStatus = 'idle';
   context.setPointerStatus(state, 'idle');
   context.setStatus(state, 'ready');
+  context.setLifecycleStatus('No runtime loaded');
   setEmptyStageVisible(true);
   renderRuntimeTabs(state);
   context.setActiveTarget(null);
@@ -246,9 +249,7 @@ export function addRuntimeTab(
   const id = `tab-${state.generation}`;
   const title = resolvedTargetTitle(resolvedTarget);
   let tab!: PajaRuntimeTab;
-  const frame = createRuntimeTabFrame(id, title, pointerValue, () => {
-    handleRuntimeTabError(tab, state, context, new Error('Target frame failed to load.'));
-  });
+  const frame = createRuntimeTabFrame(id, title, pointerValue);
   const surfaceHost = document.createElement('section');
   surfaceHost.id = runtimeTabPanelId(id);
   surfaceHost.className = 'tab-panel';
@@ -263,7 +264,7 @@ export function addRuntimeTab(
     returnLabel: 'Back to target controls',
     onRetry: () => reloadActiveRuntimeTab(state, context, { focusFrameOnReady: true }),
     onReturn: context.focusPointerControl,
-    onLifecycleStatus: context.setLifecycleStatus,
+    onLifecycleStatus: () => {},
   });
   tab = {
     id,
@@ -276,6 +277,7 @@ export function addRuntimeTab(
     surfaceHost,
     targetSurface,
     focusFrameOnReady: false,
+    frameErrorHandler: null,
     generation: state.generation,
     windowId: null,
     status: 'booting',
@@ -485,6 +487,7 @@ function resolvedTargetTitle(target: PajaResolvedPointer): string {
 
 function destroyRuntimeTab(tab: PajaRuntimeTab, context: PajaRuntimeTabContext): void {
   destroyRuntimeTabSession(tab, context);
+  if (tab.frameErrorHandler) tab.frame.removeEventListener('error', tab.frameErrorHandler);
   tab.targetSurface?.destroy();
   tab.surfaceHost?.remove();
   tab.frame.remove();
@@ -505,7 +508,6 @@ function createRuntimeTabFrame(
   id: string,
   title: string,
   pointerValue: string,
-  onError: () => void,
 ): HTMLIFrameElement {
   const frame = document.createElement('iframe');
   frame.id = runtimeTabFrameId(id);
@@ -516,7 +518,6 @@ function createRuntimeTabFrame(
   frame.dataset.tabId = id;
   frame.dataset.targetUrl = pointerValue;
   frame.hidden = true;
-  frame.addEventListener('error', onError);
   return frame;
 }
 
@@ -525,12 +526,16 @@ function handleRuntimeTabError(
   state: PajaRuntimeTabState,
   context: PajaRuntimeTabContext,
   error: unknown,
+  generation: number,
 ): void {
+  if (tab.generation !== generation) return;
+  tab.frameErrorHandler = null;
   const focusRetry = tab.focusFrameOnReady && state.activeTabId === tab.id;
   tab.focusFrameOnReady = false;
   tab.status = 'error';
   tab.targetSurface.showError(error, { focusRetry });
   if (state.activeTabId === tab.id) context.setStatus(state, 'error');
+  projectRuntimeTabLifecycle(tab, state, context, generation);
   appendPajaMessageLog(state, 'paja', {
     type: 'paja.target.error',
     error: error instanceof Error ? error.message : String(error),
@@ -546,8 +551,15 @@ function startRuntimeTabNavigation(
   const generation = tab.generation;
   const navigationKind = tab.status === 'reloading' ? 'retry' : 'initial';
   tab.status = navigationKind === 'retry' ? 'reloading' : 'booting';
+  if (tab.frameErrorHandler) tab.frame.removeEventListener('error', tab.frameErrorHandler);
+  const handleFrameError = () => {
+    handleRuntimeTabError(tab, state, context, new Error('Target frame failed to load.'), generation);
+  };
+  tab.frameErrorHandler = handleFrameError;
+  tab.frame.addEventListener('error', handleFrameError, { once: true });
   tab.targetSurface.showLoading(navigationKind);
   if (state.activeTabId === tab.id) context.setStatus(state, tab.status);
+  projectRuntimeTabLifecycle(tab, state, context, generation);
   renderRuntimeTabs(state);
   void context.navigateFrame(
     tab.frame,
@@ -568,9 +580,39 @@ function startRuntimeTabNavigation(
     if (state.activeTabId === tab.id) context.runtime.currentWindowId = windowId;
   }).catch((error) => {
     if (tab.generation !== generation) return;
-    handleRuntimeTabError(tab, state, context, error);
+    tab.frame.removeEventListener('error', handleFrameError);
+    if (tab.frameErrorHandler === handleFrameError) tab.frameErrorHandler = null;
+    handleRuntimeTabError(tab, state, context, error, generation);
     console.error(error);
   });
+}
+
+export function projectActiveRuntimeTabLifecycle(
+  state: PajaRuntimeTabState,
+  context: PajaRuntimeTabContext,
+): void {
+  const tab = getActiveTab(state);
+  if (!tab) {
+    context.setLifecycleStatus('No runtime loaded');
+    return;
+  }
+  projectRuntimeTabLifecycle(tab, state, context, tab.generation);
+}
+
+function projectRuntimeTabLifecycle(
+  tab: PajaRuntimeTab,
+  state: PajaRuntimeTabState,
+  context: PajaRuntimeTabContext,
+  generation: number,
+): void {
+  if (state.activeTabId !== tab.id || tab.generation !== generation) return;
+  const message: Record<PajaRuntimeStatus, string> = {
+    booting: 'Loading target…',
+    reloading: 'Retrying target…',
+    ready: 'Target ready',
+    error: "Target couldn't load",
+  };
+  context.setLifecycleStatus(message[tab.status]);
 }
 
 function runtimeTabWindowId(config: PajaHostConfig, tab: PajaRuntimeTab): string {

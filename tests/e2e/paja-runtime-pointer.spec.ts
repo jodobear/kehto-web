@@ -341,20 +341,26 @@ test('completes a verified intent and delivers its convention once to a cold tar
     await expect(longPanel).toHaveAttribute('aria-labelledby', await longTrigger.getAttribute('id') ?? '');
     await expect(longPanel).toBeVisible();
     await expect(longPanel.locator('iframe')).toBeHidden();
+    await expect(page.locator('#lifecycle-status')).toHaveText('Loading target…');
     const loadingStatuses = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.map((tab) => tab.status));
     expect(loadingStatuses.filter((status) => status === 'ready')).toHaveLength(2);
     expect(loadingStatuses).toContain('booting');
+    await targetTrigger.click();
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
     await releaseHeldShellReady(page);
     await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
       .find((tab) => tab.title === title)?.status, longTitle), { timeout: 15_000 }).toBe('ready');
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
 
-    await expect(longPanel.locator('iframe')).toBeVisible();
     await longPanel.locator('iframe').evaluate((frame) => frame.dispatchEvent(new Event('error')));
     await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
       .find((tab) => tab.title === title)?.status, longTitle)).toBe('error');
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
     const errorStatuses = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.map((tab) => tab.status));
     expect(errorStatuses.filter((status) => status === 'ready')).toHaveLength(2);
     expect(errorStatuses).toContain('error');
+    await longTrigger.click();
+    await expect(page.locator('#lifecycle-status')).toHaveText("Target couldn't load");
     const longSurface = page.locator('.paja-target-surface:visible');
     await expect(longSurface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
     await expect(longPanel).toBeVisible();
@@ -363,9 +369,11 @@ test('completes a verified intent and delivers its convention once to a cold tar
     await longSurface.locator('.paja-target-retry').focus();
     await longSurface.locator('.paja-target-retry').press('Space');
     await expect(longSurface.locator('.paja-target-retry')).toBeDisabled();
+    await expect(page.locator('#lifecycle-status')).toHaveText('Retrying target…');
     await releaseHeldShellReady(page);
     await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
       .find((tab) => tab.title === title)?.status, longTitle), { timeout: 15_000 }).toBe('ready');
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
 
     await page.setViewportSize({ width: 375, height: 812 });
     await longTrigger.focus();
