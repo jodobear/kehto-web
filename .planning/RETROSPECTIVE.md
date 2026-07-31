@@ -487,7 +487,7 @@
 ## Milestone: v1.29 — Napplet Convention and Runtime Conformance
 
 **Shipped:** 2026-07-31
-**Phases:** 6 (101-106) | **Plans:** 47 | **Tasks:** 80 | **Requirements:** 49/49
+**Phases:** 6 (101-106) | **Plans:** 47 | **Tasks:** 89 | **Requirements:** 54/54
 
 ### What Was Built
 

@@ -4,7 +4,7 @@
 
 **Delivered:** Kehto now conforms to the convention-based Napplet runtime model across NAP-SHELL, NAP-INC, NAP-INTENT, NAP-IDENTITY, and NAP-THEME, with the Napplet 0.31-compatible package line published to npm and JSR and verified by a clean downstream Paja consumer.
 
-**Phases completed:** 6 phases (101-106), 47 plans, 80 tasks, 49 requirements.
+**Phases completed:** 6 phases (101-106), 47 plans, 89 tasks, 54 requirements.
 
 **Verification:** All six milestone phases report `passed`; exact-source CI, Pages, AI-slop, npm/JSR registry checks, and downstream install/import/build proof passed.
 

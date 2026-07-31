@@ -31,7 +31,7 @@
 - [ ] **v1.26: NAP-SERIAL Runtime Parity** - 1 phase (98), 6 requirements, PR #74 open
 - [ ] **v1.27: NAP-BLE Runtime Parity** - 1 phase (99), 6 requirements, PR #75 open
 - [x] **v1.28: NAP-WEBRTC Runtime Parity** - 1 phase (100), 6 requirements, PR #76 open
-- [x] **v1.29: Napplet Convention and Runtime Conformance** - 6 phases (101-106), 47 plans, 49 requirements; current Napplet 0.31-compatible package line published and downstream-verified ([archive](milestones/v1.29-ROADMAP.md) | [requirements](milestones/v1.29-REQUIREMENTS.md))
+- [x] **v1.29: Napplet Convention and Runtime Conformance** - 6 phases (101-106), 47 plans, 89 tasks, 54 requirements; current Napplet 0.31-compatible package line published and downstream-verified ([archive](milestones/v1.29-ROADMAP.md) | [requirements](milestones/v1.29-REQUIREMENTS.md))
 
 ## Current Position
 
