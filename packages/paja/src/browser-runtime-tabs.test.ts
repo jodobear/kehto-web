@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   createPajaShareUrl,
@@ -56,6 +56,38 @@ describe('@kehto/paja runtime tabs', () => {
     expect(runtimeTabGenerationId({ id: 'tab-3', generation: 8 })).toBe('tab-3:8');
   });
 
+  it('cancels a generation-scoped readiness deadline and settles an expiry only once', async () => {
+    vi.useFakeTimers();
+    try {
+      const runtimeTabs = await import('./browser-runtime-tabs.js') as Record<string, unknown>;
+      const factory = runtimeTabs.createRuntimeTabReadinessDeadline;
+      expect(factory).toBeTypeOf('function');
+      if (typeof factory !== 'function') return;
+      const createDeadline = factory as (
+        timeoutMs: number,
+        generation: number,
+        onTimeout: (generation: number) => void,
+      ) => { cancel(): void };
+      const expired: number[] = [];
+      const deadline = createDeadline(100, 7, (generation) => expired.push(generation));
+
+      await vi.advanceTimersByTimeAsync(99);
+      expect(expired).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      await vi.runAllTimersAsync();
+      expect(expired).toEqual([7]);
+
+      const cancelled = createDeadline(100, 8, (generation) => expired.push(generation));
+      cancelled.cancel();
+      cancelled.cancel();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(expired).toEqual([7]);
+      deadline.cancel();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('routes active-tab failure recovery through the existing generation-guarded reload', () => {
     const source = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
     const reload = source.slice(
@@ -74,6 +106,8 @@ describe('@kehto/paja runtime tabs', () => {
     expect(navigation).toContain('() => tab.generation === generation');
     expect(navigation).toContain('if (tab.generation !== generation) return;');
     expect(navigation).toContain('handleRuntimeTabError(tab, state, context, error, generation);');
+    expect(navigation).toContain('createRuntimeTabReadinessDeadline(');
+    expect(navigation).toContain('destroyRuntimeTabSession(tab, context);');
     expect(navigation).toContain('projectRuntimeTabLifecycle(tab, state, context, generation);');
     expect(navigation).not.toContain('renderTargetErrorHtml');
     expect(navigation).not.toContain('srcdoc =');

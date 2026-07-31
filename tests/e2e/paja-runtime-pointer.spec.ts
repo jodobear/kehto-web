@@ -299,6 +299,68 @@ test('recovers resolver and active-frame failures without duplicating verified t
   }
 });
 
+test('times out a never-ready verified runtime generation and ignores stale readiness before retry', async ({ page }) => {
+  test.setTimeout(30_000);
+  const server = await startPointerServer();
+  const target = createPointerFixture(
+    server.url,
+    'never-ready-target',
+    '<!doctype html><html><head><title>Never Ready Target</title></head><body>verified timeout target</body></html>',
+    ['shell'],
+  );
+  const relay = 'wss://never-ready-fixture.example';
+  server.blobs.set(target.hash, target.bytes);
+  const baseConfig = createPajaRuntimeHostConfig({ pointer: target.pointer, maxWaitMs: 2_000 });
+  server.setConfig({
+    ...baseConfig,
+    runtime: { ...baseConfig.runtime, readyTimeoutMs: 100 },
+    simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
+  });
+  await page.routeWebSocket(`${relay}/`, (socket) => {
+    socket.onMessage((message) => {
+      const request = JSON.parse(String(message)) as unknown[];
+      if (request[0] !== 'REQ' || typeof request[1] !== 'string') return;
+      socket.send(JSON.stringify(['EVENT', request[1], target.event]));
+      socket.send(JSON.stringify(['EOSE', request[1]]));
+    });
+  });
+  await installShellReadyHold(page, { holdFirst: true });
+
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[0]?.status))
+      .toBe('error');
+    const failed = await page.evaluate(() => window.__KEHTO_PAJA__?.getState());
+    expect(failed?.tabs).toHaveLength(1);
+    expect(failed?.tabs[0]?.windowId).toBeNull();
+    expect(failed?.tabs[0]?.initSent).toBe(false);
+    expect(failed?.messageLog.filter((entry) => entry.type === 'paja.target.error')).toHaveLength(1);
+    await expect(page.locator('iframe.tab-frame')).toHaveCount(1);
+    const surface = page.locator('.paja-target-surface:visible');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-retry')).toBeEnabled();
+
+    await releaseHeldShellReady(page);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[0]?.status))
+      .toBe('error');
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'shell.ready').length)).toBe(0);
+
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[0]?.status))
+      .toBe('ready');
+    const recovered = await page.evaluate(() => window.__KEHTO_PAJA__?.getState());
+    expect(recovered?.tabs).toHaveLength(1);
+    expect(recovered?.iframeCount).toBe(1);
+    expect(recovered?.tabs[0]?.windowId).not.toBeNull();
+    expect(recovered?.tabs[0]?.initSent).toBe(true);
+    expect(recovered?.messageLog.filter((entry) => entry.type === 'paja.target.error')).toHaveLength(1);
+    expect(recovered?.messageLog.filter((entry) => entry.type === 'shell.ready')).toHaveLength(1);
+  } finally {
+    await server.close();
+  }
+});
+
 test('completes a verified intent and delivers its convention once to a cold target', async ({ page }) => {
   test.setTimeout(60_000);
   const server = await startPointerServer();
@@ -666,8 +728,11 @@ async function holdNextShellReady(page: Page): Promise<void> {
   });
 }
 
-async function installShellReadyHold(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+async function installShellReadyHold(
+  page: Page,
+  options: { readonly holdFirst?: boolean } = {},
+): Promise<void> {
+  await page.addInitScript((holdFirst) => {
     const host = window as Window & {
       __pajaHoldNextReady?: boolean;
       __pajaHeldReady?: {
@@ -676,6 +741,7 @@ async function installShellReadyHold(page: Page): Promise<void> {
         readonly origin: string;
       };
     };
+    host.__pajaHoldNextReady = holdFirst;
     window.addEventListener('message', (event) => {
       const data = event.data as { type?: unknown } | null;
       if (!host.__pajaHoldNextReady || !data || data.type !== 'shell.ready') return;
@@ -683,7 +749,7 @@ async function installShellReadyHold(page: Page): Promise<void> {
       host.__pajaHoldNextReady = false;
       host.__pajaHeldReady = { data: event.data, source: event.source, origin: event.origin };
     }, true);
-  });
+  }, options.holdFirst === true);
 }
 
 async function releaseHeldShellReady(page: Page): Promise<void> {
