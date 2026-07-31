@@ -1,6 +1,6 @@
 ---
 phase: 107-readable-responsive-paja-system
-reviewed: 2026-07-31T12:40:29Z
+reviewed: 2026-07-31T12:58:59Z
 depth: standard
 files_reviewed: 33
 files_reviewed_list:
@@ -38,39 +38,41 @@ files_reviewed_list:
   - tests/unit/playground-gateway-guard.test.ts
   - tests/unit/select-e2e-tests.test.ts
 findings:
-  critical: 1
+  critical: 0
   warning: 0
   info: 0
-  total: 1
-status: issues_found
+  total: 0
+status: clean
 ---
 
 # Phase 107: Code Review Report
 
-**Reviewed:** 2026-07-31T12:40:29Z
+**Reviewed:** 2026-07-31T12:58:59Z
 **Depth:** standard
 **Files Reviewed:** 33
-**Status:** issues_found
+**Status:** clean
 
 ## Summary
 
-The submitted fixes correctly scope external iframe errors to their owning attempt, refresh target configuration before Retry navigation, and align the lifecycle-status documentation with the rendered DOM. Runtime-tab teardown now preserves BFCache state and releases existing ready/booting tab sessions on final `pagehide`, but it does not invalidate a runtime-pointer resolution that is still awaiting relay or artifact work. That continuation can create and register a new tab after the host teardown has completed, so the destroy contract remains incomplete.
+Commit `585387da` closes the remaining final-teardown race. Runtime-pointer work now carries exact attempt and `AbortController` ownership; final non-persisted `pagehide` marks the host destroyed, invalidates the attempt, aborts relay/artifact work, then tears down existing tabs. Every continuation after asynchronous resolution rechecks current host ownership before catalog installation, resolved logging, duplicate handling, or tab creation. Intent-driven pointer resolution also rejects late host ownership after destruction.
 
-The focused seven-file Vitest matrix passed 66/66. The six focused Chromium cases were also attempted, but local Chromium exited with `SIGTRAP`/`no ptrace` before test bodies ran; this was an execution-environment failure, not an observed implementation failure.
+The new Chromium regression meaningfully holds relay resolution before any tab exists, dispatches final `pagehide`, releases the held result, and verifies that no tab, iframe, resolved target, readiness/error record, or shell-ready delivery appears. Because runtime/session/origin registration and readiness deadlines are created only through `addRuntimeTab`, the asserted zero-tab/zero-iframe state also proves those ownership paths were not reacquired.
+
+All reviewed files meet quality standards. No issues found.
 
 ## Narrative Findings (AI reviewer)
 
-### Critical Issues
+No findings.
 
-#### CR-01: Final teardown can be undone by an in-flight pointer resolution
+## Verification
 
-**Classification:** BLOCKER
-**File:** `packages/paja/src/browser-host.ts:368-378,407-410,682-686`
-**Issue:** `loadRuntimePointer` considers an attempt current solely while `context.pointerAttemptGeneration` still equals its captured token. The final non-persisted `pagehide` path stops catalog notifications and destroys sessions for tabs that already exist, but it never clears or advances that pointer-attempt token. If `resolvePajaPointer` is still awaiting relay EOSE or artifact fetch when `pagehide` fires, its later settlement still passes `isCurrentAttempt()`, installs the catalog record, calls `addRuntimeTab`, registers a fresh runtime/session/origin entry, and arms a new readiness deadline after `destroyRuntimeTabHost` has returned. The new BFCache test covers a tab that already reached `addRuntimeTab`; it does not cover teardown while resolution is still pre-tab, so it cannot detect this late re-acquisition of host ownership.
-**Fix:** Add host-owned cancellation/invalidation for runtime-pointer work and invoke it before `destroyRuntimeTabHost` on final `pagehide`. At minimum, advance/clear the current pointer attempt so every post-`await` guard fails; for complete cleanup, retain an `AbortController`, pass its signal through relay subscription and artifact fetch, and close/abort those resources during teardown. Apply the same destroyed-state guard immediately before catalog installation and tab creation. Add a Chromium regression that holds pointer resolution before `addRuntimeTab`, dispatches a non-persisted `pagehide`, releases resolution, and proves no tab, session, origin registration, deadline, or resolved log entry is created afterward.
+- Focused Vitest matrix: 8 files, 81/81 passed.
+- Focused Chromium lifecycle/race matrix: 7/7 passed, including final pagehide during held pre-tab resolution and all prior review-fix regressions.
+- `corepack pnpm --filter @kehto/paja type-check`: passed.
+- `git diff --check`: passed.
 
 ---
 
-_Reviewed: 2026-07-31T12:40:29Z_
+_Reviewed: 2026-07-31T12:58:59Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
