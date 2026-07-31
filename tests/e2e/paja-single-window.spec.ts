@@ -307,7 +307,10 @@ test('keeps desktop, phone, and 200 percent effective-viewport geometry readable
   await sendFixtureMessage(targetFrame, { type: 'test.one', value: 'one' });
   await expect(page.locator('#message-log .log-row')).toHaveCount(1);
   await expect(page.locator('#clear-log')).toBeEnabled();
-  await sendFixtureMessage(targetFrame, { type: 'test.two', value: '<strong data-log-unsafe>two</strong>' });
+  await sendFixtureMessage(targetFrame, {
+    type: 'test.two.error',
+    error: '<strong data-log-unsafe>two</strong>',
+  });
   await expect(page.locator('#message-log .log-row')).toHaveCount(2);
   await expect(page.locator('[data-log-unsafe]')).toHaveCount(0);
   await expect(page.locator('#message-log .log-row').last()).toContainText('<strong data-log-unsafe>two</strong>');

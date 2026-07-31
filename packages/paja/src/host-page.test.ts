@@ -41,7 +41,7 @@ describe('@kehto/paja host page', () => {
     expect(html).toContain('id="simulation-theme"');
     expect(html).toContain('id="simulation-status"');
     expect(html).toContain('id="reload-target">Reload target</button>');
-    expect(html).toContain('id="clear-log">Clear messages</button>');
+    expect(html).toContain('id="clear-log" disabled>Clear messages</button>');
     expect(html).toContain('No messages yet. Runtime traffic appears here.');
     expect(html).toContain('title="http://127.0.0.1:5173/" aria-label="http://127.0.0.1:5173/"');
     expect(html).toContain('outline: 2px solid var(--ui-color-accent); outline-offset: 4px;');

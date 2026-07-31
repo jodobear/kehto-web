@@ -203,7 +203,7 @@ export function renderPajaHtml(config: PajaHostConfig): string {
           <h2 class="section-title" id="messages-title">Messages</h2>
           <div class="log-tools">
             <input id="message-filter" type="search" autocomplete="off" placeholder="filter messages" aria-label="Filter message log">
-            <button type="button" id="clear-log">Clear messages</button>
+            <button type="button" id="clear-log" disabled>Clear messages</button>
           </div>
           <div class="log-list" id="message-log" role="log" aria-label="Runtime messages" aria-live="polite" aria-relevant="additions text"></div>
         </section>
