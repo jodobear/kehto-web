@@ -12,19 +12,24 @@ import {
 import { BrowserIntentController } from './browser-intent-controller.js';
 import {
   clearRuntimeTabGeneration, createPajaIntentTargetOptions, markRuntimeTabReady,
-  pajaPointerResolverOptions, subscribePajaIntentCatalogChanges,
+  subscribePajaIntentCatalogChanges,
 } from './browser-intent-host.js';
 import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
 import { createPajaThemeBroadcastLink } from './theme-broadcast.js';
 import { type PajaSignerState } from './browser-signers.js';
 import {
-  activateRuntimeTab, addRuntimeTab, closeRuntimeTab, destroyRuntimeTabHost, getActiveTab,
+  activateRuntimeTab, closeRuntimeTab, destroyRuntimeTabHost,
   PAJA_RUNTIME_TABS_STORAGE_KEY, parseRuntimeTabsSnapshot, reloadActiveRuntimeTab,
-  projectActiveRuntimeTabLifecycle, renderRuntimeTabs, resolvedTargetKey,
-  setEmptyStageVisible, settleRuntimeTabReady, showDuplicatePointerDialog,
+  projectActiveRuntimeTabLifecycle, renderRuntimeTabs,
+  setEmptyStageVisible, settleRuntimeTabReady,
   snapshotRuntimeTabs, type PajaRuntimeTabsSnapshot, type PajaRuntimeTab,
   type PajaRuntimeTabContext, type PajaRuntimeTabRuntime,
 } from './browser-runtime-tabs.js';
+import {
+  destroyRuntimePointerWork,
+  loadRuntimePointer,
+  restorePersistedRuntimeTabs,
+} from './browser-runtime-pointer.js';
 import type { BrowserIntentGeneration } from './browser-intent-controller.js';
 import {
   appendPajaMessageLog, createPajaPostMessageProxy, installPajaOriginRegistryProxy,
@@ -33,7 +38,7 @@ import {
 import type { PajaHostConfig } from './options.js';
 import { getTargetIdentity, navigateFrame } from './browser-target-frame.js';
 import { createPajaTargetSurface, type PajaTargetSurface } from './browser-target-surface.js';
-import { resolvePajaPointer, type PajaResolvedPointer } from './runtime-resolver.js';
+import type { PajaResolvedPointer } from './runtime-resolver.js';
 import { reportTargetCorsDiagnostic } from './browser-target-diagnostics.js';
 import {
   PAJA_SIMULATION_DOMAINS, summarizePajaSimulation,
@@ -130,8 +135,12 @@ export interface PajaBrowserStateContext extends PajaRuntimeTabContext {
   refreshExternalConfig(signal: AbortSignal): Promise<PajaHostConfig>;
   pointerTargetSurface: PajaTargetSurface | null;
   pointerAttemptGeneration: number | null;
+  pointerAttemptController: AbortController | null;
   pointerRequestGeneration: number;
   pointerFocusFrameOnReady: boolean;
+  destroyed: boolean;
+  persistRuntimeTabs(state: PajaBrowserState): void;
+  setPointerAttemptBusy(busy: boolean): void;
 }
 
 function readConfig(): PajaHostConfig {
@@ -346,99 +355,6 @@ function setRuntimeDomainEnabled(
   state.reload();
 }
 
-async function loadRuntimePointer(
-  state: PajaBrowserState,
-  context: PajaBrowserStateContext,
-  value: string,
-  options: { readonly skipDuplicatePrompt?: boolean; readonly persist?: boolean } = {},
-): Promise<void> {
-  const { config, runtime } = context;
-  if (config.target.mode !== 'runtime-pointer') return;
-  const pointer = value.trim();
-  if (context.pointerAttemptGeneration !== null) return;
-  const input = document.getElementById('runtime-pointer-input');
-  if (input instanceof HTMLInputElement) input.value = pointer;
-  state.pointerValue = pointer;
-  if (!pointer) {
-    setPointerStatus(state, 'idle');
-    return;
-  }
-  const attemptGeneration = ++context.pointerRequestGeneration;
-  context.pointerAttemptGeneration = attemptGeneration;
-  const isCurrentAttempt = () => context.pointerAttemptGeneration === attemptGeneration;
-  const focusRetry = context.pointerFocusFrameOnReady;
-  setPointerAttemptBusy(true);
-  context.pointerTargetSurface?.showLoading(focusRetry ? 'retry' : 'initial');
-  setEmptyStageVisible(false);
-  setPointerStatus(state, 'resolving');
-  if (!getActiveTab(state)) setStatus(state, 'booting');
-  appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.resolve', pointer });
-  try {
-    const resolvedTarget = await resolvePajaPointer(pointer, pajaPointerResolverOptions(context));
-    if (!isCurrentAttempt()) return;
-    runtime.catalog.install(resolvedTarget);
-    const pointerStatus = `${resolvedTarget.dTag}:${resolvedTarget.aggregateHash.slice(0, 12)}`;
-    setPointerStatus(state, pointerStatus);
-    appendPajaMessageLog(state, 'paja', {
-      type: 'paja.pointer.resolved',
-      dTag: resolvedTarget.dTag,
-      aggregateHash: resolvedTarget.aggregateHash,
-    });
-    const duplicate = options.skipDuplicatePrompt ? undefined : state.tabs.find((tab) => tab.key === resolvedTargetKey(resolvedTarget));
-    if (duplicate) {
-      const choice = await showDuplicatePointerDialog();
-      if (!isCurrentAttempt()) return;
-      if (choice === 'cancel') {
-        context.pointerTargetSurface?.hide();
-        setStatus(state, getActiveTab(state)?.status ?? 'ready');
-        projectActiveRuntimeTabLifecycle(state, context);
-        setPointerStatus(state, `already running: ${duplicate.title}`);
-        appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.duplicate.cancelled', tabId: duplicate.id });
-        return;
-      }
-      if (choice === 'open-tab') {
-        activateRuntimeTab(state, context, duplicate.id);
-        context.pointerTargetSurface?.hide();
-        if (options.persist !== false) persistRuntimeTabs(state);
-        appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.duplicate.opened', tabId: duplicate.id });
-        return;
-      }
-    }
-    const tab = addRuntimeTab(state, context, pointer, resolvedTarget);
-    tab.focusFrameOnReady = focusRetry;
-    context.pointerTargetSurface?.hide();
-    if (options.persist !== false) persistRuntimeTabs(state);
-  } catch (error) {
-    if (!isCurrentAttempt()) return;
-    const message = error instanceof Error ? error.message : String(error);
-    state.resolvedTarget = getActiveTab(state)?.resolvedTarget ?? null;
-    setPointerStatus(state, message);
-    setStatus(state, getActiveTab(state)?.status ?? 'error');
-    context.pointerTargetSurface?.showError(error, { focusRetry });
-    setEmptyStageVisible(state.tabs.length === 0 ? false : !getActiveTab(state));
-    appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.error', error: message });
-  } finally {
-    if (isCurrentAttempt()) {
-      context.pointerAttemptGeneration = null;
-      context.pointerFocusFrameOnReady = false;
-      setPointerAttemptBusy(false);
-    }
-  }
-}
-
-async function restorePersistedRuntimeTabs(
-  state: PajaBrowserState,
-  context: PajaBrowserStateContext,
-  snapshot: PajaRuntimeTabsSnapshot,
-): Promise<void> {
-  for (const pointer of snapshot.pointers) {
-    await loadRuntimePointer(state, context, pointer, { skipDuplicatePrompt: true, persist: false });
-  }
-  const activeTab = state.tabs[snapshot.activeIndex] ?? state.tabs[0];
-  if (activeTab) activateRuntimeTab(state, context, activeTab.id);
-  persistRuntimeTabs(state);
-}
-
 function snapshotPajaBrowserState(state: PajaBrowserState, runtime: PajaHostRuntimeState): ReturnType<PajaBrowserState['getState']> {
   return {
     generation: state.generation,
@@ -639,8 +555,10 @@ async function installPajaHost(): Promise<void> {
     targetSurface: null, externalAttemptGeneration: null, externalAttemptTimeoutId: null,
     externalAttemptController: null, externalAttemptErrorDisposer: null, externalFocusFrameOnReady: false,
     refreshExternalConfig: (signal) => readLatestConfig(context.config, signal),
-    pointerTargetSurface: null, pointerAttemptGeneration: null,
-    pointerRequestGeneration: 0, pointerFocusFrameOnReady: false,
+    pointerTargetSurface: null, pointerAttemptGeneration: null, pointerAttemptController: null,
+    pointerRequestGeneration: 0, pointerFocusFrameOnReady: false, destroyed: false,
+    persistRuntimeTabs,
+    setPointerAttemptBusy,
     navigateFrame,
     onTabDestroyed: (tab) => clearRuntimeTabGeneration(tab, runtime),
     setPointerStatus: (state, message) => setPointerStatus(state as PajaBrowserState, message),
@@ -682,8 +600,13 @@ async function installPajaHost(): Promise<void> {
   window.addEventListener('pagehide', (event) => {
     if (event.persisted) return;
     stopIntentCatalogChanges();
-    if (config.target.mode === 'runtime-pointer') destroyRuntimeTabHost(state, context);
-    else destroyExternalFrameNavigation(context);
+    if (config.target.mode === 'runtime-pointer') {
+      destroyRuntimePointerWork(context);
+      destroyRuntimeTabHost(state, context);
+    } else {
+      context.destroyed = true;
+      destroyExternalFrameNavigation(context);
+    }
   });
 
   window.__KEHTO_PAJA__ = state;

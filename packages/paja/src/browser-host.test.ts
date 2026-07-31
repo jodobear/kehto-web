@@ -124,6 +124,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
 
   it('keeps runtime pointers in closeable tabs with duplicate-load choices', () => {
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const pointerSource = readFileSync(new URL('./browser-runtime-pointer.ts', import.meta.url), 'utf8');
     const tabsSource = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
 
     expect(source).toContain('tabs: PajaRuntimeTab[];');
@@ -131,18 +132,19 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(tabsSource).toContain('function closeRuntimeTab(');
     expect(tabsSource).toContain('function showDuplicatePointerDialog()');
     expect(tabsSource).toContain("type PajaDuplicateChoice = 'load-again' | 'open-tab' | 'cancel';");
-    expect(source).toContain('state.tabs.find((tab) => tab.key === resolvedTargetKey(resolvedTarget));');
+    expect(pointerSource).toContain('state.tabs.find((tab) => tab.key === resolvedTargetKey(resolvedTarget));');
   });
 
   it('keeps pointer runtime tabs shareable and restored from local storage', () => {
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const pointerSource = readFileSync(new URL('./browser-runtime-pointer.ts', import.meta.url), 'utf8');
     const tabsSource = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
 
     expect(tabsSource).toContain("export const PAJA_RUNTIME_TABS_STORAGE_KEY = 'kehto:paja:runtime-tabs:v1';");
     expect(tabsSource).toContain('function renderShareButton(tab: PajaRuntimeTab): HTMLButtonElement');
     expect(tabsSource).toContain('createPajaShareUrl(tab.pointerValue)');
     expect(source).toContain('function persistRuntimeTabs(state: PajaBrowserState): void');
-    expect(source).toContain('function restorePersistedRuntimeTabs(');
+    expect(pointerSource).toContain('function restorePersistedRuntimeTabs(');
     expect(source).toContain('const persistedTabs = readPersistedRuntimeTabs(config);');
     expect(source).toContain('else if (persistedTabs) void restorePersistedRuntimeTabs(state, context, persistedTabs);');
   });
@@ -276,9 +278,40 @@ describe('@kehto/paja browser host runtime source guards', () => {
     );
 
     expect(pagehide).toContain('if (event.persisted) return;');
-    expect(pagehide).toContain("if (config.target.mode === 'runtime-pointer') destroyRuntimeTabHost(state, context);");
-    expect(pagehide).toContain('else destroyExternalFrameNavigation(context);');
+    expect(pagehide.indexOf('destroyRuntimePointerWork(context);'))
+      .toBeLessThan(pagehide.indexOf('destroyRuntimeTabHost(state, context);'));
+    expect(pagehide).toContain("if (config.target.mode === 'runtime-pointer') {");
+    expect(pagehide).toContain('destroyRuntimeTabHost(state, context);');
+    expect(pagehide).toContain('destroyExternalFrameNavigation(context);');
     expect(pagehide).not.toContain('{ once: true }');
+  });
+
+  it('invalidates and aborts pointer resolution before any post-await host ownership', () => {
+    const pointerSource = readFileSync(new URL('./browser-runtime-pointer.ts', import.meta.url), 'utf8');
+    const intentSource = readFileSync(new URL('./browser-intent-host.ts', import.meta.url), 'utf8');
+    const resolverSource = readFileSync(new URL('./runtime-resolver.ts', import.meta.url), 'utf8');
+    const load = pointerSource.slice(
+      pointerSource.indexOf('async function loadRuntimePointer('),
+      pointerSource.indexOf('function destroyRuntimePointerWork('),
+    );
+    const destroy = pointerSource.slice(
+      pointerSource.indexOf('function destroyRuntimePointerWork('),
+      pointerSource.indexOf('async function restorePersistedRuntimeTabs('),
+    );
+
+    expect(load).toContain('pajaPointerResolverOptions(context, controller.signal)');
+    expect(load).toContain('const isCurrentAttempt = () => !context.destroyed');
+    expect(load.match(/if \(!isCurrentAttempt\(\)\) return;/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(load.indexOf('if (!isCurrentAttempt()) return;')).toBeLessThan(load.indexOf('runtime.catalog.install(resolvedTarget);'));
+    const addTabIndex = load.indexOf('addRuntimeTab(state, context');
+    expect(load.lastIndexOf('if (!isCurrentAttempt()) return;', addTabIndex)).toBeLessThan(addTabIndex);
+    expect(destroy).toContain('context.destroyed = true;');
+    expect(destroy).toContain('context.pointerAttemptGeneration = null;');
+    expect(destroy).toContain("controller.abort(new Error('Pointer resolution cancelled because the Paja host was destroyed.'));");
+    expect(intentSource).toContain('if (!state || !context || context.destroyed) return null;');
+    expect(intentSource).toContain('if (context.destroyed) return null;');
+    expect(resolverSource).toContain("subscription?.close('Paja pointer resolution aborted')");
+    expect(resolverSource).toContain('(options.fetcher ?? fetch)(url, { signal: options.signal })');
   });
 
   it('registers the trusted frame identity before resolver-built srcdoc can run', () => {
@@ -297,7 +330,11 @@ describe('@kehto/paja browser host runtime source guards', () => {
 
   it('uses verified pointer records to retain and source-bind post-acceptance intent delivery', () => {
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
-    const pointerLoad = source.slice(source.indexOf('async function loadRuntimePointer('), source.indexOf('async function restorePersistedRuntimeTabs('));
+    const pointerSource = readFileSync(new URL('./browser-runtime-pointer.ts', import.meta.url), 'utf8');
+    const pointerLoad = pointerSource.slice(
+      pointerSource.indexOf('async function loadRuntimePointer('),
+      pointerSource.indexOf('async function restorePersistedRuntimeTabs('),
+    );
     const messageHandler = source.slice(
       source.indexOf("window.addEventListener('message'"),
       source.indexOf('  installPajaControlListeners(state);'),

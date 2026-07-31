@@ -85,13 +85,15 @@ export interface ResolvePajaPointerOptions {
   /** Relay pool override; defaults to a `nostr-tools` `SimplePool`. */
   readonly pool?: PajaPointerRelayPool;
   /** Fetch override used for Blossom blob URLs. */
-  readonly fetcher?: (url: string) => Promise<Response>;
+  readonly fetcher?: (url: string, options?: { readonly signal?: AbortSignal }) => Promise<Response>;
   /** Extra relay candidates appended after embedded pointer hints. */
   readonly relays?: readonly string[];
   /** Extra Blossom server hints appended during artifact fetch. */
   readonly blossomServers?: readonly string[];
   /** One overall deadline for relay connection, fanout, and EOSE in milliseconds. */
   readonly maxWaitMs?: number;
+  /** Host-owned cancellation for relay and artifact work. */
+  readonly signal?: AbortSignal;
 }
 
 /**
@@ -137,6 +139,7 @@ export async function resolvePajaPointer(
   value: string,
   options: ResolvePajaPointerOptions = {},
 ): Promise<PajaResolvedPointer> {
+  throwIfAborted(options.signal);
   const pointer = decodePajaPointer(value);
   const relays = uniqueRelayUrls([...pointer.relays, ...(options.relays ?? [])]);
   if (relays.length === 0) {
@@ -146,18 +149,31 @@ export async function resolvePajaPointer(
   const pool = options.pool ?? new SimplePool();
   const ownsPool = options.pool === undefined;
   try {
-    const event = await resolvePointerEvent(pointer, pool, relays, normalizeMaxWaitMs(options.maxWaitMs));
+    const event = await resolvePointerEvent(
+      pointer,
+      pool,
+      relays,
+      normalizeMaxWaitMs(options.maxWaitMs),
+      options.signal,
+    );
+    throwIfAborted(options.signal);
     const blossomServers = [...(options.blossomServers ?? [])];
+    const cache = await openNappletArtifactCache({ requireStorageEstimate: false });
+    throwIfAborted(options.signal);
     const resolved = await resolveNapplet({
       event,
-      cache: await openNappletArtifactCache({ requireStorageEstimate: false }),
+      cache,
       fetchBlob: (sha256Hex, servers) =>
         fetchBlob([...servers, ...blossomServers], sha256Hex, async (url) => {
-          const response = await (options.fetcher ?? fetch)(url);
+          throwIfAborted(options.signal);
+          const response = await (options.fetcher ?? fetch)(url, { signal: options.signal });
           if (!response.ok) throw new Error(`[paja-runtime] blob ${url}: ${response.status}`);
-          return new Uint8Array(await response.arrayBuffer());
+          const bytes = new Uint8Array(await response.arrayBuffer());
+          throwIfAborted(options.signal);
+          return bytes;
         }),
     });
+    throwIfAborted(options.signal);
     return {
       pointer,
       event,
@@ -223,11 +239,13 @@ async function resolvePointerEvent(
   pool: PajaPointerRelayPool,
   relays: readonly string[],
   maxWaitMs: number,
+  signal?: AbortSignal,
 ): Promise<NostrEvent> {
   const filter = pointer.type === 'naddr'
     ? addressableFilter(pointer)
     : eventFilter(pointer);
-  const result = await queryPointerRelays(pool, relays, filter, maxWaitMs);
+  const result = await queryPointerRelays(pool, relays, filter, maxWaitMs, signal);
+  throwIfAborted(signal);
   const event = result.events
     .filter((candidate) => matchesPointer(pointer, candidate))
     .sort((a, b) => b.created_at - a.created_at)[0];
@@ -268,11 +286,12 @@ function queryPointerRelays(
   relays: readonly string[],
   filter: Filter,
   maxWaitMs: number,
+  signal?: AbortSignal,
 ): Promise<PointerRelayQueryResult> {
   if (pool.subscribeManyEose) {
-    return queryPointerRelaySubscription(pool, relays, filter, maxWaitMs);
+    return queryPointerRelaySubscription(pool, relays, filter, maxWaitMs, signal);
   }
-  return queryPointerRelaySync(pool, relays, filter, maxWaitMs);
+  return queryPointerRelaySync(pool, relays, filter, maxWaitMs, signal);
 }
 
 function queryPointerRelaySubscription(
@@ -280,6 +299,7 @@ function queryPointerRelaySubscription(
   relays: readonly string[],
   filter: Filter,
   maxWaitMs: number,
+  signal?: AbortSignal,
 ): Promise<PointerRelayQueryResult> {
   return new Promise((resolve) => {
     const events: NostrEvent[] = [];
@@ -289,12 +309,18 @@ function queryPointerRelaySubscription(
       if (settled) return;
       settled = true;
       clearTimeout(deadline);
+      signal?.removeEventListener('abort', handleAbort);
       resolve({ events, ...result });
     };
     const deadline = setTimeout(() => {
       finish({ reasons: [], timedOut: true });
       void subscription?.close('Paja pointer relay deadline exceeded');
     }, maxWaitMs);
+    const handleAbort = () => {
+      finish({ reasons: [], timedOut: false, error: abortReason(signal) });
+      void subscription?.close('Paja pointer resolution aborted');
+    };
+    signal?.addEventListener('abort', handleAbort, { once: true });
 
     try {
       subscription = pool.subscribeManyEose!([...relays], filter, {
@@ -307,6 +333,7 @@ function queryPointerRelaySubscription(
           finish({ reasons, timedOut: false });
         },
       });
+      if (signal?.aborted) handleAbort();
     } catch (error) {
       finish({ reasons: [], timedOut: false, error });
     }
@@ -318,6 +345,7 @@ function queryPointerRelaySync(
   relays: readonly string[],
   filter: Filter,
   maxWaitMs: number,
+  signal?: AbortSignal,
 ): Promise<PointerRelayQueryResult> {
   return new Promise((resolve) => {
     let settled = false;
@@ -325,11 +353,23 @@ function queryPointerRelaySync(
       if (settled) return;
       settled = true;
       clearTimeout(deadline);
+      signal?.removeEventListener('abort', handleAbort);
       resolve(result);
     };
     const deadline = setTimeout(() => {
       finish({ events: [], reasons: [], timedOut: true });
     }, maxWaitMs);
+    const handleAbort = () => finish({
+      events: [],
+      reasons: [],
+      timedOut: false,
+      error: abortReason(signal),
+    });
+    signal?.addEventListener('abort', handleAbort, { once: true });
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
 
     void pool.querySync([...relays], filter, {
       maxWait: maxWaitMs,
@@ -339,6 +379,14 @@ function queryPointerRelaySync(
       (error: unknown) => finish({ events: [], reasons: [], timedOut: false, error }),
     );
   });
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortReason(signal);
+}
+
+function abortReason(signal?: AbortSignal): Error {
+  return signal?.reason instanceof Error ? signal.reason : new Error('Paja pointer resolution aborted.');
 }
 
 function relayFailureReasons(reasons: readonly string[]): string[] {

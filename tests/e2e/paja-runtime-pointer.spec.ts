@@ -445,6 +445,63 @@ test('keeps BFCache runtime ownership and destroys ready and booting tabs on fin
   }
 });
 
+test('final pagehide cancels held pointer resolution before tab ownership', async ({ page }) => {
+  test.setTimeout(30_000);
+  const server = await startPointerServer();
+  const target = createPointerFixture(
+    server.url,
+    'pagehide-held-resolution',
+    '<!doctype html><html><body><p>must not run after teardown</p></body></html>',
+    ['shell'],
+  );
+  const relay = 'wss://pagehide-held-resolution.example';
+  let resolutionRequests = 0;
+  let releaseResolution: (() => void) | null = null;
+  server.blobs.set(target.hash, target.bytes);
+  const baseConfig = createPajaRuntimeHostConfig({ pointer: target.pointer, maxWaitMs: 2_000 });
+  server.setConfig({
+    ...baseConfig,
+    runtime: { ...baseConfig.runtime, readyTimeoutMs: 100 },
+    simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
+  });
+  await page.routeWebSocket(`${relay}/`, (socket) => {
+    socket.onMessage((message) => {
+      const request = JSON.parse(String(message)) as unknown[];
+      if (request[0] !== 'REQ' || typeof request[1] !== 'string') return;
+      resolutionRequests += 1;
+      const subscriptionId = request[1];
+      releaseResolution = () => {
+        socket.send(JSON.stringify(['EVENT', subscriptionId, target.event]));
+        socket.send(JSON.stringify(['EOSE', subscriptionId]));
+      };
+    });
+  });
+
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => resolutionRequests).toBe(1);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.length)).toBe(0);
+    await page.evaluate(() => {
+      const event = new Event('pagehide');
+      Object.defineProperty(event, 'persisted', { value: false });
+      window.dispatchEvent(event);
+    });
+    releaseResolution?.();
+    await page.waitForTimeout(250);
+
+    const state = await page.evaluate(() => window.__KEHTO_PAJA__?.getState());
+    expect(state?.tabs).toEqual([]);
+    expect(state?.iframeCount).toBe(0);
+    expect(state?.resolvedTarget).toBeNull();
+    expect(state?.messageLog.filter((entry) => entry.type === 'paja.pointer.resolved')).toEqual([]);
+    expect(state?.messageLog.filter((entry) => entry.type === 'paja.pointer.error')).toEqual([]);
+    expect(state?.messageLog.filter((entry) => entry.type === 'paja.target.error')).toEqual([]);
+    expect(state?.messageLog.filter((entry) => entry.type === 'shell.ready')).toEqual([]);
+  } finally {
+    await server.close();
+  }
+});
+
 test('completes a verified intent and delivers its convention once to a cold target', async ({ page }) => {
   test.setTimeout(60_000);
   const server = await startPointerServer();

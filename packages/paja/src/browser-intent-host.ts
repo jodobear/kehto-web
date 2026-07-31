@@ -50,7 +50,7 @@ export function createPajaIntentTargetOptions(
     async openOrReuse(params) {
       const state = getState();
       const context = getContext();
-      if (!state || !context) return null;
+      if (!state || !context || context.destroyed) return null;
       const record = context.runtime.catalog.get(params.handler);
       if (!record || !recordSupportsDelivery(record, params)) return null;
 
@@ -76,6 +76,7 @@ export function createPajaIntentTargetOptions(
       }
 
       const resolved = await resolvePajaPointer(record.pointer.value, pajaPointerResolverOptions(context));
+      if (context.destroyed) return null;
       if (
         resolved.dTag !== record.dTag
         || resolved.aggregateHash !== record.aggregateHash
@@ -147,7 +148,10 @@ export function createPajaIntentTargetOptions(
  * @param context - Current Paja browser context.
  * @returns Resolver options for a verified runtime pointer.
  */
-export function pajaPointerResolverOptions(context: PajaBrowserStateContext) {
+export function pajaPointerResolverOptions(
+  context: PajaBrowserStateContext,
+  signal?: AbortSignal,
+) {
   return {
     relays: [
       ...(context.config.target.pointer?.relays ?? []),
@@ -155,6 +159,7 @@ export function pajaPointerResolverOptions(context: PajaBrowserStateContext) {
     ],
     blossomServers: context.config.target.pointer?.blossomServers ?? [],
     maxWaitMs: context.config.target.pointer?.maxWaitMs,
+    signal,
   };
 }
 
