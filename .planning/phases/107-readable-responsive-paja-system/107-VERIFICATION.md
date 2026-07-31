@@ -1,212 +1,183 @@
 ---
 phase: 107-readable-responsive-paja-system
-verified: 2026-07-31T10:25:19Z
-status: gaps_found
-score: 87/91 must-haves verified
+verified: 2026-07-31T13:24:18Z
+status: human_needed
+score: 90/91 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "External-target and runtime-pointer loading failures always settle into stable host-owned recovery with an available Retry target action."
-    status: failed
-    reason: "The active runtime-tab loader has no shell.ready deadline, and the external target fetch is unbounded. Either path can remain Loading forever with Retry disabled instead of reaching the required error state."
-    artifacts:
-      - path: "packages/paja/src/browser-runtime-tabs.ts"
-        issue: "startRuntimeTabNavigation has generation guards and an iframe error handler, but no readiness timer or missing-shell.ready settlement path."
-      - path: "packages/paja/src/browser-target-frame.ts"
-        issue: "The external navigation promise waits for /__kehto/target.html without an AbortSignal or timeout; its readiness timer starts only after this promise resolves."
-      - path: "packages/paja/src/server.ts"
-        issue: "The target proxy fetch has no timeout or abort signal, so a hanging upstream can keep the browser attempt permanently busy."
-      - path: "tests/e2e/paja-runtime-pointer.spec.ts"
-        issue: "Tests hold and later release shell.ready, but no regression proves a never-ready verified runtime times out into recovery."
-    missing:
-      - "Apply config.runtime.readyTimeoutMs to each current runtime-tab generation and to the complete external attempt, including target fetch."
-      - "Clear deadlines on trusted ready, error, reload, close, replacement, and destroy; stale deadlines must not affect a newer generation."
-      - "On timeout, unregister the failed session and route through the existing host error surface so Retry target can re-enter reloadActiveRuntimeTab or the external loader."
-      - "Add unit and Chromium regressions for a verified iframe that never emits shell.ready and an external target fetch that never settles."
-  - truth: "All focused/static/browser/build/type/unit/docs/slop/conformance/diff gates pass after the complete phase."
-    status: failed
-    reason: "Build, type-check, docs, focused unit, conformance, and Phase 107 browser checks pass, but the complete phase-range diff check currently fails on trailing whitespace in generated review artifacts. The pinned AI-slop result also could not be independently reproduced because aislop 0.12.0 rejected Git-resolvable base refs."
-    artifacts:
-      - path: ".planning/phases/107-readable-responsive-paja-system/107-REVIEW-FIX.iter2.md"
-        issue: "Contains Git-diff whitespace errors, including lines 14-15 and 28-30."
-      - path: ".planning/phases/107-readable-responsive-paja-system/107-REVIEW.iter2.md"
-        issue: "Contains Git-diff whitespace errors in review metadata and finding fields."
-      - path: ".planning/phases/107-readable-responsive-paja-system/107-REVIEW.iter3.md"
-        issue: "Contains Git-diff whitespace errors at lines 45-46."
-    missing:
-      - "Remove the phase-range trailing whitespace and rerun git diff --check from the recorded Phase 107 base."
-      - "Produce a reproducible aislop 0.12.0 changed-file run against the recorded base, or record an accepted override for the tool's base-ref failure."
+re_verification:
+  previous_status: gaps_found
+  previous_score: 87/91
+  gaps_closed:
+    - "External targets whose fetch or shell.ready never settles now enter stable host-owned recovery with Retry enabled."
+    - "Verified runtime tabs that never emit shell.ready now enter stable host-owned recovery with failed session ownership removed and stale readiness ignored."
+    - "The immutable-base diff and pinned AI-slop gates now pass reproducibly."
+  gaps_remaining: []
+  regressions: []
 prohibition_flags:
   - statement: "Phase 107 visual recovery must not add, remove, reshape, or reinterpret any NAP message, capability, routing rule, lifecycle contract, sandbox permission, verified-byte boundary, or package version."
     status: unverified
-    non_authoritative_verdict: "Code, conformance tests, phase diff, and current upstream specifications support compliance."
+    non_authoritative_verdict: "Code, phase diff, current-source checks, conformance tests, and browser provenance tests support compliance."
     flag: "unverified-prohibition — human review recommended"
   - statement: "Phone presentation must not hide Paja identity/current target, create page-level horizontal scrolling, or make host content permanently unreachable."
     status: unverified
-    non_authoritative_verdict: "Measured Chromium coverage at 375x812 and 640x360 supports compliance."
+    non_authoritative_verdict: "Chromium geometry, keyboard, overflow, and long-content tests at 375x812 and 640x360 support compliance."
     flag: "unverified-prohibition — human review recommended"
   - statement: "Feed/profile work must not add Phase 108 recovery behavior."
     status: unverified
-    non_authoritative_verdict: "Diff inspection, static guards, and browser state coverage found only semantic visual changes."
+    non_authoritative_verdict: "Diff inspection, static guards, and real-iframe state tests show semantic styling/tone changes only."
     flag: "unverified-prohibition — human review recommended"
+human_verification:
+  - test: "Review the Phase 107 source diff against the recorded NAP-SHELL, NAP-THEME, and NIP-5D authority refs."
+    expected: "No message, capability, routing, lifecycle, sandbox, verified-byte, or package-version contract changed."
+    why_human: "PLAN frontmatter classifies this prohibition as judgment-tier; automated evidence is non-authoritative."
+  - test: "At 375x812 and 640x360, traverse all controls with keyboard and touch, expand long diagnostics, and scroll tabs, controls, stage, and footer."
+    expected: "Identity and current target remain visible; no page horizontal scroll appears; every focus ring, control, and value remains reachable."
+    why_human: "Automated geometry proves bounds but cannot certify perceived reachability and focus visibility."
+  - test: "Exercise feed/profile empty, loading, data, partial, and failure states."
+    expected: "Existing copy and transitions remain; no retry, reconnect, or behavioral recovery was added."
+    why_human: "Negative behavioral scope is a judgment-tier prohibition in PLAN frontmatter."
+  - test: "Confirm the two registered .claude/worktrees checkouts retain their expected files, registration, HEAD, and lock ownership from before Phase 107."
+    expected: "No move, deletion, overwrite, lock change, or absorbed output occurred."
+    why_human: "Current registry and Git range prove no tracked phase output, but cannot prove historical physical non-mutation."
 ---
 
-# Phase 107: Readable, Responsive Paja System Verification Report
+# Phase 107: Readable Responsive Paja System Verification Report
 
-**Phase Goal:** Paja users retain product/target context and usable controls on desktop, phone, failure, and recovery within one coherent visual system.
-**Verified:** 2026-07-31T10:25:19Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Phase Goal:** Paja users retain clear product/target context and usable controls across desktop, phone, and target-load failure states within one coherent visual system.
+**Verified:** 2026-07-31T13:24:18Z
+**Status:** human_needed
+**Re-verification:** Yes — after gap closure
+**Verified HEAD:** `2290f8c5b4b467227f983883d024f3bdd7b5e206`
 
 ## Goal Achievement
 
 ### Observable Truths
 
-The five PLAN files declare 91 must-have truths. The four ROADMAP success criteria are represented by those more specific truths and were deduplicated rather than added again. The table folds related items together; the score counts the individual truths.
+Re-verification used the prior report's 91 truths. Previously failed behavior received full existence, substance, wiring, and behavioral checks; previously passed behavior received regression checks. The three judgment-tier prohibitions remain explicit and non-authoritative.
 
 | # | Truth group | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | Paja, feed, and profile use the bounded semantic palette/type/spacing system, with routine text at least 12px. | ✓ VERIFIED | Declaration-aware static tests passed; source inspection confirms component rules consume `--ui-*`; two real theme/state Chromium tests passed. |
-| 2 | Desktop and phone layouts retain identity, target, tabs, status, controls, stage, focus, and footer without clipping or page-level horizontal overflow. | ✓ VERIFIED | Exact 1280x720, 375x812, 640x360, 200%-effective viewport, and 160-character target browser cases passed. |
-| 3 | External target failures always settle into host-owned explanation, literal diagnostics, Retry, and return controls. | ✗ FAILED | Immediate HTTP/load and missing-shell.ready cases are covered, but the fetch at `browser-target-frame.ts:96` and proxy fetch at `server.ts:130-139` have no deadline. A hanging fetch never reaches the existing timer or error surface. |
-| 4 | Pre-tab and active runtime-tab failures use the same recoverable host contract while retaining context. | ✗ FAILED | Resolver and iframe-error recovery are wired and tested, but `startRuntimeTabNavigation` at `browser-runtime-tabs.ts:546-588` has no shell.ready deadline. A verified iframe that never becomes ready remains `booting`/`reloading`, with Retry disabled. |
-| 5 | Retry uses the existing verified loader and preserves generation, source/session, verified-byte, CSP, sandbox, capability, routing, and lifecycle boundaries. | ✓ VERIFIED | Retry handlers route to existing reload functions; frame registration precedes srcdoc; sandbox is allow-scripts without same-origin; current registered source gates shell.ready; focused unit/conformance/browser checks passed. |
-| 6 | Runtime tabs, labels, actions, active target projection, and scoped-CI selection remain coherent and keyboard operable. | ✓ VERIFIED | Source and real browser evidence cover tablist/tab/tabpanel relationships, roving focus, Home/End, full action labels, duplicate choices, active-only lifecycle, and dual-Paja selector coverage. |
-| 7 | Feed/profile retain existing behavior while consuming semantic aliases and tones only. | ✓ VERIFIED | `dataset.tone` flows into `[data-tone]`; no recovery controls were added; two real iframe theme/state tests passed. |
-| 8 | Paja docs and one scoped patch changeset match the implemented visual/recovery contract without pre-versioning. | ✓ VERIFIED | Four docs contain exact actions, geometry, security boundaries, and checked refs; Changesets reports only `@kehto/paja` at patch; no package/json/changelog version mutation exists. |
-| 9 | Complete final gates pass from the recorded Phase 107 base. | ✗ FAILED | Build, type-check, docs, 68 focused unit tests, and 10 Phase 107 Chromium tests pass. Current phase-range `git diff --check` fails on review Markdown. AI-slop's 100/100 claim was not reproducible because 0.12.0 rejected both the valid SHA and named refs. |
-| 10 | Registered nested worktrees were physically untouched and excluded. | ? UNCERTAIN | Current registry/locks remain present and the phase-range diff names no `.claude/worktrees` path. Historical physical non-mutation cannot be proven from the current checkout alone; human confirmation is required. |
+| 1 | Paja, feed, and profile use the bounded semantic palette/type/spacing system, with routine text at least 12px. | ✓ VERIFIED | Source declares the canonical `--ui-*` vocabulary; component rules consume it; exact-head Vitest and real-iframe Playwright passed. |
+| 2 | Desktop and phone layouts retain identity, target, tabs, status, controls, stage, focus, and footer without clipping or page-level horizontal overflow. | ✓ VERIFIED | Chromium geometry, focus, long-target, phone, and 200%-effective viewport cases passed in the complete PR run. Judgment-tier perceived reachability remains human. |
+| 3 | External target failures always settle into host-owned explanation, literal diagnostics, Retry, and return controls. | ✓ VERIFIED | `browser-host-runtime.ts` arms one timeout before config/target fetch, propagates one AbortSignal, unregisters failure ownership, and shows the stable error surface. Exact-head never-settling-fetch Chromium test passed. |
+| 4 | Pre-tab and active runtime-tab failures use the same recoverable host contract while retaining context. | ✓ VERIFIED | `browser-runtime-tabs.ts` owns a deadline per generation, clears it on ready/error/reload/close/destroy, unregisters failed sessions, and rejects stale readiness. Exact-head never-ready Chromium test passed. |
+| 5 | Retry uses the existing verified loader and preserves generation, source/session, verified-byte, CSP, sandbox, capability, routing, and lifecycle boundaries. | ✓ VERIFIED | Retry still routes through `reloadActiveRuntimeTab()` or external `state.reload()`/`navigateFrame()`; current registered source gates ready; provenance/conformance tests passed. Judgment-tier protocol prohibition remains human. |
+| 6 | Runtime tabs, labels, actions, active target projection, teardown, and scoped-CI selection remain coherent and keyboard operable. | ✓ VERIFIED | Stable tabpanel wiring, roving focus, exact actions, active lifecycle projection, teardown guards, selector output, and browser cases passed. |
+| 7 | Feed/profile retain existing behavior while consuming semantic aliases and tones only. | ✓ VERIFIED | `dataset.tone` flows into explicit `[data-tone]` CSS; no Retry/Reconnect code exists in either napplet; theme/state Chromium cases passed. Judgment-tier scope prohibition remains human. |
+| 8 | Paja docs and one scoped patch changeset match the implementation without pre-versioning. | ✓ VERIFIED | Four docs contain exact action and boundary wording; changeset names only `@kehto/paja: patch`; no package/json/changelog version file changed. |
+| 9 | Complete final gates pass from the immutable Phase 107 base. | ✓ VERIFIED | Literal base resolves and is an ancestor; exact-base `git diff --check` passed; unchanged `.aislop/config.yml`; pinned 0.12.0 scan returned scoreable 100/100; remote build/type/docs/Vitest/Playwright all passed. |
+| 10 | Registered nested worktrees were physically untouched and excluded. | ? UNCERTAIN | Current registry still lists both nested checkouts at their recorded HEADs, the phase range contains no `.claude/worktrees` path, and test discovery excludes them. Historical physical non-mutation still needs human confirmation. |
 
-**Score:** 87/91 truths verified (3 failed, 1 uncertain, 0 present-but-behavior-unverified)
+**Score:** 90/91 truths verified (0 present-but-behavior-unverified)
 
 ### Roadmap Contract
 
 | Success criterion | Status | Evidence |
 | --- | --- | --- |
-| Semantic palette, type, and spacing across Paja/feed/profile | ✓ VERIFIED | Static declaration guards plus browser computed-theme/state evidence. |
-| Desktop split and phone context/control/status/runtime composition without clipping | ✓ VERIFIED | Focused Chromium geometry, keyboard, overflow, and long-content checks. |
-| Host-owned failure explanation, diagnostics, keyboard retry, and return instead of iframe error HTML | ✗ FAILED | Implemented for detected errors, but a runtime tab missing shell.ready and a hanging external fetch never transition to error. |
-| Retry re-enters existing verified loader with no protocol/capability/routing/lifecycle/package change | ✓ VERIFIED | Existing retry routes, provenance/source guards, current upstream spec comparison, and unchanged package surfaces; prohibition remains human-flagged as required. |
+| Semantic palette, type, and spacing across Paja/feed/profile | ✓ VERIFIED | Declaration-aware guards, source inspection, and real theme/state Chromium coverage. |
+| Desktop split and phone context/control/status/runtime composition without clipping | ✓ VERIFIED | Chromium desktop, phone, reflow, keyboard, overflow, and long-content tests passed. |
+| Host-owned failure explanation, diagnostics, keyboard retry, and return instead of iframe error HTML | ✓ VERIFIED | Stable host DOM is wired for immediate, missing-ready, never-ready, and never-settling-fetch failures; exact-head named Chromium tests passed. |
+| Retry re-enters the verified loader without protocol/capability/routing/lifecycle/package change | ✓ VERIFIED | Loader and source/session/provenance links remain intact; conformance tests pass. The stricter judgment prohibition remains human. |
 
 ## Required Artifacts
 
-All 22 declared artifacts exist and are substantive. Dynamic artifacts are wired into real host/browser paths.
+All declared artifacts exist and are substantive. `verify.artifacts` passed 32/32 declarations across Plans 107-01 through 107-07.
 
-| Artifact group | Status | Details |
-| --- | --- | --- |
-| `packages/paja/src/browser-target-surface.ts` and tests | ✓ VERIFIED | Stable empty/loading/ready/error DOM, literal diagnostics, disclosure, retry/return, busy state, focus, hide/reset, and destroy behavior. |
-| `packages/paja/src/browser-host.ts`, `browser-host-runtime.ts`, `browser-target-frame.ts` | ⚠️ PARTIAL | Real external/pointer wiring and source/session safeguards exist. External ready timeout exists only after target fetch resolves; runtime-tab timeout is absent. |
-| `packages/paja/src/browser-runtime-tabs.ts` and tests | ⚠️ PARTIAL | Accessible tabs, target context, retry wiring, and generation guards are substantive. Missing current-generation shell.ready deadline leaves one required failure path hollow. |
-| `packages/paja/src/host-page.ts` and tests | ✓ VERIFIED | Exact tokens, landmarks, desktop grid, phone composition, state styling, and minimum type sizes. |
-| Feed/profile HTML and TypeScript | ✓ VERIFIED | Semantic aliases and dataset tones are wired to real rendered states and live theme broadcasts. |
-| Paja/theme E2E and selector/static guard tests | ✓ VERIFIED | Real host paths and scoped selection exist and the selected Phase 107 checks pass. |
-| Paja package/reference/how-to docs | ✓ VERIFIED | Exact UI actions, viewports, recovery flow, and unchanged security/protocol boundaries are synchronized. |
-| `.changeset/readable-responsive-paja.md` | ✓ VERIFIED | Only `@kehto/paja: patch`; no direct version/changelog mutation. |
+| Artifact group | Expected | Status | Details |
+| --- | --- | --- | --- |
+| `browser-target-surface.ts` and tests | Stable host-owned empty/loading/ready/error UI | ✓ VERIFIED | Stable nodes, literal diagnostic `textContent`, retry/return, disclosure, busy/focus, hide/reset, and destroy behavior. |
+| `browser-runtime-tabs.ts` and tests | Per-generation deadline, cleanup, retry, accessible tabs | ✓ VERIFIED | Deadline armed before navigation; idempotent generation guard; session/origin/readiness teardown; retry through existing loader. |
+| `browser-host-runtime.ts`, `browser-target-frame.ts`, `server.ts` and tests | Whole external attempt bounded through proxy, server fetch, injection, and ready | ✓ VERIFIED | One controller/signal spans config and browser fetch; server outbound fetch has matching timeout and stable 502 diagnostic; all cleanup paths are substantive. |
+| `browser-runtime-pointer.ts`, `browser-intent-host.ts`, `runtime-resolver.ts` and tests | Final teardown cannot regain pointer/tab ownership | ✓ VERIFIED | Destroyed state, exact-attempt controller, relay/artifact abort propagation, and post-await ownership checks exist; exact-head pagehide Chromium test passed. |
+| `host-page.ts`, feed/profile HTML/TypeScript, visual tests | Semantic responsive system with real data/state flow | ✓ VERIFIED | Canonical tokens, bounded layouts, local theme aliases, dataset tones, and browser state matrices are wired. |
+| Paja/theme E2E and selector/static guards | Real host and scoped-CI proof | ✓ VERIFIED | Paja source selects both Paja specs; the [GitHub Playwright run](https://github.com/jodobear/kehto-web/actions/runs/30633268149) ran 96 tests with 95 pass/1 intentional live skip. |
+| Paja docs and changeset | Exact shipped behavior and patch-only release intent | ✓ VERIFIED | Docs gate passed; exact action strings match source; one package-only patch entry. |
+| Review evidence cleanup | Reproducible immutable-base range | ✓ VERIFIED | Three review artifacts pass artifact checks and exact-base whitespace check. |
 
 ## Key Link Verification
 
 | From | To | Via | Status | Details |
 | --- | --- | --- | --- | --- |
-| Browser host | Target frame loader | `navigateFrame` / reload | ⚠️ PARTIAL | Calls and response handling are real; whole-attempt timeout does not cover the target fetch. |
-| Runtime tabs | Target surface | one surface per tab | ✓ WIRED | Loading/error/ready projection and existing retry callback are used. |
-| Runtime tabs | Verified navigation | `reloadActiveRuntimeTab` → destroy/register → `navigateFrame` | ⚠️ PARTIAL | Existing route is preserved, but missing-ready cannot expose Retry. |
-| Host message listener | Runtime/session registry | `MessageEvent.source`, registered/current window ID, `shell.ready` | ✓ WIRED | Unknown, stale, and forged sources are rejected before ready projection. |
-| Host template | Browser controllers | stable IDs/roles | ✓ WIRED | Identity, tabs, command, controls, stage, error, log, and footer nodes are consumed. |
-| Theme broadcaster | Feed/profile CSS | existing `--nap-theme-*` → local `--ui-*` | ✓ WIRED | Real iframe computed styles change on theme broadcast. |
-| Feed/profile state | Semantic tone CSS | `dataset.tone` → `[data-tone]` | ✓ WIRED | Status text is unchanged and color selection is semantic. |
-| Documentation | Runtime implementation | exact action names and loader/security wording | ✓ WIRED | `Load target`, `Reload target`, `Retry target`, return actions, and diagnostics match source. |
+| Runtime-tab navigation | Host recovery surface | generation deadline -> `handleRuntimeTabError` -> session teardown -> `showError` | ✓ WIRED | Current generation only; Retry calls `reloadActiveRuntimeTab()`. |
+| Trusted runtime `shell.ready` | Runtime-tab deadline | registered source/window checks -> `markRuntimeTabReady` -> `settleRuntimeTabReady` | ✓ WIRED | Deadline clears only after current-source acceptance. |
+| External host | Target proxy/frame | attempt controller -> config refresh -> `navigateFrame(..., signal)` | ✓ WIRED | Timer begins before fetch and spans through trusted readiness. |
+| Local target proxy | Untrusted target URL | `readyTimeoutMs` -> AbortController -> outbound fetch -> stable 502 | ✓ WIRED | Named local server test passed. |
+| Final `pagehide` | Pointer and tab ownership | `destroyRuntimePointerWork` before `destroyRuntimeTabHost` | ✓ WIRED | Held resolver cannot install catalog, log resolution, or create a tab after teardown. |
+| Host message listener | Runtime/session registry | current `MessageEvent.source`, registered window ID, generation | ✓ WIRED | Unknown, stale, and destroyed sources are ignored. |
+| Theme broadcaster | Feed/profile CSS and state | existing `--nap-theme-*` -> local `--ui-*`; `dataset.tone` -> `[data-tone]` | ✓ WIRED | Real iframe light/dark and state tests passed. |
+| Source selector | Both Paja browser specs | `GROUPS.paja` sorted output | ✓ WIRED | Direct command returned both specs exactly once. |
 
 ## Data-Flow Trace (Level 4)
 
 | Artifact | Data variable | Source | Produces real data | Status |
 | --- | --- | --- | --- | --- |
-| Paja context/header | target, identity, lifecycle | resolved config, active verified tab, runtime state | Yes | ✓ FLOWING |
-| Runtime tab surface | tab status/error/window ID | pointer resolver, verified frame navigation, trusted shell.ready | Yes, except never-ready has no settlement | ⚠️ HOLLOW FAILURE EDGE |
-| External surface | attempt generation/status/error | target proxy fetch, frame injection, trusted shell.ready | Yes, except hanging fetch has no settlement | ⚠️ HOLLOW FAILURE EDGE |
-| Message log | protocol envelopes | real bridge traffic | Yes | ✓ FLOWING |
-| Feed/profile status tones | text and tone | existing load/theme/data/error paths | Yes | ✓ FLOWING |
+| Runtime tab surface | status, generation, window ID, error | verified pointer resolver, frame registration, trusted `shell.ready`, deadline | Yes | ✓ FLOWING |
+| External target surface | attempt generation, controller, status, error | config refresh, browser proxy, server target fetch, trusted `shell.ready` | Yes | ✓ FLOWING |
+| Paja context/header | target, identity, active tab, lifecycle | resolved config and active verified tab | Yes | ✓ FLOWING |
+| Message log | protocol and host lifecycle envelopes | real bridge traffic and host settlement | Yes | ✓ FLOWING |
+| Feed/profile tones | status text and semantic tone | existing load/theme/data/error paths | Yes | ✓ FLOWING |
 
 ## Behavioral Spot-Checks
 
-| Behavior | Command | Result | Status |
+| Behavior | Command/evidence | Result | Status |
 | --- | --- | --- | --- |
-| Focused Phase 107 unit/conformance/controller coverage | `corepack pnpm exec vitest run` with eight named files | 8 files, 68 tests passed | ✓ PASS |
-| Paja recovery/layout/runtime-pointer flows | Focused Chromium command selecting eight named cases | 8 passed | ✓ PASS |
-| Feed/profile theme and state readability | Focused Chromium theme command | 2 passed | ✓ PASS |
-| Build | `corepack pnpm build` | 33-package build succeeded | ✓ PASS |
-| Type check | `corepack pnpm type-check` | 17 tasks succeeded | ✓ PASS |
-| Documentation | `corepack pnpm docs:check` | TypeDoc, VitePress, and docs audit succeeded | ✓ PASS |
-| Changeset scope | `corepack pnpm changeset status` | only `@kehto/paja` patch | ✓ PASS |
-| Phase-range whitespace | `git diff --check b7d045f560d6945e7974f9719fcd9c02314f9588` | review Markdown trailing-whitespace errors | ✗ FAIL |
-| Pinned changed-file AI-slop | `aislop@0.12.0 scan --changes --base <phase-base>` | tool rejected the Git-resolvable SHA; repeated with named refs in isolated clone and failed identically | ? UNVERIFIED |
+| Runtime deadline fires once and cancellation is idempotent | Named Vitest in `browser-runtime-tabs.test.ts` | 1 passed | ✓ PASS |
+| Server target fetch is bounded with stable timeout diagnostic | Named Vitest in `server.test.ts` | 1 passed; loopback-required rerun | ✓ PASS |
+| Held pointer relay work aborts before artifact fetch | Named Vitest in `runtime-resolver.test.ts` | 1 passed | ✓ PASS |
+| Never-ready runtime generation tears down, ignores stale ready, and retries | Exact-head named Chromium case | passed | ✓ PASS |
+| Never-settling external fetch enters recovery and retries through same loader | Exact-head named Chromium case | passed | ✓ PASS |
+| Final pagehide prevents post-destroy pointer/tab ownership | Exact-head named Chromium case | passed | ✓ PASS |
+| Full unit suite | [GitHub Vitest check](https://github.com/jodobear/kehto-web/actions/runs/30633268149) for PR head | 130 files, 1588 tests passed | ✓ PASS |
+| Full browser suite | [GitHub Playwright check](https://github.com/jodobear/kehto-web/actions/runs/30633268149) associated with head `2290f8c5` | 95 passed, 1 intentional live skip; all Phase 107 cases passed | ✓ PASS |
+| Build, type, docs | [GitHub Build & Type-Check job](https://github.com/jodobear/kehto-web/actions/runs/30633268149) | build passed; 17/17 type tasks; strict TypeDoc/VitePress/9-package audit passed | ✓ PASS |
+| Immutable-base diff | `git diff --check b7d045f...` | exit 0 | ✓ PASS |
+| Pinned AI-slop | `aislop@0.12.0 ... --base b7d045f... --json` | scoreable, 100/100, zero issues | ✓ PASS |
 
 ## Probe Execution
 
-Step 7c: SKIPPED — no Phase 107 probe script is declared or present. Browser, unit, build, type, docs, conformance, and static commands are the declared executable checks.
+Step 7c: SKIPPED — no Phase 107 probe script is declared or present. Unit, browser, build, type, docs, conformance, static, diff, and quality commands are the declared executable checks.
 
 ## Requirements Coverage
 
 | Requirement | Source plans | Status | Evidence |
 | --- | --- | --- | --- |
-| VIS-01 | 107-03, 107-04, 107-05 | ✓ SATISFIED | Bounded semantic palette and real theme consumption across all three surfaces. |
-| VIS-02 | 107-03, 107-04, 107-05 | ✓ SATISFIED | Exact type roles/sizes/weights, hierarchy, and computed browser evidence. |
-| VIS-03 | 107-03, 107-04, 107-05 | ✓ SATISFIED | Named spacing scale and bounded responsive layouts/long content. |
-| PAJA-01 | 107-02, 107-03, 107-05 | ✓ SATISFIED | Desktop split, context, controls, stage, and measured browser geometry. |
-| PAJA-02 | 107-02, 107-03, 107-05 | ✓ SATISFIED | Phone composition, keyboard reachability, internal scrolling, and no horizontal overflow. |
-| PAJA-03 | 107-01, 107-02, 107-03, 107-05 | ✗ BLOCKED | Detected failures recover, but a never-ready runtime tab or hanging external fetch never exposes recovery. |
-| PAJA-04 | 107-01, 107-02, 107-05 | ⚠️ PARTIAL | Retry preserves the existing verified loader and boundaries when available; the missing failure settlement prevents Retry from being available on all required paths. |
+| VIS-01 | 107-03, 107-04, 107-05, 107-07 | ✓ SATISFIED | Canonical palette across Paja/feed/profile; declaration guard and real theme tests pass. |
+| VIS-02 | 107-03, 107-04, 107-05, 107-07 | ✓ SATISFIED | Exact type roles/sizes/weights and 12px floor have static and computed-browser proof. |
+| VIS-03 | 107-03, 107-04, 107-05, 107-07 | ✓ SATISFIED | Named spacing, containment, phone/reflow geometry, and long-content tests pass. |
+| PAJA-01 | 107-02, 107-03, 107-05, 107-07 | ✓ SATISFIED | Desktop split, context, tabs, controls, stage, status, and footer are browser-proven. |
+| PAJA-02 | 107-02, 107-03, 107-05, 107-07 | ✓ SATISFIED | Purpose-built phone composition, keyboard reachability, and no horizontal overflow are browser-proven. |
+| PAJA-03 | 107-01, 107-02, 107-03, 107-05, 107-06, 107-07 | ✓ SATISFIED | Immediate, missing-ready, never-ready, and never-settling failures all expose host recovery and Retry. |
+| PAJA-04 | 107-01, 107-02, 107-05, 107-06, 107-07 | ✓ SATISFIED | Retry reuses existing loaders; source/session/provenance/conformance tests pass. Judgment prohibition remains human. |
 
-No Phase 107 requirement is orphaned from the PLAN frontmatter.
-
-## Upstream Protocol Boundary
-
-Independent live checks resolved:
-
-- `napplet/naps` master: `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`
-- NIP-5D PR 2303 head: `eb45dfd7335b7f88cb53781984c553581d2b4c34`
-
-Current code retains bare `shell.ready`, one creation-bound/current-source `shell.init` lifecycle, NAP-THEME push consumption, verified bytes through srcdoc, injected bootstrap outside signed bytes, `sandbox="allow-scripts"` without same-origin, and registered `MessageEvent.source` checks. The focused NIP-5D and identity/theme conformance guards passed. This is strong supporting evidence, but the judgment-tier prohibition remains explicitly flagged for human review.
-
-## Review-Fix Verification
-
-The earlier CR-01 through CR-07 fixes exist in code and focused regressions pass, including stable duplicate exits, external missing-ready timeout, tab lifecycle cleanup, active-only lifecycle projection, and target-surface hide/reset. CR-02 fixed the external post-injection handshake path, but the analogous runtime-tab path was not given a deadline. The current blocker is therefore a distinct uncovered sibling path, not a reversal of the external fix.
-
-## Inherited Upload-Flow Assessment
-
-The exact reported test was rerun independently:
-
-`tests/e2e/paja-single-window.spec.ts:629` fails at line 678 because the fixture reports `Required shell domains unavailable` instead of `shell-init received`.
-
-Blame places the failing upload-flow expectation before the Phase 107 base, and Phase 107 does not change upload-domain capability mapping or the upload handler. Focused Phase 107 external, pointer, visual, provenance, and conformance cases pass. This upload defect is inherited and unrelated to the Phase 107 visual/recovery implementation, so it is recorded as baseline debt rather than a Phase 107 goal blocker. It still prevents claiming that the entire unfiltered Paja E2E file is green.
+No Phase 107 requirement is orphaned from PLAN frontmatter. Phase 108 requirements are specifically scoped to feed/profile behavioral recovery and do not absorb a Phase 107 gap.
 
 ## Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 | --- | --- | --- | --- | --- |
-| `browser-runtime-tabs.ts` | 546-588 | No readiness timeout after verified frame injection | 🛑 BLOCKER | Runtime tab can remain Loading forever; host recovery never becomes actionable. |
-| `browser-target-frame.ts` / `server.ts` | 96, 125-131 / 130-139 | Fetch without AbortSignal/deadline | 🛑 BLOCKER | External attempt can remain busy before the existing shell.ready timer starts. |
-| Phase review Markdown | multiple | trailing whitespace | ⚠️ WARNING | Current complete phase-range diff gate fails. |
+| None | — | No added unreferenced TBD/FIXME/XXX debt markers, TODO/HACK/PLACEHOLDER completion markers, raw iframe error renderer, or alternate loader | — | No blocker or warning found. |
 
-No unreferenced TBD, FIXME, or XXX markers were found in Phase 107 modified source. Empty/default values found by the scan are initialized state or test fixtures that are populated by real paths, not user-visible stubs.
+Source-slice unit guards alone would be misleading evidence for the state transitions. They are not used as sole proof: exact-head Chromium exercises never-ready recovery, held-fetch recovery, and final teardown; all three passed. One non-goal cleanup edge—intent-driven resolver work may finish before its post-await destroyed check—does not reacquire host ownership and is covered by current-generation guards; no Phase 107 must-have failure results.
 
-## Human Verification Recommended
+## Human Verification Required
 
 ### 1. Judgment-tier protocol prohibition
 
-**Test:** Review the Phase 107 source diff against the cited NAP-SHELL, NAP-THEME, and NIP-5D refs.
+**Test:** Review the Phase 107 source diff against the recorded NAP-SHELL, NAP-THEME, and NIP-5D refs.
 **Expected:** No message, capability, routing, lifecycle, sandbox, verified-byte, or package-version contract changed.
-**Why human:** The prohibition is explicitly judgment-tier; autonomous LLM review is non-authoritative.
+**Why human:** PLAN frontmatter explicitly classifies this as judgment-tier; autonomous review remains non-authoritative.
 
 ### 2. Judgment-tier phone reachability prohibition
 
-**Test:** At 375x812 and 640x360, traverse every control with keyboard and touch, expand long diagnostics, and scroll tabs/controls/stage/footer.
-**Expected:** Identity/current target stay visible; no page horizontal scroll; every focus ring/control/value remains reachable.
+**Test:** At 375x812 and 640x360, traverse every control with keyboard and touch, expand long diagnostics, and scroll tabs, controls, stage, and footer.
+**Expected:** Identity/current target stay visible; no page horizontal scroll; every focus ring, control, and value remains reachable.
 **Why human:** Automated geometry is strong evidence but cannot certify perceived reachability and focus visibility.
 
 ### 3. Judgment-tier Phase 108 boundary prohibition
 
 **Test:** Exercise feed/profile empty, loading, data, partial, and failure states.
-**Expected:** Existing copy and transitions remain; no retry/reconnect/recovery behavior was added.
+**Expected:** Existing copy and transitions remain; no retry, reconnect, or behavioral recovery was added.
 **Why human:** Negative behavioral scope is judgment-tier in PLAN frontmatter.
 
 ### 4. Nested-worktree physical preservation
@@ -217,11 +188,11 @@ No unreferenced TBD, FIXME, or XXX markers were found in Phase 107 modified sour
 
 ## Gaps Summary
 
-Phase 107 is not ready to pass. The primary goal blocker is incomplete failure settlement: detected errors recover well, but a verified runtime iframe that never emits shell.ready and an external target fetch that never settles can each strand the user in Loading with Retry unavailable. A second release-readiness gap remains because the current complete phase-range diff check fails and the pinned AI-slop result could not be independently reproduced. Phase 108 does not explicitly cover either concern, so neither gap is deferred.
+No automated implementation or gate gap remains. Both original recovery blockers and the immutable-base quality/diff blocker are closed with independent exact-head evidence. Phase status is `human_needed` solely because three judgment-tier prohibitions and historical nested-worktree preservation require human confirmation.
 
-The reported upload-flow E2E failure is independently reproduced but predates the phase and is unrelated to its visual/recovery changes. It is baseline debt, not the reason for the Phase 107 blocker.
+Phase 108 was not inspected, planned, or started.
 
 ---
 
-_Verified: 2026-07-31T10:25:19Z_
+_Verified: 2026-07-31T13:24:18Z_
 _Verifier: the agent (gsd-verifier)_
