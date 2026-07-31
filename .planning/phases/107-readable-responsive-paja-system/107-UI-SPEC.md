@@ -1,10 +1,11 @@
 ---
 phase: 107
 slug: readable-responsive-paja-system
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-07-31
+reviewed_at: 2026-07-31
 ---
 
 # Phase 107 — UI Design Contract
@@ -240,25 +241,56 @@ Standards basis: [WCAG 2.2 reflow, focus, target-size, and status-message criter
 
 > Shape-rooted coverage for empty, loading, error, populated, partial, overflow, zero/one/many, and long-text states. Backstop rows require explicit browser evidence during verification.
 
-Applicable state considerations resolved: 11 covered, 4 backstop, 0 unresolved.
+Probe input used authored element-kind unions for the context header, runtime tabs, development console, lifecycle status, runtime stage, target error panel, message log, environment footer, and feed/profile shells. Applicable state considerations resolved: 22 covered, 24 backstop, 0 unresolved.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | runtime stage | ✅ covered | Runtime-pointer mode renders the documented No runtime loaded heading/body and leaves Load target available. |
-| empty | message log | ✅ covered | Zero messages renders the documented No messages yet copy instead of an unexplained blank box. |
-| loading | runtime stage, pointer form | ✅ covered | Load/retry shows specific progress text, `aria-busy`, and one disabled submit/retry action until settlement. |
-| error | target loader/stage | ✅ covered | Host error card renders actionable copy, retry, return, and collapsed escaped diagnostics; raw iframe `<pre>` is forbidden. |
-| populated | active runtime stage | ✅ covered | Successful existing load shows one useful active iframe with persistent product, target, active-tab, and lifecycle context. |
-| partial | pointer form | ✅ covered | Whitespace-only input stays empty; malformed/non-resolving input is preserved and transitions to the same recoverable error surface. |
-| overflow | console and message log | ✅ covered | Both regions scroll vertically inside bounded panels; controls and section headings remain reachable. |
-| overflow | runtime tabs | ✅ covered | Tabs scroll horizontally within their own strip; active tab is revealed; page does not scroll horizontally. |
-| zero-one-many | runtime tabs | ✅ covered | Zero tabs shows empty stage, one tab remains fully labelled, many tabs use bounded horizontal overflow. |
-| zero-one-many | message log | ✅ covered | Zero shows empty copy; one and many preserve row hierarchy and scroll after the available log height. |
-| long-text | error details | ✅ covered | Escaped diagnostics wrap anywhere inside collapsed details and cannot widen the stage. |
-| long-text | target context | 🧪 backstop | Browser test uses a 160-character target at 375×812; two-line target context remains identifiable with full accessible value and no page overflow. |
-| overflow | phone host composition | 🧪 backstop | 375×812 browser evidence proves stage height is at least 320px and all header/console/footer content remains reachable. |
-| populated | desktop split | 🧪 backstop | 1280×720 browser evidence proves 360px console plus active stage, distinct header/tabs/status, and no clipping. |
-| long-text | footer values and tab labels | 🧪 backstop | Browser fixture uses long runtime/simulation/tab labels at both reference viewports and proves wrap/ellipsis plus accessible full labels. |
+| Element | Category | Status | Resolution / Verification |
+|---------|----------|--------|---------------------------|
+| Context header | loading | 🧪 backstop | Browser evidence proves target/tab loading remains visible without displacing product or target context. |
+| Context header | error | 🧪 backstop | Browser evidence proves an errored active tab retains identifiable target context and access to recovery. |
+| Context header | overflow | 🧪 backstop | 375×812 evidence proves the independent tab strip contains overflow and page width never expands. |
+| Context header | long-text | 🧪 backstop | A 160-character target wraps to two lines before ellipsis while full text remains accessible. |
+| Runtime tabs | empty | ✅ covered | Zero tabs routes to the documented `No runtime loaded` stage with target loading still available. |
+| Runtime tabs | loading | 🧪 backstop | Held-out tab-state proof covers visible loading state, active-tab retention, and non-duplicated attempts. |
+| Runtime tabs | error | 🧪 backstop | Held-out tab-state proof covers visible error state and the same verified reload path. |
+| Runtime tabs | populated | ✅ covered | One or more tabs preserve labelled active/inactive hierarchy and one visible active stage. |
+| Runtime tabs | partial | 🧪 backstop | Multi-tab fixture proves ready, loading, and errored tabs coexist without hiding the active target. |
+| Runtime tabs | overflow | ✅ covered | Tabs scroll horizontally inside their strip and auto-reveal the active tab without page scrolling. |
+| Runtime tabs | zero-one-many | ✅ covered | Zero shows empty stage, one remains fully labelled, and many use bounded horizontal overflow. |
+| Runtime tabs | long-text | 🧪 backstop | Long tab labels prove visual ellipsis plus specific accessible full labels at both viewports. |
+| Development console | empty | ✅ covered | Whitespace-only target input stays empty and the documented empty stage explains how to load. |
+| Development console | loading | ✅ covered | Submit/retry progress is explicit, busy, and disabled only while the current attempt runs. |
+| Development console | error | ✅ covered | Malformed or unreachable input is preserved while the stage shows the recoverable host error panel. |
+| Development console | partial | ✅ covered | Incomplete input never starts a second load; non-resolving input settles through the same error contract. |
+| Development console | overflow | ✅ covered | Console sections scroll inside a bounded panel while headings and controls remain reachable. |
+| Development console | long-text | 🧪 backstop | Long pointer, signer, and simulation values prove wrapping or bounded truncation without obscured focus. |
+| Lifecycle status | overflow | ✅ covered | Fixed lifecycle text stays within its semantic status region and phone footer/control wrapping rules. |
+| Lifecycle status | long-text | 🧪 backstop | Static proof constrains lifecycle output to the documented finite vocabulary; diagnostics stay in details. |
+| Runtime stage | empty | ✅ covered | The documented empty heading/body and `Load target` path replace an unexplained blank stage. |
+| Runtime stage | loading | ✅ covered | `Loading target…` or `Retrying target…`, `aria-busy`, and one disabled action remain visible until settlement. |
+| Runtime stage | error | ✅ covered | Host error card supplies explanation, retry, return, and collapsed escaped diagnostics; raw iframe `<pre>` is forbidden. |
+| Runtime stage | populated | ✅ covered | Successful existing loading shows one active iframe with persistent product, target, tab, and lifecycle context. |
+| Runtime stage | overflow | 🧪 backstop | Reference-viewport proof covers at least 320px phone stage height, internal scrolling, and no host clipping. |
+| Runtime stage | long-text | ✅ covered | Error diagnostics wrap anywhere inside bounded collapsed details and cannot widen the stage. |
+| Target error panel | overflow | ✅ covered | Actions remain reachable while diagnostic details scroll vertically inside their own bounded region. |
+| Target error panel | long-text | ✅ covered | Escaped diagnostic text wraps anywhere and never enters executable markup or page-width calculation. |
+| Message log | empty | ✅ covered | Zero messages renders `No messages yet. Runtime traffic appears here.` |
+| Message log | loading | 🧪 backstop | Negative-state test proves the append-only log does not invent a remote-loading placeholder. |
+| Message log | error | 🧪 backstop | Negative-state test proves transport errors appear as escaped rows and never replace the log with an unrelated error screen. |
+| Message log | populated | ✅ covered | One or many rows preserve readable hierarchy and chronological list semantics. |
+| Message log | partial | 🧪 backstop | Partial/unknown envelope fields remain readable escaped row content without breaking surrounding rows. |
+| Message log | overflow | ✅ covered | Rows scroll vertically inside the bounded log while the section heading and clear action remain reachable. |
+| Message log | zero-one-many | ✅ covered | Zero has explicit copy; one and many retain row hierarchy and bounded scrolling. |
+| Message log | long-text | ✅ covered | Long diagnostic rows wrap or scroll within the log and cannot widen the host page. |
+| Environment footer | overflow | 🧪 backstop | 375×812 evidence proves the two-column auto-row grid keeps every status/value reachable. |
+| Environment footer | long-text | 🧪 backstop | Long runtime/simulation values wrap anywhere while labels and accessible full values remain intact. |
+| Feed/profile shells | empty | 🧪 backstop | Browser evidence proves existing empty profile/feed states remain readable after token/type/spacing migration. |
+| Feed/profile shells | loading | 🧪 backstop | Browser evidence proves existing loading states retain visible semantic status at 12px or larger. |
+| Feed/profile shells | error | 🧪 backstop | Phase 107 proof preserves readable existing failures; Phase 108 owns actionable recovery copy and controls. |
+| Feed/profile shells | populated | 🧪 backstop | Desktop/phone fixtures prove populated author, timestamp, profile, and content hierarchy at the declared type scale. |
+| Feed/profile shells | partial | 🧪 backstop | Missing avatar/media and partial profile metadata remain legible without collapsing layout. |
+| Feed/profile shells | overflow | 🧪 backstop | Long feed/profile content remains within each iframe with no host-level horizontal overflow. |
+| Feed/profile shells | zero-one-many | 🧪 backstop | Feed fixtures cover zero, one, and many items while profile empty/populated states remain distinct. |
+| Feed/profile shells | long-text | 🧪 backstop | Long names, public keys, metadata, and content prove wrapping/truncation plus accessible full values. |
 
 ---
 
@@ -302,11 +334,11 @@ Before Phase 107 implementation can be accepted:
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved after checker revision `de80bafd`; 6/6 dimensions passed with no recommendations.
