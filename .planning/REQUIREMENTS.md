@@ -8,9 +8,9 @@
 
 ### Readable Visual System
 
-- [ ] **VIS-01**: Users see one coherent semantic palette across Paja, feed, and profile surfaces for foreground, muted text, surfaces, borders, accent, danger, and success states; scoped rules do not repeat raw color literals outside the token declarations.
-- [ ] **VIS-02**: Users can read every routine status, label, control, author, and detail at a computed size of at least 12px; only explicitly nonessential metadata may use one smaller semantic text token.
-- [ ] **VIS-03**: Users see consistent spacing built from a named compact scale across the scoped surfaces, with no clipped controls, status text, or footer content at the 375×812 phone viewport.
+- [x] **VIS-01**: Users see one coherent semantic palette across Paja, feed, and profile surfaces for foreground, muted text, surfaces, borders, accent, danger, and success states; scoped rules do not repeat raw color literals outside the token declarations.
+- [x] **VIS-02**: Users can read every routine status, label, control, author, and detail at a computed size of at least 12px; only explicitly nonessential metadata may use one smaller semantic text token.
+- [x] **VIS-03**: Users see consistent spacing built from a named compact scale across the scoped surfaces, with no clipped controls, status text, or footer content at the 375×812 phone viewport.
 
 ### Paja Host Recovery
 
@@ -60,9 +60,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VIS-01 | Phase 107 | Pending |
-| VIS-02 | Phase 107 | Pending |
-| VIS-03 | Phase 107 | Pending |
+| VIS-01 | Phase 107 | Complete |
+| VIS-02 | Phase 107 | Complete |
+| VIS-03 | Phase 107 | Complete |
 | PAJA-01 | Phase 107 | Complete |
 | PAJA-02 | Phase 107 | Complete |
 | PAJA-03 | Phase 107 | Complete |
