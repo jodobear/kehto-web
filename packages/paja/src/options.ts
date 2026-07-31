@@ -219,7 +219,7 @@ export function createPajaRuntimeHostConfig(
     runtime: {
       host: 'static',
       port: 0,
-      readyTimeoutMs: 1,
+      readyTimeoutMs: DEFAULT_READY_TIMEOUT_MS,
       reloadToken: createReloadToken(now),
       createdAt: now.toISOString(),
     },

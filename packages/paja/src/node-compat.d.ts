@@ -4,7 +4,10 @@ declare module 'node:http' {
       request: { url?: string; headers: Record<string, string | string[] | undefined> },
       response: {
         writeHead(statusCode: number, headers: Record<string, string>): void;
+        write(body: string): void;
         end(body: string): void;
+        once(event: 'close', callback: () => void): void;
+        off(event: 'close', callback: () => void): void;
       },
     ) => void,
   ): {
@@ -12,6 +15,8 @@ declare module 'node:http' {
     once(event: 'error', callback: (error: Error) => void): void;
     off(event: 'error', callback: (error: Error) => void): void;
     close(callback: (error?: Error) => void): void;
+    closeAllConnections?(): void;
+    closeIdleConnections?(): void;
     address(): string | { port: number } | null;
   };
 }

@@ -70,6 +70,7 @@ export async function navigateFrame(
   windowId?: string,
   isCurrent?: () => boolean,
   onRegistered?: (windowId: string | null) => void,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   const identity = getTargetOriginIdentity(config, resolvedTarget);
   const environment = resolvePajaFrameEnvironment(adapter, identity);
@@ -93,7 +94,7 @@ export async function navigateFrame(
     );
     return registeredWindowId;
   }
-  const html = await fetchTargetHtml();
+  const html = await fetchTargetHtml(signal);
   if (isCurrent && !isCurrent()) return null;
   const registeredWindowId = registerFrameForGeneration(frame, config, generation, identity, environment, windowId);
   onRegistered?.(registeredWindowId);
@@ -122,12 +123,13 @@ function connectOrigins(urls: readonly string[]): string[] {
   return [...out];
 }
 
-async function fetchTargetHtml(): Promise<string> {
+async function fetchTargetHtml(signal?: AbortSignal): Promise<string> {
   const response = await fetch(new URL('./__kehto/target.html', window.location.href), {
     cache: 'no-store',
     headers: {
       accept: 'text/html, application/xhtml+xml;q=0.9, */*;q=0.8',
     },
+    signal,
   });
   if (!response.ok) {
     const detail = (await response.text()).trim();

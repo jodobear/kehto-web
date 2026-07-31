@@ -280,7 +280,7 @@ async function startHeldTargetServer(): Promise<TargetServer> {
         }
         resolve();
       });
-      server.closeAllConnections();
+      server.closeAllConnections?.();
     }),
   };
 }
