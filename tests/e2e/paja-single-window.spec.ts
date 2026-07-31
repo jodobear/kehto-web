@@ -8,6 +8,9 @@ import { startPajaServer, type PajaServer } from '../../packages/paja/dist/index
 interface TargetServer {
   readonly url: string;
   readonly requestOrigins: string[];
+  readonly htmlRequestCount: number;
+  failNext(message: string, options?: { readonly hold?: boolean }): void;
+  releaseHeldFailure(): void;
   close(): Promise<void>;
 }
 
@@ -47,6 +50,70 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await runtimeServer.close();
   await targetServer.close();
+});
+
+test('recovers an external target through stable host error controls', async ({ page }) => {
+  test.setTimeout(60_000);
+  const recoveryTarget = await startTargetServer();
+  const diagnostic = '<img data-paja-diagnostic="unsafe" src=x onerror=alert(1)>';
+  recoveryTarget.failNext(diagnostic, { hold: true });
+  const recoveryRuntime = await startPajaServer({
+    options: {
+      targetUrl: recoveryTarget.url,
+      port: 0,
+    },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(recoveryRuntime.url);
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(1);
+    await page.locator('#message-filter').focus();
+    recoveryTarget.releaseHeldFailure();
+
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface).toBeVisible();
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-message')).toHaveText(
+      'Check that the target is running and reachable, then retry.',
+    );
+    await expect(surface.locator('.paja-target-retry')).toHaveText('Retry target');
+    await expect(surface.locator('.paja-target-return')).toHaveText('Back to Paja controls');
+    await expect(surface.locator('.paja-target-details-summary')).toHaveText('Show technical details');
+    await expect(surface.locator('.paja-target-details')).not.toHaveAttribute('open', '');
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(diagnostic);
+    await expect(page.locator('[data-paja-diagnostic="unsafe"]')).toHaveCount(0);
+    await expect(page.locator('#lifecycle-status')).toHaveText("Target couldn't load");
+    expect(await page.locator('#napplet-frame').getAttribute('srcdoc')).toBeNull();
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('message-filter');
+
+    await surface.locator('.paja-target-details-summary').click();
+    await expect(surface.locator('.paja-target-details-summary')).toHaveText('Hide technical details');
+    await surface.locator('.paja-target-details-summary').click();
+    await expect(surface.locator('.paja-target-details-summary')).toHaveText('Show technical details');
+
+    const failedGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(2);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+    await expect(page.locator('iframe')).toHaveCount(1);
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('sandbox', 'allow-scripts');
+    await expect(page.locator('#napplet-frame')).not.toHaveAttribute('sandbox', /allow-same-origin/);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      generation: failedGeneration + 1,
+      status: 'ready',
+      iframeCount: 1,
+      initSent: true,
+    });
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('napplet-frame');
+  } finally {
+    await recoveryRuntime.close();
+    await recoveryTarget.close();
+  }
 });
 
 test('hosts one sandboxed target iframe and reinitializes it on reload', async ({ page }) => {
@@ -582,7 +649,10 @@ test('keeps canonical INC protected through the real shim assignment in an opaqu
 
 async function startTargetServer(): Promise<TargetServer> {
   let loadCount = 0;
+  let htmlRequestCount = 0;
   const requestOrigins: string[] = [];
+  const failures: Array<{ readonly message: string; readonly hold: boolean }> = [];
+  let releaseHeldFailure: (() => void) | null = null;
   const server = createServer((request, response) => {
     requestOrigins.push(typeof request.headers.origin === 'string' ? request.headers.origin : '');
     const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -598,6 +668,25 @@ async function startTargetServer(): Promise<TargetServer> {
       response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       response.end('Not found');
       return;
+    }
+
+    if (typeof request.headers.origin !== 'string') {
+      htmlRequestCount += 1;
+      const failure = failures.shift();
+      if (failure) {
+        const respond = () => {
+          (response as typeof response & { statusMessage: string }).statusMessage = failure.message;
+          response.writeHead(503, {
+            'access-control-allow-origin': '*',
+            'cache-control': 'no-store',
+            'content-type': 'text/plain; charset=utf-8',
+          });
+          response.end(failure.message);
+        };
+        if (failure.hold) releaseHeldFailure = respond;
+        else respond();
+        return;
+      }
     }
 
     loadCount += 1;
@@ -630,7 +719,21 @@ async function startTargetServer(): Promise<TargetServer> {
   return {
     url: `http://127.0.0.1:${address.port}/`,
     requestOrigins,
+    get htmlRequestCount() {
+      return htmlRequestCount;
+    },
+    failNext(message, options) {
+      failures.push({ message, hold: options?.hold === true });
+    },
+    releaseHeldFailure() {
+      const release = releaseHeldFailure;
+      releaseHeldFailure = null;
+      release?.();
+    },
     close: () => new Promise((resolve, reject) => {
+      const release = releaseHeldFailure;
+      releaseHeldFailure = null;
+      release?.();
       server.close((error) => {
         if (error) {
           reject(error);
