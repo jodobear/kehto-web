@@ -21,7 +21,7 @@ import {
   activateRuntimeTab, addRuntimeTab, closeRuntimeTab, getActiveTab,
   PAJA_RUNTIME_TABS_STORAGE_KEY, parseRuntimeTabsSnapshot, reloadActiveRuntimeTab,
   projectActiveRuntimeTabLifecycle, renderRuntimeTabs, resolvedTargetKey,
-  setEmptyStageVisible, showDuplicatePointerDialog,
+  setEmptyStageVisible, settleRuntimeTabReady, showDuplicatePointerDialog,
   snapshotRuntimeTabs, type PajaRuntimeTabsSnapshot, type PajaRuntimeTab,
   type PajaRuntimeTabContext, type PajaRuntimeTabRuntime,
 } from './browser-runtime-tabs.js';
@@ -645,6 +645,7 @@ async function installPajaHost(): Promise<void> {
           registeredWindowId,
           { setReadyStatus: (current) => setStatus(current, 'ready') },
         )) return;
+        settleRuntimeTabReady(sourceTab);
         const isActiveTab = state.activeTabId === sourceTab.id;
         sourceTab.targetSurface.showReady({
           focusFrame: sourceTab.focusFrameOnReady && isActiveTab,

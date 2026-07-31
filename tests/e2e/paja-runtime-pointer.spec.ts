@@ -212,8 +212,10 @@ test('recovers resolver and active-frame failures without duplicating verified t
   let resolutionRequests = 0;
   let releaseRetry: (() => void) | null = null;
   server.blobs.set(target.hash, target.bytes);
+  const recoveryConfig = createPajaRuntimeHostConfig({ pointer: target.pointer, maxWaitMs: 2_000 });
   server.setConfig({
-    ...createPajaRuntimeHostConfig({ pointer: target.pointer, maxWaitMs: 2_000 }),
+    ...recoveryConfig,
+    runtime: { ...recoveryConfig.runtime, readyTimeoutMs: 2_000 },
     simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
   });
   await page.routeWebSocket(`${relay}/`, (socket) => {

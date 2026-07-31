@@ -16,6 +16,11 @@ import type { PajaSimulation } from './simulation.js';
 
 type PajaRuntimeStatus = 'booting' | 'ready' | 'reloading' | 'error';
 
+export interface PajaRuntimeTabReadinessDeadline {
+  readonly generation: number;
+  cancel(): void;
+}
+
 export const PAJA_RUNTIME_TABS_STORAGE_KEY = 'kehto:paja:runtime-tabs:v1';
 
 export interface PajaRuntimeTabsSnapshot {
@@ -41,6 +46,7 @@ export interface PajaRuntimeTab {
   targetSurface: PajaTargetSurface;
   focusFrameOnReady: boolean;
   frameErrorHandler: (() => void) | null;
+  readinessDeadline: PajaRuntimeTabReadinessDeadline | null;
   generation: number;
   windowId: string | null;
   status: PajaRuntimeStatus;
@@ -103,6 +109,31 @@ export function resolvedTargetKey(target: PajaResolvedPointer): string {
 /** Return the opaque identity of one live runtime-tab generation. */
 export function runtimeTabGenerationId(tab: Pick<PajaRuntimeTab, 'id' | 'generation'>): string {
   return `${tab.id}:${tab.generation}`;
+}
+
+export function createRuntimeTabReadinessDeadline(
+  timeoutMs: number,
+  generation: number,
+  onTimeout: (generation: number) => void,
+): PajaRuntimeTabReadinessDeadline {
+  let active = true;
+  const timeoutId = globalThis.setTimeout(() => {
+    if (!active) return;
+    active = false;
+    onTimeout(generation);
+  }, Math.max(0, timeoutMs));
+  return {
+    generation,
+    cancel() {
+      if (!active) return;
+      active = false;
+      globalThis.clearTimeout(timeoutId);
+    },
+  };
+}
+
+export function settleRuntimeTabReady(tab: PajaRuntimeTab): void {
+  clearRuntimeTabReadinessDeadline(tab);
 }
 
 export function getActiveTab(state: PajaRuntimeTabState): PajaRuntimeTab | null {
@@ -278,6 +309,7 @@ export function addRuntimeTab(
     targetSurface,
     focusFrameOnReady: false,
     frameErrorHandler: null,
+    readinessDeadline: null,
     generation: state.generation,
     windowId: null,
     status: 'booting',
@@ -487,21 +519,35 @@ function resolvedTargetTitle(target: PajaResolvedPointer): string {
 
 function destroyRuntimeTab(tab: PajaRuntimeTab, context: PajaRuntimeTabContext): void {
   destroyRuntimeTabSession(tab, context);
-  if (tab.frameErrorHandler) tab.frame.removeEventListener('error', tab.frameErrorHandler);
   tab.targetSurface?.destroy();
   tab.surfaceHost?.remove();
   tab.frame.remove();
 }
 
 function destroyRuntimeTabSession(tab: PajaRuntimeTab, context: PajaRuntimeTabContext): void {
+  clearRuntimeTabReadinessDeadline(tab);
+  clearRuntimeTabFrameErrorHandler(tab);
+  tab.focusFrameOnReady = false;
   context.onTabDestroyed?.(tab);
-  if (tab.windowId) {
-    context.bridge.runtime.destroyWindow(tab.windowId);
-    context.bridge.runtime.sessionRegistry.unregister(tab.windowId);
-    originRegistry.unregister(tab.windowId);
-    context.runtime.readyWindowIds.delete(tab.windowId);
-    if (context.runtime.currentWindowId === tab.windowId) context.runtime.currentWindowId = null;
+  const windowId = tab.windowId;
+  if (windowId) {
+    context.bridge.runtime.destroyWindow(windowId);
+    context.bridge.runtime.sessionRegistry.unregister(windowId);
+    originRegistry.unregister(windowId);
+    context.runtime.readyWindowIds.delete(windowId);
+    if (context.runtime.currentWindowId === windowId) context.runtime.currentWindowId = null;
   }
+  tab.windowId = null;
+}
+
+function clearRuntimeTabReadinessDeadline(tab: PajaRuntimeTab): void {
+  tab.readinessDeadline?.cancel();
+  tab.readinessDeadline = null;
+}
+
+function clearRuntimeTabFrameErrorHandler(tab: PajaRuntimeTab): void {
+  if (tab.frameErrorHandler) tab.frame.removeEventListener('error', tab.frameErrorHandler);
+  tab.frameErrorHandler = null;
 }
 
 function createRuntimeTabFrame(
@@ -528,10 +574,10 @@ function handleRuntimeTabError(
   error: unknown,
   generation: number,
 ): void {
-  if (tab.generation !== generation) return;
-  tab.frameErrorHandler = null;
+  if (tab.generation !== generation || tab.status === 'error') return;
+  const failedWindowId = tab.windowId;
   const focusRetry = tab.focusFrameOnReady && state.activeTabId === tab.id;
-  tab.focusFrameOnReady = false;
+  destroyRuntimeTabSession(tab, context);
   tab.status = 'error';
   tab.targetSurface.showError(error, { focusRetry });
   if (state.activeTabId === tab.id) context.setStatus(state, 'error');
@@ -539,7 +585,7 @@ function handleRuntimeTabError(
   appendPajaMessageLog(state, 'paja', {
     type: 'paja.target.error',
     error: error instanceof Error ? error.message : String(error),
-  }, tab.windowId ?? undefined);
+  }, failedWindowId ?? undefined);
   renderRuntimeTabs(state);
 }
 
@@ -551,7 +597,8 @@ function startRuntimeTabNavigation(
   const generation = tab.generation;
   const navigationKind = tab.status === 'reloading' ? 'retry' : 'initial';
   tab.status = navigationKind === 'retry' ? 'reloading' : 'booting';
-  if (tab.frameErrorHandler) tab.frame.removeEventListener('error', tab.frameErrorHandler);
+  clearRuntimeTabReadinessDeadline(tab);
+  clearRuntimeTabFrameErrorHandler(tab);
   const handleFrameError = () => {
     handleRuntimeTabError(tab, state, context, new Error('Target frame failed to load.'), generation);
   };
@@ -561,6 +608,19 @@ function startRuntimeTabNavigation(
   if (state.activeTabId === tab.id) context.setStatus(state, tab.status);
   projectRuntimeTabLifecycle(tab, state, context, generation);
   renderRuntimeTabs(state);
+  tab.readinessDeadline = createRuntimeTabReadinessDeadline(
+    context.config.runtime.readyTimeoutMs,
+    generation,
+    (expiredGeneration) => handleRuntimeTabError(
+      tab,
+      state,
+      context,
+      new Error(`Target did not become ready within ${context.config.runtime.readyTimeoutMs}ms.`),
+      expiredGeneration,
+    ),
+  );
+  const isCurrentGeneration = () => tab.generation === generation
+    && (tab.status === 'booting' || tab.status === 'reloading');
   void context.navigateFrame(
     tab.frame,
     context.config,
@@ -568,20 +628,18 @@ function startRuntimeTabNavigation(
     context.adapter,
     tab.resolvedTarget,
     runtimeTabWindowId(context.config, tab),
-    () => tab.generation === generation,
+    isCurrentGeneration,
     (windowId) => {
-      if (tab.generation !== generation) return;
+      if (!isCurrentGeneration()) return;
       tab.windowId = windowId;
       if (state.activeTabId === tab.id) context.runtime.currentWindowId = windowId;
     },
   ).then((windowId) => {
-    if (tab.generation !== generation) return;
+    if (!isCurrentGeneration()) return;
     tab.windowId = windowId;
     if (state.activeTabId === tab.id) context.runtime.currentWindowId = windowId;
   }).catch((error) => {
-    if (tab.generation !== generation) return;
-    tab.frame.removeEventListener('error', handleFrameError);
-    if (tab.frameErrorHandler === handleFrameError) tab.frameErrorHandler = null;
+    if (!isCurrentGeneration()) return;
     handleRuntimeTabError(tab, state, context, error, generation);
     console.error(error);
   });
