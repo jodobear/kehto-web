@@ -17,7 +17,7 @@ created: 2026-07-31
 |----------|-------|
 | **Framework** | Vitest 4.1.2 plus Playwright 1.59.1 with system Chromium |
 | **Config file** | `vitest.config.ts`; `playwright.config.ts` |
-| **Quick run command** | `corepack pnpm exec vitest run packages/paja/src/host-page.test.ts packages/paja/src/browser-runtime-tabs.test.ts packages/paja/src/browser-host.test.ts tests/unit/identity-theme-conformance-guard.test.ts tests/unit/nip5d-conformance-guard.test.ts tests/unit/select-e2e-tests.test.ts tests/unit/phase-107-visual-system.test.ts` |
+| **Quick run command** | `corepack pnpm exec vitest run packages/paja/src/host-page.test.ts packages/paja/src/browser-target-surface.test.ts packages/paja/src/browser-runtime-tabs.test.ts packages/paja/src/browser-host.test.ts tests/unit/identity-theme-conformance-guard.test.ts tests/unit/nip5d-conformance-guard.test.ts tests/unit/select-e2e-tests.test.ts tests/unit/phase-107-visual-system.test.ts` |
 | **Full suite command** | `corepack pnpm build && corepack pnpm type-check && corepack pnpm test:unit` followed by `corepack pnpm test:e2e -- tests/e2e/paja-single-window.spec.ts tests/e2e/paja-runtime-pointer.spec.ts` |
 | **Estimated runtime** | Quick Vitest under 10 seconds; focused browser plus full gates under 10 minutes |
 
@@ -33,10 +33,10 @@ created: 2026-07-31
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 107-W0-01 | TBD | 0 | VIS-01, VIS-02, VIS-03 | — | Component CSS consumes bounded semantic declarations; no raw inline status colors | unit/static | `corepack pnpm exec vitest run tests/unit/phase-107-visual-system.test.ts` | ❌ W0 | ⬜ pending |
-| 107-W0-02 | TBD | 0 | PAJA-03, PAJA-04 | T-107-01, T-107-02, T-107-06 | Diagnostics remain literal host text; retries cannot create stale or duplicate sessions | unit | `corepack pnpm exec vitest run packages/paja/src/browser-host.test.ts packages/paja/src/browser-runtime-tabs.test.ts tests/unit/nip5d-conformance-guard.test.ts` | ✅ extend | ⬜ pending |
-| 107-W0-03 | TBD | 0 | PAJA-01, PAJA-02, PAJA-03 | T-107-01, T-107-06 | Real loader paths preserve sandbox and verified content while failure UI stays host-owned | e2e | `corepack pnpm test:e2e -- tests/e2e/paja-single-window.spec.ts tests/e2e/paja-runtime-pointer.spec.ts` | ✅ extend | ⬜ pending |
-| 107-W0-04 | TBD | 0 | PROOF support | — | Paja source changes cannot omit either real Paja browser path from scoped CI | unit/static | `corepack pnpm exec vitest run tests/unit/select-e2e-tests.test.ts` | ✅ extend | ⬜ pending |
+| 107-W0-01 | 107-03 T1, 107-04 T1 | 0 | VIS-01, VIS-02, VIS-03 | — | Component CSS consumes bounded semantic declarations; no raw inline status colors | unit/static | `corepack pnpm exec vitest run tests/unit/phase-107-visual-system.test.ts` | ❌ W0 | ⬜ pending |
+| 107-W0-02 | 107-01 T1/T2, 107-02 T1 | 0 | PAJA-03, PAJA-04 | T-107-01, T-107-02, T-107-06 | Diagnostics remain literal host text; retries cannot create stale or duplicate sessions | unit | `corepack pnpm exec vitest run packages/paja/src/browser-target-surface.test.ts packages/paja/src/browser-host.test.ts packages/paja/src/browser-runtime-tabs.test.ts tests/unit/nip5d-conformance-guard.test.ts` | ❌ W0 + ✅ extend | ⬜ pending |
+| 107-W0-03 | 107-01 T1, 107-02 T1, 107-03 T2 | 0 | PAJA-01, PAJA-02, PAJA-03 | T-107-01, T-107-06 | Real loader paths preserve sandbox and verified content while failure UI stays host-owned | e2e | `corepack pnpm test:e2e -- tests/e2e/paja-single-window.spec.ts tests/e2e/paja-runtime-pointer.spec.ts` | ✅ extend | ⬜ pending |
+| 107-W0-04 | 107-02 T1 | 0 | PROOF support | — | Paja source changes cannot omit either real Paja browser path from scoped CI | unit/static | `corepack pnpm exec vitest run tests/unit/select-e2e-tests.test.ts` | ✅ extend | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

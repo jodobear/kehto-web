@@ -36,7 +36,14 @@ Close the archived Phase 105 `12/24` UI review debt across Paja and playground f
 3. A failed target displays a host-styled explanation, secondary diagnostics, keyboard retry, and clear return path instead of raw iframe `<pre>` output.
 4. Retry reuses the existing verified target loader and all protocol/conformance guards prove no NAP message, capability, routing, lifecycle, or package behavior changed.
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 107-01-PLAN.md — Prove host-owned external target recovery through the existing verified loader.
+- [ ] 107-02-PLAN.md — Extend recovery to verified pointers/runtime tabs and complete tab/CI path coverage.
+- [ ] 107-03-PLAN.md — Implement and browser-prove the semantic responsive Paja composition.
+- [ ] 107-04-PLAN.md — Apply the semantic visual system to feed/profile without behavior drift.
+- [ ] 107-05-PLAN.md — Synchronize docs, add the Paja patch changeset, and run full protected-state gates.
 **UI hint**: yes
 
 ### Phase 108: Recoverable Napplet States and Visual Proof
@@ -61,7 +68,7 @@ Close the archived Phase 105 `12/24` UI review debt across Paja and playground f
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 107. Readable Responsive Paja System | 0/TBD | Not started | - |
+| 107. Readable Responsive Paja System | 0/5 | Not started | - |
 | 108. Recoverable Napplet States and Visual Proof | 0/TBD | Not started | - |
 
 ## Backlog
