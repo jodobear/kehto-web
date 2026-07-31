@@ -472,7 +472,7 @@ describe('playground gateway artifact guard', () => {
     expect(feedSource).toContain('readPublicKey: identityGetPublicKey');
     expect(feedSource).toContain('subscribeToChanges: identityOnChanged');
     expect(feedSource).toContain('identityController.start();');
-    expect(feedSource).toContain("setStatus('not logged in', 'red');");
+    expect(feedSource).toContain("setStatus('not logged in', 'danger');");
     expect(existsSync('apps/playground/napplets/feed/src/feed-identity-controller.ts')).toBe(false);
     expect(feedSource).not.toContain('Welcome to the kehto demo');
     expect(feedStore).toContain("import { relaySubscribe } from '@napplet/nap/relay/sdk';");

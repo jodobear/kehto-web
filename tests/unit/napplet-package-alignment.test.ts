@@ -24,7 +24,12 @@ type PackageJson = {
 function walk(root: string, fileName: string): string[] {
   const files: string[] = [];
   for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.planning') continue;
+    if (
+      entry.name === 'node_modules'
+      || entry.name === '.git'
+      || entry.name === '.planning'
+      || entry.name === '.claude'
+    ) continue;
     const path = join(root, entry.name);
     if (entry.isDirectory()) files.push(...walk(path, fileName));
     else if (entry.name === fileName) files.push(path);
