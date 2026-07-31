@@ -51,7 +51,6 @@ Use one bounded `--ui-*` vocabulary in Paja, feed, and profile. Paja declares co
 | `--ui-color-muted` | `#a9ad9f` | `var(--nap-theme-muted, #a9ad9f)` |
 | `--ui-color-border` | `#626a60` | `var(--nap-theme-border, #626a60)` |
 | `--ui-color-accent` | `#d8c36a` | `var(--nap-theme-primary, #d8c36a)` |
-| `--ui-color-accent-soft` | `#2a2a1d` | `var(--nap-theme-primary-soft, #2a2a1d)` |
 | `--ui-color-danger` | `#f0a0a0` | `var(--nap-theme-danger, #f0a0a0)` |
 | `--ui-color-danger-surface` | `#2b1e1e` | theme surface plus danger tint; fallback `#2b1e1e` |
 | `--ui-color-success` | `#a9d38f` | `var(--nap-theme-success, #a9d38f)` |
