@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-31T00:17:08.694Z",
+  "timestamp": "2026-07-31T01:06:32.828Z",
   "phase": "104",
   "phase_name": "approved-writer-integration",
   "phase_dir": ".planning/phases/104-approved-writer-integration",
@@ -9,30 +9,28 @@
   "total_tasks": 0,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Complete Phase 103 pinned Blossom rail", "status": "done", "commit": "2bc4dc39"},
-    {"id": 2, "name": "Complete Phase 101 Writer preflight packet", "status": "done", "commit": "422c2ddd"},
-    {"id": 3, "name": "Keep fork/local main synced with upstream", "status": "done", "commit": "3a4d71a8"}
+    {"id": 1, "name": "Complete Phase 101 Writer preflight packet", "status": "done", "commit": "422c2ddd"},
+    {"id": 2, "name": "Merge PR #217 upstream", "status": "done", "commit": "a8cc3cfc"},
+    {"id": 3, "name": "Synchronize fork and local main with upstream", "status": "done", "commit": "d42b3c3d"}
   ],
   "remaining_tasks": [
-    {"id": 1, "name": "Select exact Paja dependency for Writer integration", "status": "not_started"},
-    {"id": 2, "name": "Present and obtain explicit Phase 104 Writer approval", "status": "blocked"},
-    {"id": 3, "name": "Discuss, plan, and execute Phase 104 on a dedicated Writer branch", "status": "blocked"}
+    {"id": 1, "name": "Repin Phase 103 Blossom suffix directly onto merged main", "status": "not_started"},
+    {"id": 2, "name": "Run full gates and push repinned Phase 103 branch", "status": "not_started"},
+    {"id": 3, "name": "Select repinned Phase 103 tip as Writer Paja dependency and obtain explicit Phase 104 approval", "status": "blocked"}
   ],
   "blockers": [
-    {"description": "Phase 104 requires exact Paja dependency selection and explicit user approval", "type": "human_action", "workaround": "Review Phase 101 packet; likely select Phase 103 tip 2bc4dc39"},
-    {"description": "PR #217 awaits maintainer re-review", "type": "external", "workaround": "Continue against integration pin b004f203 and repin after merge"}
+    {"description": "Phase 104 requires exact repinned Paja dependency and explicit user approval", "type": "human_action", "workaround": "Repin Phase 103 first, then present approval packet"}
   ],
   "async_jobs": [],
   "human_actions_pending": [
-    {"action": "Choose exact Paja dependency/artifact and approve Writer integration worktree/source scope", "context": "Required before any Writer source edit", "blocking": true},
-    {"action": "Maintainer re-review PR #217", "context": "Nonblocking for fork development", "blocking": false}
+    {"action": "Approve Writer integration worktree and scoped source edits after repin", "context": "Mandatory Phase 104 gate", "blocking": true}
   ],
   "decisions": [
-    {"decision": "Writer canonical baseline is jodobear/writer master at 51c854affca96a159840a6da7cfa81e3772a36f8", "rationale": "User-provided canonical remote and verified SHA", "phase": "101"},
-    {"decision": "Writer cleanup/switch to clean master was intentional; former WIP is safe or no longer needed", "rationale": "Explicit user confirmation", "phase": "101"},
-    {"decision": "Main remains exact upstream mirror; #217 stays dedicated; development uses integration pin", "rationale": "Keep upstream sync clean while continuing without merge", "phase": "103"}
+    {"decision": "Fork/local main remain exact upstream mirrors", "rationale": "Keep unmerged feature work off main", "phase": "103"},
+    {"decision": "PR #217 is merged, so old integration pin b004f203 is no longer the future base", "rationale": "Merged main now carries social-cache contracts", "phase": "104"},
+    {"decision": "Writer canonical base is jodobear/writer master at 51c854affca96a159840a6da7cfa81e3772a36f8", "rationale": "Verified Phase 101 baseline", "phase": "101"}
   ],
   "uncommitted_files": [],
-  "next_action": "Review 101-WRITER-CONTRIBUTION-PLAN.md, select exact Paja dependency (recommended Phase 103 tip 2bc4dc39), then ask the explicit Phase 104 approval question before creating any Writer branch/worktree or editing source.",
-  "context_notes": "Planning packet commit 422c2ddd. Writer checkout /workspace/projects/napplets/writer is clean on master 51c854af with origin jodobear/writer. No Writer source changes were made."
+  "next_action": "Create backups, rebase only the Phase 103 Blossom suffix from old tip 2bc4dc39 onto main d42b3c3d, verify range equivalence, run full gates, and lease-push the Phase 103 branch. Then use the new tip in the Phase 104 approval packet.",
+  "context_notes": "GitHub confirms fork main is synced. upstream/main, origin/main, and local main all equal d42b3c3d. PR #217 merged as a8cc3cfc. Old integration pin b004f203 remains historical evidence only."
 }
