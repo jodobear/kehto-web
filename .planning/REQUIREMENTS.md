@@ -8,16 +8,16 @@
 
 ### Readable Visual System
 
-- [x] **VIS-01**: Users see one coherent semantic palette across Paja, feed, and profile surfaces for foreground, muted text, surfaces, borders, accent, danger, and success states; scoped rules do not repeat raw color literals outside the token declarations.
-- [x] **VIS-02**: Users can read every routine status, label, control, author, and detail at a computed size of at least 12px; only explicitly nonessential metadata may use one smaller semantic text token.
-- [x] **VIS-03**: Users see consistent spacing built from a named compact scale across the scoped surfaces, with no clipped controls, status text, or footer content at the 375×812 phone viewport.
+- [ ] **VIS-01**: Users see one coherent semantic palette across Paja, feed, and profile surfaces for foreground, muted text, surfaces, borders, accent, danger, and success states; scoped rules do not repeat raw color literals outside the token declarations.
+- [ ] **VIS-02**: Users can read every routine status, label, control, author, and detail at a computed size of at least 12px; only explicitly nonessential metadata may use one smaller semantic text token.
+- [ ] **VIS-03**: Users see consistent spacing built from a named compact scale across the scoped surfaces, with no clipped controls, status text, or footer content at the 375×812 phone viewport.
 
 ### Paja Host Recovery
 
-- [x] **PAJA-01**: Desktop Paja preserves its working console/runtime split while keeping product identity, target context, active tabs, controls, and status visually distinct.
-- [x] **PAJA-02**: Phone Paja uses a purpose-built narrow-screen composition that keeps the Kehto/Paja identity and current target visible, exposes essential controls and status without clipping, and gives the active runtime useful first-viewport space.
-- [x] **PAJA-03**: A target-load failure renders inside Paja's semantic error surface with a plain-language cause, a keyboard-accessible retry action, a clear return path, and secondary diagnostic detail instead of a raw iframe `<pre>`.
-- [x] **PAJA-04**: Retrying a failed Paja target uses the existing verified host loading path and preserves the current NAP/session security boundary; visual recovery does not add, remove, or reshape protocol messages.
+- [ ] **PAJA-01**: Desktop Paja preserves its working console/runtime split while keeping product identity, target context, active tabs, controls, and status visually distinct.
+- [ ] **PAJA-02**: Phone Paja uses a purpose-built narrow-screen composition that keeps the Kehto/Paja identity and current target visible, exposes essential controls and status without clipping, and gives the active runtime useful first-viewport space.
+- [ ] **PAJA-03**: A target-load failure renders inside Paja's semantic error surface with a plain-language cause, a keyboard-accessible retry action, a clear return path, and secondary diagnostic detail instead of a raw iframe `<pre>`.
+- [ ] **PAJA-04**: Retrying a failed Paja target uses the existing verified host loading path and preserves the current NAP/session security boundary; visual recovery does not add, remove, or reshape protocol messages.
 
 ### Feed and Profile Recovery
 
@@ -60,13 +60,13 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VIS-01 | Phase 107 | Complete |
-| VIS-02 | Phase 107 | Complete |
-| VIS-03 | Phase 107 | Complete |
-| PAJA-01 | Phase 107 | Complete |
-| PAJA-02 | Phase 107 | Complete |
-| PAJA-03 | Phase 107 | Complete |
-| PAJA-04 | Phase 107 | Complete |
+| VIS-01 | Phase 107 | Gaps Found |
+| VIS-02 | Phase 107 | Gaps Found |
+| VIS-03 | Phase 107 | Gaps Found |
+| PAJA-01 | Phase 107 | Gaps Found |
+| PAJA-02 | Phase 107 | Gaps Found |
+| PAJA-03 | Phase 107 | Gaps Found |
+| PAJA-04 | Phase 107 | Gaps Found |
 | RECOV-01 | Phase 108 | Pending |
 | RECOV-02 | Phase 108 | Pending |
 | RECOV-03 | Phase 108 | Pending |
