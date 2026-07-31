@@ -95,6 +95,43 @@ describe('@kehto/paja server', () => {
     }
   });
 
+  it('bounds a target HTML fetch that never finishes', async () => {
+    const target = await startHeldTargetServer();
+    const server = await startPajaServer({
+      options: {
+        targetUrl: target.url,
+        port: 0,
+        readyTimeoutMs: 75,
+      },
+    });
+    const controller = new AbortController();
+
+    try {
+      const startedAt = Date.now();
+      const result = await Promise.race([
+        fetch(`${server.url}__kehto/target.html`, { signal: controller.signal })
+          .then(async (response) => ({
+            kind: 'response' as const,
+            status: response.status,
+            text: await response.text(),
+          })),
+        new Promise<{ kind: 'still-pending' }>((resolve) => {
+          setTimeout(() => resolve({ kind: 'still-pending' }), 500);
+        }),
+      ]);
+
+      expect(result).toMatchObject({ kind: 'response', status: 502 });
+      if (result.kind === 'response') {
+        expect(result.text).toContain('Target HTML fetch timed out after 75ms.');
+      }
+      expect(Date.now() - startedAt).toBeLessThan(500);
+    } finally {
+      controller.abort();
+      await server.close();
+      await target.close();
+    }
+  });
+
   it('reports a target that blocks the sandboxed frame null origin', async () => {
     // Mirrors Vite's default server.cors: echo localhost origins, reject `null`.
     const target = await startTargetServer(
@@ -207,6 +244,43 @@ async function startTargetServer(
         }
         resolve();
       });
+    }),
+  };
+}
+
+async function startHeldTargetServer(): Promise<TargetServer> {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, {
+      'cache-control': 'no-store',
+      'content-type': 'text/html; charset=utf-8',
+    });
+    response.write('<!doctype html><html><body>held target');
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+
+  const address = server.address();
+  if (typeof address !== 'object' || address === null) {
+    throw new Error('Held target server did not bind to a TCP port.');
+  }
+
+  return {
+    url: `http://127.0.0.1:${address.port}/`,
+    close: () => new Promise((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+      server.closeAllConnections();
     }),
   };
 }
