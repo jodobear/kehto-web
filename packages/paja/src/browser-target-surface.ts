@@ -87,6 +87,7 @@ export function createPajaTargetSurface(
     hide() {
       elements.panel.hidden = true;
       elements.panel.setAttribute('aria-busy', 'false');
+      lastLifecycleStatus = '';
     },
     showReady({ focusFrame }) {
       phase = 'ready';

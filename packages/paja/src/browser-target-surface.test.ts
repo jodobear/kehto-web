@@ -202,6 +202,9 @@ describe('@kehto/paja target surface', () => {
     expect(panel.getAttribute('aria-busy')).toBe('false');
     expect(fixture.frame.hidden).toBe(true);
     expect(fixture.lifecycle).toEqual(['Loading target…']);
+
+    fixture.surface.showLoading('initial');
+    expect(fixture.lifecycle).toEqual(['Loading target…', 'Loading target…']);
   });
 
   it('keeps the same retry control visible, single-fire, and focused across repeat failure', () => {

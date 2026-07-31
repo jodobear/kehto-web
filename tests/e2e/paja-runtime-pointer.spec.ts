@@ -61,6 +61,70 @@ test('keeps the zero-tab pointer state readable, bounded, and keyboard reachable
   }
 });
 
+test('announces loading immediately for each initial pointer resolution', async ({ page }) => {
+  test.setTimeout(30_000);
+  const server = await startPointerServer();
+  const first = createPointerFixture(
+    server.url,
+    'first-lifecycle-target',
+    '<!doctype html><html><body>first lifecycle target</body></html>',
+    ['shell'],
+  );
+  const second = createPointerFixture(
+    server.url,
+    'second-lifecycle-target',
+    '<!doctype html><html><body>second lifecycle target</body></html>',
+    ['shell'],
+  );
+  const relay = 'wss://lifecycle-fixture.example';
+  let resolutionRequests = 0;
+  let releaseSecondResolution: (() => void) | null = null;
+  server.blobs.set(first.hash, first.bytes);
+  server.blobs.set(second.hash, second.bytes);
+  server.setConfig({
+    ...createPajaRuntimeHostConfig({ pointer: first.pointer, maxWaitMs: 2_000 }),
+    simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
+  });
+  await page.routeWebSocket(`${relay}/`, (socket) => {
+    socket.onMessage((message) => {
+      const request = JSON.parse(String(message)) as unknown[];
+      if (request[0] !== 'REQ' || typeof request[1] !== 'string') return;
+      resolutionRequests += 1;
+      const subscriptionId = request[1];
+      if (resolutionRequests === 1) {
+        socket.send(JSON.stringify(['EVENT', subscriptionId, first.event]));
+        socket.send(JSON.stringify(['EOSE', subscriptionId]));
+        return;
+      }
+      releaseSecondResolution = () => {
+        socket.send(JSON.stringify(['EVENT', subscriptionId, second.event]));
+        socket.send(JSON.stringify(['EOSE', subscriptionId]));
+      };
+    });
+  });
+
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[0]?.status))
+      .toBe('ready');
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
+
+    await page.evaluate((pointer) => {
+      void window.__KEHTO_PAJA__?.loadPointer(pointer);
+    }, second.pointer);
+    await expect.poll(() => resolutionRequests).toBe(2);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Loading target…');
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.length)).toBe(1);
+
+    releaseSecondResolution?.();
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs
+      .find((tab) => tab.title === 'second-lifecycle-target')?.status)).toBe('ready');
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
+  } finally {
+    await server.close();
+  }
+});
+
 test('resolves a stale embedded hint through configured live relays in the running browser', async ({ page }) => {
   test.setTimeout(30_000);
   const server = await startPointerServer();
