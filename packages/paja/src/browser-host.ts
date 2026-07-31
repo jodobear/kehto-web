@@ -531,6 +531,61 @@ function createPajaBrowserState(context: PajaBrowserStateContext): PajaBrowserSt
   };
 }
 
+function installPajaMessageListener(
+  state: PajaBrowserState,
+  context: PajaBrowserStateContext,
+): void {
+  const { bridge, frame, runtime } = context;
+  window.addEventListener('message', (event) => {
+    const source = event.source as Window | null;
+    const sourceTab = source ? state.tabs.find((tab) => tab.frame.contentWindow === source) ?? null : null;
+    const isSingleFrameMessage = frame ? event.source === frame.contentWindow : false;
+    if (!sourceTab && !isSingleFrameMessage) return;
+    const registeredWindowId = source ? originRegistry.getWindowId(source) ?? null : null;
+    const sourceWindowId = sourceTab?.windowId ?? registeredWindowId ?? undefined;
+    if (sourceTab && (!source || !sourceWindowId || registeredWindowId !== sourceWindowId)) return;
+    if (isSingleFrameMessage && (!sourceWindowId || sourceWindowId !== runtime.currentWindowId)) return;
+    appendPajaMessageLog(state, 'napplet->shell', event.data, sourceWindowId);
+    const proxiedSource = createPajaPostMessageProxy(event.source as Window, state, sourceWindowId);
+    const syntheticEvent = new Proxy(event, {
+      get(target, prop) {
+        if (prop === 'source') return proxiedSource;
+        const val = Reflect.get(target, prop, target) as unknown;
+        return typeof val === 'function' ? (val as Function).bind(target) : val;
+      },
+    }) as MessageEvent;
+    bridge.handleMessage(syntheticEvent);
+    const data = event.data as { type?: unknown } | null;
+    if (data && typeof data === 'object' && data.type === 'shell.ready') {
+      if (sourceTab) {
+        if (source && !markRuntimeTabReady(
+          state,
+          context,
+          sourceTab,
+          source,
+          registeredWindowId,
+          { setReadyStatus: (current) => setStatus(current, 'ready') },
+        )) return;
+        settleRuntimeTabReady(sourceTab);
+        const isActiveTab = state.activeTabId === sourceTab.id;
+        sourceTab.targetSurface.showReady({
+          focusFrame: sourceTab.focusFrameOnReady && isActiveTab,
+        });
+        projectActiveRuntimeTabLifecycle(state, context);
+        sourceTab.focusFrameOnReady = false;
+        sourceTab.frame.hidden = !isActiveTab;
+      } else {
+        if (sourceWindowId) runtime.readyWindowIds.add(sourceWindowId);
+        state.status = 'ready';
+        settleExternalNavigationReady(context);
+        const focusFrame = context.externalFocusFrameOnReady;
+        context.externalFocusFrameOnReady = false;
+        context.targetSurface?.showReady({ focusFrame });
+      }
+    }
+  });
+}
+
 async function installPajaHost(): Promise<void> {
   const config = await readLatestConfig(readConfig());
   const stage = getStage();
@@ -624,55 +679,7 @@ async function installPajaHost(): Promise<void> {
   }, { once: true });
 
   window.__KEHTO_PAJA__ = state;
-
-  window.addEventListener('message', (event) => {
-    const source = event.source as Window | null;
-    const sourceTab = source ? state.tabs.find((tab) => tab.frame.contentWindow === source) ?? null : null;
-    const isSingleFrameMessage = frame ? event.source === frame.contentWindow : false;
-    if (!sourceTab && !isSingleFrameMessage) return;
-    const registeredWindowId = source ? originRegistry.getWindowId(source) ?? null : null;
-    const sourceWindowId = sourceTab?.windowId ?? registeredWindowId ?? undefined;
-    if (sourceTab && (!source || !sourceWindowId || registeredWindowId !== sourceWindowId)) return;
-    if (isSingleFrameMessage && (!sourceWindowId || sourceWindowId !== runtime.currentWindowId)) return;
-    appendPajaMessageLog(state, 'napplet->shell', event.data, sourceWindowId);
-    const proxiedSource = createPajaPostMessageProxy(event.source as Window, state, sourceWindowId);
-    const syntheticEvent = new Proxy(event, {
-      get(target, prop) {
-        if (prop === 'source') return proxiedSource;
-        const val = Reflect.get(target, prop, target) as unknown;
-        return typeof val === 'function' ? (val as Function).bind(target) : val;
-      },
-    }) as MessageEvent;
-    bridge.handleMessage(syntheticEvent);
-    const data = event.data as { type?: unknown } | null;
-    if (data && typeof data === 'object' && data.type === 'shell.ready') {
-      if (sourceTab) {
-        if (source && !markRuntimeTabReady(
-          state,
-          context,
-          sourceTab,
-          source,
-          registeredWindowId,
-          { setReadyStatus: (current) => setStatus(current, 'ready') },
-        )) return;
-        settleRuntimeTabReady(sourceTab);
-        const isActiveTab = state.activeTabId === sourceTab.id;
-        sourceTab.targetSurface.showReady({
-          focusFrame: sourceTab.focusFrameOnReady && isActiveTab,
-        });
-        projectActiveRuntimeTabLifecycle(state, context);
-        sourceTab.focusFrameOnReady = false;
-        sourceTab.frame.hidden = !isActiveTab;
-      } else {
-        if (sourceWindowId) runtime.readyWindowIds.add(sourceWindowId);
-        state.status = 'ready';
-        settleExternalNavigationReady(context);
-        const focusFrame = context.externalFocusFrameOnReady;
-        context.externalFocusFrameOnReady = false;
-        context.targetSurface?.showReady({ focusFrame });
-      }
-    }
-  });
+  installPajaMessageListener(state, context);
 
   installExternalFrameErrorHandler(state, context, frame);
 
