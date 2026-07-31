@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.29
-milestone_name: Napplet Convention and Runtime Conformance
-status: Awaiting next milestone
-stopped_at: v1.29 archived; PR #1 open
-last_updated: "2026-07-31T01:27:15.334Z"
+milestone: v1.30
+milestone_name: Visual Recovery
+status: planning
+last_updated: "2026-07-31T02:47:20.968Z"
 last_activity: 2026-07-31
-last_activity_desc: Milestone v1.29 completed and archived
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 47
-  completed_plans: 47
-  percent: 100
-current_phase: 106
-current_phase_name: Active-Surface Conformance and Release
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-07-31)
 
 ## Current Position
 
-Phase: Milestone v1.29 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-31 — Milestone v1.29 completed and archived
+Status: Defining requirements
+Last activity: 2026-07-31 — Milestone v1.30 started
 
 ## Performance Metrics
 
