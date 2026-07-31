@@ -3,16 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.29
 milestone_name: Napplet Convention and Runtime Conformance
 status: Awaiting next milestone
-stopped_at: Session resumed, proceeding to reconcile planning metadata and archive v1.29
-last_updated: "2026-07-31T01:18:56.945Z"
+stopped_at: context exhaustion at 75% (2026-07-31)
+last_updated: "2026-07-31T01:27:15.334Z"
 last_activity: 2026-07-31
 last_activity_desc: Milestone v1.29 completed and archived
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 47
-  completed_plans: 47
-  percent: 100
+  total_phases: 21
+  completed_phases: 10
+  total_plans: 35
+  completed_plans: 17
 current_phase: 106
 current_phase_name: Active-Surface Conformance and Release
 ---
@@ -221,8 +220,8 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-31
-Stopped at: Session resumed, proceeding to reconcile planning metadata and archive v1.29
+Last session: 2026-07-31T01:27:15.302Z
+Stopped at: context exhaustion at 75% (2026-07-31)
 Resume file: None
 
 ## Deferred Items
