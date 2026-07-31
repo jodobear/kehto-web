@@ -206,6 +206,78 @@ test('settles a missing external shell.ready handshake into retryable recovery',
   }
 });
 
+test('settles a never-settling external target fetch and retries through the same loader', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 100,
+    },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+  let proxyRequestCount = 0;
+  let releaseHeldFetch = (): void => {};
+  const heldFetch = new Promise<void>((resolve) => {
+    releaseHeldFetch = resolve;
+  });
+  await page.route('**/__kehto/target.html', async (route) => {
+    proxyRequestCount += 1;
+    if (proxyRequestCount === 1) {
+      await heldFetch;
+      await route.continue().catch(() => {});
+      return;
+    }
+    await route.continue();
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect.poll(() => proxyRequestCount).toBe(1);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(
+      'Target readiness timed out after 100ms without shell.ready.',
+    );
+    await expect(surface.locator('.paja-target-retry')).toBeEnabled();
+    const failedGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'error',
+      iframeCount: 1,
+      initSent: false,
+    });
+
+    releaseHeldFetch();
+    await page.waitForTimeout(150);
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    expect(proxyRequestCount).toBe(1);
+
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(() => proxyRequestCount).toBe(2);
+    await expect.poll(() => target.htmlRequestCount).toBe(1);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+    await expect(page.locator('iframe')).toHaveCount(1);
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('sandbox', 'allow-scripts');
+    await expect(page.locator('#napplet-frame')).not.toHaveAttribute('sandbox', /allow-same-origin/);
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('napplet-frame');
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      generation: failedGeneration + 1,
+      status: 'ready',
+      iframeCount: 1,
+      initSent: true,
+    });
+  } finally {
+    releaseHeldFetch();
+    await runtime.close();
+    await target.close();
+  }
+});
+
 test('hosts one sandboxed target iframe and reinitializes it on reload', async ({ page }) => {
   test.setTimeout(60_000);
   const dialogMessages: string[] = [];
