@@ -56,13 +56,17 @@ export function startExternalFrameNavigation(
       state,
       context,
       generation,
+      controller,
       new Error(`Target readiness timed out after ${config.runtime.readyTimeoutMs}ms without shell.ready.`),
     );
   }, config.runtime.readyTimeoutMs);
   void navigateFrame(
     frame, config, generation, adapter, state.resolvedTarget, undefined, isCurrentAttempt,
     (windowId) => {
-      if (isCurrentAttempt()) runtime.currentWindowId = windowId;
+      if (isCurrentAttempt()) {
+        runtime.currentWindowId = windowId;
+        armExternalFrameErrorHandler(state, context, generation, controller);
+      }
     },
     controller.signal,
   ).then((windowId) => {
@@ -78,7 +82,7 @@ export function startExternalFrameNavigation(
     }
     runtime.currentWindowId = windowId;
   }).catch((error) => {
-    if (settleExternalNavigationFailure(state, context, generation, error)) console.error(error);
+    if (settleExternalNavigationFailure(state, context, generation, controller, error)) console.error(error);
   });
 }
 
@@ -95,6 +99,7 @@ export function cancelExternalFrameNavigation(
   reason: Error,
 ): void {
   clearExternalAttemptTimeout(context);
+  clearExternalFrameErrorHandler(context);
   const controller = context.externalAttemptController;
   context.externalAttemptController = null;
   context.externalAttemptGeneration = null;
@@ -104,6 +109,7 @@ export function cancelExternalFrameNavigation(
 /** Settle trusted external readiness without aborting the live frame. */
 export function settleExternalNavigationReady(context: PajaBrowserStateContext): void {
   clearExternalAttemptTimeout(context);
+  clearExternalFrameErrorHandler(context);
   context.externalAttemptController = null;
   context.externalAttemptGeneration = null;
 }
@@ -123,9 +129,14 @@ export function settleExternalNavigationFailure(
   state: PajaBrowserState,
   context: PajaBrowserStateContext,
   generation: number,
+  controller: AbortController,
   error: unknown,
 ): boolean {
-  if (state.generation !== generation || context.externalAttemptGeneration !== generation) return false;
+  if (
+    state.generation !== generation
+    || context.externalAttemptGeneration !== generation
+    || context.externalAttemptController !== controller
+  ) return false;
   const focusRetry = context.externalFocusFrameOnReady;
   const failure = error instanceof Error ? error : new Error(String(error));
   cancelExternalFrameNavigation(context, failure);
@@ -141,14 +152,33 @@ export function settleExternalNavigationFailure(
 }
 
 /** Route native iframe load failures through the current external attempt. */
-export function installExternalFrameErrorHandler(
+export function armExternalFrameErrorHandler(
   state: PajaBrowserState,
   context: PajaBrowserStateContext,
-  frame: HTMLIFrameElement | null,
+  generation: number,
+  controller: AbortController,
 ): void {
-  frame?.addEventListener('error', () => {
-    const generation = context.externalAttemptGeneration;
-    if (generation === null) return;
-    settleExternalNavigationFailure(state, context, generation, new Error('Target frame failed to load.'));
-  });
+  const frame = context.frame;
+  if (!frame || context.externalAttemptController !== controller) return;
+  clearExternalFrameErrorHandler(context);
+  const handleError = () => {
+    settleExternalNavigationFailure(
+      state,
+      context,
+      generation,
+      controller,
+      new Error('Target frame failed to load.'),
+    );
+  };
+  const dispose = () => {
+    frame.removeEventListener('error', handleError);
+    if (context.externalAttemptErrorDisposer === dispose) context.externalAttemptErrorDisposer = null;
+  };
+  context.externalAttemptErrorDisposer = dispose;
+  frame.addEventListener('error', handleError, { once: true });
+}
+
+function clearExternalFrameErrorHandler(context: PajaBrowserStateContext): void {
+  context.externalAttemptErrorDisposer?.();
+  context.externalAttemptErrorDisposer = null;
 }

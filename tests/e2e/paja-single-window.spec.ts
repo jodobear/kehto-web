@@ -280,6 +280,77 @@ test('settles a never-settling external target fetch and retries through the sam
   }
 });
 
+test('ignores a stale iframe error while a newer Retry attempt is fetching', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+  await page.addInitScript(() => {
+    const host = window as Window & { __pajaWithholdReady?: boolean };
+    host.__pajaWithholdReady = true;
+    window.addEventListener('message', (event) => {
+      const data = event.data as { type?: unknown } | null;
+      if (!host.__pajaWithholdReady || !data || data.type !== 'shell.ready') return;
+      event.stopImmediatePropagation();
+    }, true);
+  });
+  let holdRetry = false;
+  let retryProxyRequests = 0;
+  let releaseRetry = (): void => {};
+  const retryGate = new Promise<void>((resolve) => {
+    releaseRetry = resolve;
+  });
+  await page.route('**/__kehto/target.html', async (route) => {
+    if (!holdRetry) {
+      await route.continue();
+      return;
+    }
+    retryProxyRequests += 1;
+    await retryGate;
+    await route.continue().catch(() => {});
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('srcdoc', /target-status/);
+    await page.locator('#napplet-frame').evaluate((frame) => frame.dispatchEvent(new Event('error')));
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.error').length ?? -1)).toBe(1);
+
+    await page.evaluate(() => {
+      (window as Window & { __pajaWithholdReady?: boolean }).__pajaWithholdReady = false;
+    });
+    holdRetry = true;
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(() => retryProxyRequests).toBe(1);
+    await expect(surface.locator('.paja-target-heading')).toHaveText('Retrying target…');
+    await page.locator('#napplet-frame').evaluate((frame) => frame.dispatchEvent(new Event('error')));
+    await page.waitForTimeout(100);
+    await expect(surface.locator('.paja-target-heading')).toHaveText('Retrying target…');
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.error').length ?? -1)).toBe(1);
+
+    releaseRetry();
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'ready',
+      initSent: true,
+    });
+  } finally {
+    releaseRetry();
+    await runtime.close();
+    await target.close();
+  }
+});
+
 test('hosts one sandboxed target iframe and reinitializes it on reload', async ({ page }) => {
   test.setTimeout(60_000);
   const dialogMessages: string[] = [];

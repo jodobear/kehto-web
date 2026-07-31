@@ -62,7 +62,9 @@ describe('@kehto/paja browser host runtime source guards', () => {
     const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
     const tabsSource = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
 
-    expect(runtimeSource).toContain('if (isCurrentAttempt()) runtime.currentWindowId = windowId;');
+    expect(runtimeSource).toContain('if (isCurrentAttempt()) {');
+    expect(runtimeSource).toContain('runtime.currentWindowId = windowId;');
+    expect(runtimeSource).toContain('armExternalFrameErrorHandler(state, context, generation, controller);');
     expect(tabsSource).toContain('`${config.window.id}:${tab.id}:${tab.generation}`');
     expect(tabsSource).toContain('if (state.activeTabId === tab.id) context.runtime.currentWindowId = windowId;');
   });
@@ -246,6 +248,10 @@ describe('@kehto/paja browser host runtime source guards', () => {
       .toBeLessThan(runtimeSource.indexOf('void navigateFrame('));
     expect(runtimeSource).toContain('controller.signal,');
     expect(runtimeSource).toContain('if (controller && !controller.signal.aborted) controller.abort(reason);');
+    expect(runtimeSource).toContain('context.externalAttemptController !== controller');
+    expect(runtimeSource).toContain('context.externalAttemptErrorDisposer = dispose;');
+    expect(runtimeSource).toContain('clearExternalFrameErrorHandler(context);');
+    expect(runtimeSource).toContain("frame.addEventListener('error', handleError, { once: true });");
     expect(targetSource).toContain('signal?: AbortSignal');
     expect(targetSource).toContain('const html = await fetchTargetHtml(signal);');
     expect(hostSource).toContain('settleExternalNavigationReady(context);');
@@ -284,7 +290,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
     const pointerLoad = source.slice(source.indexOf('async function loadRuntimePointer('), source.indexOf('async function restorePersistedRuntimeTabs('));
     const messageHandler = source.slice(
       source.indexOf("window.addEventListener('message'"),
-      source.indexOf('  installExternalFrameErrorHandler(state, context, frame);'),
+      source.indexOf('  installPajaControlListeners(state);'),
     );
 
     expect(source).toContain("import { BrowserIntentController } from './browser-intent-controller.js';");

@@ -6,8 +6,7 @@ import {
 import { createDevTheme, createPajaAdapter, PAJA_DEV_SIGNER_PUBKEY } from './browser-adapter.js';
 import { confirmPajaRequest, createHostSignerController, hasNip07Signer } from './browser-host-signer.js';
 import {
-  cancelExternalFrameNavigation, destroyExternalFrameNavigation,
-  installExternalFrameErrorHandler, settleExternalNavigationReady,
+  cancelExternalFrameNavigation, destroyExternalFrameNavigation, settleExternalNavigationReady,
   startExternalFrameNavigation, unregisterSingleFrameWindow,
 } from './browser-host-runtime.js';
 import { BrowserIntentController } from './browser-intent-controller.js';
@@ -126,6 +125,7 @@ export interface PajaBrowserStateContext extends PajaRuntimeTabContext {
   externalAttemptGeneration: number | null;
   externalAttemptTimeoutId: number | null;
   externalAttemptController: AbortController | null;
+  externalAttemptErrorDisposer: (() => void) | null;
   externalFocusFrameOnReady: boolean;
   pointerTargetSurface: PajaTargetSurface | null;
   pointerAttemptGeneration: number | null;
@@ -632,7 +632,7 @@ async function installPajaHost(): Promise<void> {
     capabilities,
     runtime,
     targetSurface: null, externalAttemptGeneration: null, externalAttemptTimeoutId: null,
-    externalAttemptController: null, externalFocusFrameOnReady: false,
+    externalAttemptController: null, externalAttemptErrorDisposer: null, externalFocusFrameOnReady: false,
     pointerTargetSurface: null, pointerAttemptGeneration: null,
     pointerRequestGeneration: 0, pointerFocusFrameOnReady: false,
     navigateFrame,
@@ -682,8 +682,6 @@ async function installPajaHost(): Promise<void> {
 
   window.__KEHTO_PAJA__ = state;
   installPajaMessageListener(state, context);
-
-  installExternalFrameErrorHandler(state, context, frame);
 
   installPajaControlListeners(state);
 
