@@ -56,11 +56,13 @@
       gap: var(--ui-space-xs);
     }
     #feed-status {
-      color: var(--ui-color-muted);
       font-size: var(--ui-type-label);
       font-weight: var(--ui-type-weight-regular);
       overflow-wrap: anywhere;
       padding: var(--ui-space-xs) 0;
+    }
+    #feed-status[data-tone='neutral'] {
+      color: var(--ui-color-muted);
     }
     #feed-status[data-tone='success'] {
       color: var(--ui-color-success);

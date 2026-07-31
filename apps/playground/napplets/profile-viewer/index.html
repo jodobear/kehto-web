@@ -66,12 +66,14 @@
       text-transform: uppercase;
     }
     #profile-status {
-      color: var(--ui-color-muted);
       font-size: var(--ui-type-label);
       font-weight: var(--ui-type-weight-regular);
       min-width: 0;
       overflow-wrap: anywhere;
       text-align: right;
+    }
+    #profile-status[data-tone='neutral'] {
+      color: var(--ui-color-muted);
     }
     #profile-status[data-tone='success'] {
       color: var(--ui-color-success);
