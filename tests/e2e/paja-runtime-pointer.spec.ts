@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { computeAggregateHash } from '../../packages/nip/dist/5a/index.js';
 import { NAPPLET_KIND_NAMED } from '../../packages/nip/dist/5d/index.js';
 import { finalizeEvent } from 'nostr-tools/pure';
@@ -25,6 +25,41 @@ interface PointerServer {
   setConfig(config: PajaHostConfig): void;
   close(): Promise<void>;
 }
+
+test('keeps the zero-tab pointer state readable, bounded, and keyboard reachable', async ({ page }, testInfo) => {
+  test.setTimeout(30_000);
+  const server = await startPointerServer();
+  try {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto(server.url);
+    await expect(page.getByRole('tablist', { name: 'Loaded napplets' }).getByRole('tab')).toHaveCount(0);
+    await expect(page.locator('#empty-runtime-stage')).toBeVisible();
+    await expect(page.locator('#empty-runtime-stage h2')).toHaveText('No runtime loaded');
+    await expect(page.locator('#empty-runtime-stage p')).toHaveText(
+      'Enter a napplet pointer in Target controls, then choose Load target.',
+    );
+    await expect(page.locator('#runtime-pointer-load')).toHaveText('Load target');
+    await expect(page.locator('#clear-log')).toBeDisabled();
+    await page.locator('#runtime-pointer-input').fill('   ');
+    await page.locator('#runtime-pointer-load').focus();
+    await page.locator('#runtime-pointer-load').press('Enter');
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.length)).toBe(0);
+    await expect(page.locator('#runtime-pointer-status')).toHaveText('idle');
+    await attachPointerScreenshot(page, testInfo, 'pointer-empty-desktop');
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    const phone = await measurePointerLayout(page);
+    expect(phone.documentScrollWidth, JSON.stringify(phone)).toBe(phone.documentClientWidth);
+    expect(phone.consoleHeight, JSON.stringify(phone)).toBe(224);
+    expect(phone.stageHeight, JSON.stringify(phone)).toBeGreaterThanOrEqual(320);
+    expect(phone.footerColumns, JSON.stringify(phone)).toBe(2);
+    expect(Math.min(...phone.actionHeights), JSON.stringify(phone)).toBeGreaterThanOrEqual(48);
+    expect(phone.fontSizes.every((size) => size >= 12), JSON.stringify(phone)).toBe(true);
+    await attachPointerScreenshot(page, testInfo, 'pointer-empty-phone');
+  } finally {
+    await server.close();
+  }
+});
 
 test('resolves a stale embedded hint through configured live relays in the running browser', async ({ page }) => {
   test.setTimeout(30_000);
@@ -100,7 +135,7 @@ test('resolves a stale embedded hint through configured live relays in the runni
   }
 });
 
-test('recovers resolver and active-frame failures without duplicating verified tabs or sessions', async ({ page }) => {
+test('recovers resolver and active-frame failures without duplicating verified tabs or sessions', async ({ page }, testInfo) => {
   test.setTimeout(45_000);
   const server = await startPointerServer();
   const target = createPointerFixture(
@@ -142,6 +177,7 @@ test('recovers resolver and active-frame failures without duplicating verified t
     await expect(page.locator('#runtime-pointer-input')).toHaveValue(target.pointer);
     await expect.poll(() => resolutionRequests).toBe(1);
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.length)).toBe(0);
+    await attachPointerViewportEvidence(page, testInfo, 'pointer-resolution-error');
 
     const retry = pointerSurface.locator('.paja-target-retry');
     await retry.evaluate((button) => {
@@ -150,6 +186,7 @@ test('recovers resolver and active-frame failures without duplicating verified t
     });
     await expect.poll(() => resolutionRequests).toBe(2);
     await expect(retry).toBeDisabled();
+    await attachPointerViewportEvidence(page, testInfo, 'pointer-resolution-retrying');
     releaseRetry?.();
 
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[0]?.status))
@@ -169,16 +206,20 @@ test('recovers resolver and active-frame failures without duplicating verified t
     );
     await expect(frame).toHaveAttribute('sandbox', /allow-scripts/);
     await expect(frame).not.toHaveAttribute('sandbox', /allow-same-origin/);
+    await attachPointerViewportEvidence(page, testInfo, 'pointer-resolution-recovered');
 
     await frame.evaluate((element) => element.dispatchEvent(new Event('error')));
     const tabSurface = page.locator('.paja-target-surface:visible');
     await expect(tabSurface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
     const firstWindowId = firstState?.tabs[0]?.windowId;
     const tabRetry = tabSurface.locator('.paja-target-retry');
+    await attachPointerViewportEvidence(page, testInfo, 'pointer-tab-error');
     await tabRetry.evaluate((button) => {
       (button as HTMLButtonElement).click();
       (button as HTMLButtonElement).click();
     });
+    await expect(tabRetry).toBeDisabled();
+    await attachPointerViewportEvidence(page, testInfo, 'pointer-tab-retrying');
 
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[0]?.status))
       .toBe('ready');
@@ -188,6 +229,7 @@ test('recovers resolver and active-frame failures without duplicating verified t
     expect(recoveredState?.tabs[0]?.windowId).not.toBe(firstWindowId);
     expect(recoveredState?.initSent).toBe(true);
     expect(recoveredState?.messageLog.filter((entry) => entry.type === 'shell.ready')).toHaveLength(2);
+    await attachPointerViewportEvidence(page, testInfo, 'pointer-tab-recovered');
   } finally {
     await server.close();
   }
@@ -200,9 +242,12 @@ test('completes a verified intent and delivers its convention once to a cold tar
   const target = createPointerFixture(server.url, 'profile-target', targetIntentHtml(), ['inc', 'theme'], [
     ['archetype', 'profile', 'napplet:profile/open'],
   ]);
+  const longTitle = `long-${'target'.repeat(27)}`;
+  const longTarget = createPointerFixture(server.url, longTitle, heldTargetHtml(), ['shell']);
   const relay = 'wss://intent-fixture.example';
   server.blobs.set(source.hash, source.bytes);
   server.blobs.set(target.hash, target.bytes);
+  server.blobs.set(longTarget.hash, longTarget.bytes);
   server.setConfig({
     ...createPajaRuntimeHostConfig({ pointer: source.pointer, maxWaitMs: 2_000 }),
     simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
@@ -214,11 +259,13 @@ test('completes a verified intent and delivers its convention once to a cold tar
       const subscriptionId = request[1];
       socket.send(JSON.stringify(['EVENT', subscriptionId, source.event]));
       socket.send(JSON.stringify(['EVENT', subscriptionId, target.event]));
+      socket.send(JSON.stringify(['EVENT', subscriptionId, longTarget.event]));
       socket.send(JSON.stringify(['EOSE', subscriptionId]));
     });
   });
 
   try {
+    await installShellReadyHold(page);
     await page.goto(server.url);
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.length)).toBe(1);
     await page.evaluate((pointer) => window.__KEHTO_PAJA__?.loadPointer(pointer), target.pointer);
@@ -248,6 +295,68 @@ test('completes a verified intent and delivers its convention once to a cold tar
     await expect(page.locator('.target')).toHaveText(target.pointer);
     await expect(page.locator('.target')).toHaveAttribute('title', target.pointer);
     await expect(page.locator('.target')).toHaveAttribute('aria-label', target.pointer);
+
+    await holdNextShellReady(page);
+    await page.evaluate((pointer) => window.__KEHTO_PAJA__?.loadPointer(pointer), longTarget.pointer);
+    await expect(tablist.getByRole('tab')).toHaveCount(3);
+    const longTrigger = tablist.getByRole('tab', { name: longTitle });
+    await expect(longTrigger).toHaveAttribute('title', longTitle);
+    await expect(page.locator('.target')).toHaveText(longTarget.pointer);
+    await expect(page.locator('.target')).toHaveAttribute('title', longTarget.pointer);
+    await expect(page.locator('.target')).toHaveAttribute('aria-label', longTarget.pointer);
+    await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
+      .find((tab) => tab.title === title)?.status, longTitle)).toBe('booting');
+    const loadingStatuses = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.map((tab) => tab.status));
+    expect(loadingStatuses.filter((status) => status === 'ready')).toHaveLength(2);
+    expect(loadingStatuses).toContain('booting');
+    await releaseHeldShellReady(page);
+    await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
+      .find((tab) => tab.title === title)?.status, longTitle), { timeout: 15_000 }).toBe('ready');
+
+    const longFrameId = await longTrigger.getAttribute('aria-controls');
+    expect(longFrameId).toBeTruthy();
+    await page.locator(`#${longFrameId}`).evaluate((frame) => frame.dispatchEvent(new Event('error')));
+    await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
+      .find((tab) => tab.title === title)?.status, longTitle)).toBe('error');
+    const errorStatuses = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.map((tab) => tab.status));
+    expect(errorStatuses.filter((status) => status === 'ready')).toHaveLength(2);
+    expect(errorStatuses).toContain('error');
+    const longSurface = page.locator('.paja-target-surface:visible');
+    await expect(longSurface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await holdNextShellReady(page);
+    await longSurface.locator('.paja-target-retry').focus();
+    await longSurface.locator('.paja-target-retry').press('Space');
+    await expect(longSurface.locator('.paja-target-retry')).toBeDisabled();
+    await releaseHeldShellReady(page);
+    await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
+      .find((tab) => tab.title === title)?.status, longTitle), { timeout: 15_000 }).toBe('ready');
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await longTrigger.focus();
+    await longTrigger.press('End');
+    const phoneLayout = await measurePointerLayout(page);
+    expect(phoneLayout.documentScrollWidth, JSON.stringify(phoneLayout)).toBe(phoneLayout.documentClientWidth);
+    expect(phoneLayout.consoleHeight, JSON.stringify(phoneLayout)).toBe(224);
+    expect(phoneLayout.stageHeight, JSON.stringify(phoneLayout)).toBeGreaterThanOrEqual(320);
+    expect(phoneLayout.tabScrollWidth, JSON.stringify(phoneLayout)).toBeGreaterThan(phoneLayout.tabClientWidth);
+    expect(phoneLayout.activeTabWithinStrip, JSON.stringify(phoneLayout)).toBe(true);
+    expect(phoneLayout.footerColumns, JSON.stringify(phoneLayout)).toBe(2);
+    expect(Math.min(...phoneLayout.actionHeights), JSON.stringify(phoneLayout)).toBeGreaterThanOrEqual(48);
+    await page.setViewportSize({ width: 1280, height: 720 });
+
+    const longGroup = longTrigger.locator('..');
+    const longShare = longGroup.getByRole('button', { name: `Copy share link for ${longTitle}` });
+    const longClose = longGroup.getByRole('button', { name: `Close ${longTitle}` });
+    await expect(longShare).toHaveAttribute('title', `Copy share link for ${longTitle}`);
+    await expect(longClose).toHaveAttribute('title', `Close ${longTitle}`);
+    page.once('dialog', async (dialog) => dialog.dismiss());
+    await longShare.focus();
+    await longShare.press('Enter');
+    await expect(tablist.getByRole('tab')).toHaveCount(3);
+    await longClose.focus();
+    await longClose.press('Enter');
+    await expect(tablist.getByRole('tab')).toHaveCount(2);
+    await expect(targetTrigger).toBeFocused();
 
     await targetTrigger.press('Home');
     await expect(sourceTrigger).toBeFocused();
@@ -350,6 +459,124 @@ test('resolves the supplied Good Morning Protocol naddr through verified HTML', 
     await server.close();
   }
 });
+
+async function measurePointerLayout(page: Page) {
+  return page.evaluate(() => {
+    const bounds = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`Missing Paja element: ${selector}`);
+      return element.getBoundingClientRect();
+    };
+    const consoleElement = document.querySelector<HTMLElement>('.console');
+    const tablist = document.querySelector<HTMLElement>('#napplet-tabs');
+    const footer = document.querySelector<HTMLElement>('footer.bottom');
+    if (!consoleElement || !tablist || !footer) throw new Error('Missing pointer layout landmark');
+    const visible = (element: Element) => element.getClientRects().length > 0;
+    const activeTab = tablist.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    const stripRect = tablist.getBoundingClientRect();
+    const activeRect = activeTab?.getBoundingClientRect();
+    const footerColumns = getComputedStyle(footer).gridTemplateColumns === 'none'
+      ? []
+      : getComputedStyle(footer).gridTemplateColumns.split(/\s+/).filter(Boolean);
+    return {
+      documentClientWidth: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      consoleHeight: bounds('.console').height,
+      consoleScrollHeight: consoleElement.scrollHeight,
+      stageHeight: bounds('#napplet-stage').height,
+      footerColumns: footerColumns.length,
+      tabClientWidth: tablist.clientWidth,
+      tabScrollWidth: tablist.scrollWidth,
+      activeTabWithinStrip: !activeRect
+        || (activeRect.left >= stripRect.left - 1 && activeRect.right <= stripRect.right + 1),
+      actionHeights: [...document.querySelectorAll<HTMLElement>('button, input, select, summary')]
+        .filter(visible)
+        .map((element) => element.getBoundingClientRect().height),
+      fontSizes: [
+        '.brand',
+        '.target',
+        '#lifecycle-status',
+        '.section-title',
+        '.pointer-status',
+        '.console button',
+        '.console input',
+        '.tab-label',
+        'footer.bottom',
+      ].flatMap((selector) => [...document.querySelectorAll<HTMLElement>(selector)])
+        .filter(visible)
+        .map((element) => parseFloat(getComputedStyle(element).fontSize)),
+    };
+  });
+}
+
+async function attachPointerScreenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await testInfo.attach(name, {
+    body: await page.screenshot({ animations: 'disabled', fullPage: true }),
+    contentType: 'image/png',
+  });
+}
+
+async function attachPointerViewportEvidence(
+  page: Page,
+  testInfo: TestInfo,
+  state: string,
+): Promise<void> {
+  for (const viewport of [
+    { name: 'desktop', width: 1280, height: 720 },
+    { name: 'phone', width: 375, height: 812 },
+  ] as const) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await attachPointerScreenshot(page, testInfo, `${state}-${viewport.name}`);
+  }
+}
+
+async function holdNextShellReady(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const host = window as Window & {
+      __pajaHoldNextReady?: boolean;
+    };
+    host.__pajaHoldNextReady = true;
+  });
+}
+
+async function installShellReadyHold(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const host = window as Window & {
+      __pajaHoldNextReady?: boolean;
+      __pajaHeldReady?: {
+        readonly data: unknown;
+        readonly source: MessageEventSource | null;
+        readonly origin: string;
+      };
+    };
+    window.addEventListener('message', (event) => {
+      const data = event.data as { type?: unknown } | null;
+      if (!host.__pajaHoldNextReady || !data || data.type !== 'shell.ready') return;
+      event.stopImmediatePropagation();
+      host.__pajaHoldNextReady = false;
+      host.__pajaHeldReady = { data: event.data, source: event.source, origin: event.origin };
+    }, true);
+  });
+}
+
+async function releaseHeldShellReady(page: Page): Promise<void> {
+  await expect.poll(async () => page.evaluate(() => Boolean((window as Window & {
+    __pajaHeldReady?: unknown;
+  }).__pajaHeldReady))).toBe(true);
+  await page.evaluate(() => {
+    const host = window as Window & {
+      __pajaHeldReady?: {
+        readonly data: unknown;
+        readonly source: MessageEventSource | null;
+        readonly origin: string;
+      };
+    };
+    const held = host.__pajaHeldReady;
+    delete host.__pajaHeldReady;
+    if (!held) throw new Error('No held shell.ready event');
+    window.dispatchEvent(new MessageEvent('message', held));
+  });
+}
 
 async function startPointerServer(): Promise<PointerServer> {
   const browserHost = readFileSync(new URL('../../packages/paja/dist/browser-host.js', import.meta.url), 'utf8');
@@ -473,4 +700,8 @@ function targetIntentHtml(): string {
     });
     window.parent.postMessage({ type: 'shell.ready' }, '*');
   </script></body></html>`;
+}
+
+function heldTargetHtml(): string {
+  return '<!doctype html><html><body><div id="held-status">verified target</div></body></html>';
 }

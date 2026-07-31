@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { expect, test, type FrameLocator, type Page } from '@playwright/test';
+import { expect, test, type FrameLocator, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools/pure';
 import { startPajaServer, type PajaServer } from '../../packages/paja/dist/index.js';
 
@@ -52,7 +52,7 @@ test.afterAll(async () => {
   await targetServer.close();
 });
 
-test('recovers an external target through stable host error controls', async ({ page }) => {
+test('recovers an external target through stable host error controls', async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   const recoveryTarget = await startTargetServer();
   const diagnostic = '<img data-paja-diagnostic="unsafe" src=x onerror=alert(1)>';
@@ -86,6 +86,7 @@ test('recovers an external target through stable host error controls', async ({ 
     await expect(page.locator('#lifecycle-status')).toHaveText("Target couldn't load");
     expect(await page.locator('#napplet-frame').getAttribute('srcdoc')).toBeNull();
     await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('message-filter');
+    await attachViewportEvidence(page, testInfo, 'external-error');
 
     await surface.locator('.paja-target-details-summary').click();
     await expect(surface.locator('.paja-target-details-summary')).toHaveText('Hide technical details');
@@ -104,6 +105,7 @@ test('recovers an external target through stable host error controls', async ({ 
     await expect(surface.locator('.paja-target-heading')).toHaveText('Retrying target…');
     await expect(retry).toBeVisible();
     await expect(retry).toBeDisabled();
+    await attachViewportEvidence(page, testInfo, 'external-retrying');
     await page.keyboard.press('Enter');
     await page.keyboard.press('Space');
     await retry.evaluate((button) => button.click());
@@ -121,7 +123,8 @@ test('recovers an external target through stable host error controls', async ({ 
 
     const repeatFailureGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
     const repeatFailureRequests = recoveryTarget.htmlRequestCount;
-    await surface.locator('.paja-target-return').click();
+    await surface.locator('.paja-target-return').focus();
+    await surface.locator('.paja-target-return').press('Space');
     await expect.poll(() => page.evaluate(() => document.activeElement?.matches(
       '.console button:not(:disabled), .console input:not(:disabled), .console select:not(:disabled)',
     ) ?? false)).toBe(true);
@@ -146,6 +149,7 @@ test('recovers an external target through stable host error controls', async ({ 
       initSent: true,
     });
     await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('napplet-frame');
+    await attachViewportEvidence(page, testInfo, 'external-recovered');
   } finally {
     await recoveryRuntime.close();
     await recoveryTarget.close();
@@ -217,7 +221,8 @@ test('hosts one sandboxed target iframe and reinitializes it on reload', async (
   expect(firstLoadId).toBeTruthy();
 
   const firstGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
-  await page.locator('#reload-target').click();
+  await page.locator('#reload-target').focus();
+  await page.locator('#reload-target').press('Enter');
 
   await expect(page.locator('iframe')).toHaveCount(1);
   await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation)).toBe(firstGeneration + 1);
@@ -273,6 +278,90 @@ test('hosts one sandboxed target iframe and reinitializes it on reload', async (
       mediaService: napplet?.shell?.services.includes('media'),
     };
   })).toEqual({ mediaReceiver: 'undefined', mediaSupported: false, mediaService: false });
+});
+
+test('keeps desktop, phone, and 200 percent effective-viewport geometry readable', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(runtimeServer.url);
+  await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+
+  const desktop = await measurePajaLayout(page);
+  expect(desktop.document.scrollWidth, JSON.stringify(desktop)).toBe(desktop.document.clientWidth);
+  expect(desktop.header.height, JSON.stringify(desktop)).toBe(48);
+  expect(desktop.console.width, JSON.stringify(desktop)).toBe(360);
+  expect(desktop.stage.width, JSON.stringify(desktop)).toBeGreaterThan(800);
+  expect(desktop.footer.height, JSON.stringify(desktop)).toBeGreaterThanOrEqual(32);
+  expect(Math.min(...desktop.actionHeights), JSON.stringify(desktop)).toBeGreaterThanOrEqual(32);
+  expect(desktop.fontSizes.every((size) => size >= 12), JSON.stringify(desktop)).toBe(true);
+  expect(desktop.fontSizes.every((size) => [12, 14, 18, 24].includes(size)), JSON.stringify(desktop)).toBe(true);
+  await expectVisibleFocusRing(page.locator('#reload-target'));
+  await attachPajaScreenshot(page, testInfo, 'external-normal-desktop');
+
+  await page.locator('#clear-log').click();
+  await expect(page.locator('#message-log .log-row')).toHaveCount(0);
+  await expect(page.locator('#clear-log')).toBeDisabled();
+  expect(await page.locator('#message-log').evaluate((log) => getComputedStyle(log, '::before').content))
+    .toBe('"No messages yet. Runtime traffic appears here."');
+  const targetFrame = page.frameLocator('#napplet-frame');
+  await sendFixtureMessage(targetFrame, { type: 'test.one', value: 'one' });
+  await expect(page.locator('#message-log .log-row')).toHaveCount(1);
+  await expect(page.locator('#clear-log')).toBeEnabled();
+  await sendFixtureMessage(targetFrame, { type: 'test.two', value: '<strong data-log-unsafe>two</strong>' });
+  await expect(page.locator('#message-log .log-row')).toHaveCount(2);
+  await expect(page.locator('[data-log-unsafe]')).toHaveCount(0);
+  await expect(page.locator('#message-log .log-row').last()).toContainText('<strong data-log-unsafe>two</strong>');
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  const phone = await measurePajaLayout(page);
+  expect(phone.document.scrollWidth, JSON.stringify(phone)).toBe(phone.document.clientWidth);
+  expect(phone.console.height, JSON.stringify(phone)).toBe(224);
+  expect(phone.console.overflowY, JSON.stringify(phone)).toBe('auto');
+  expect(phone.console.scrollHeight, JSON.stringify(phone)).toBeGreaterThan(phone.console.clientHeight);
+  expect(phone.stage.height, JSON.stringify(phone)).toBeGreaterThanOrEqual(320);
+  expect(phone.footer.columnCount, JSON.stringify(phone)).toBe(2);
+  expect(phone.footer.bottom, JSON.stringify(phone)).toBeLessThanOrEqual(phone.document.scrollHeight);
+  expect(Math.min(...phone.actionHeights), JSON.stringify(phone)).toBeGreaterThanOrEqual(48);
+  expect(phone.fontSizes.every((size) => size >= 12), JSON.stringify(phone)).toBe(true);
+  await expectVisibleFocusRing(page.locator('#simulation-theme'));
+  await attachPajaScreenshot(page, testInfo, 'external-normal-phone');
+
+  await page.setViewportSize({ width: 640, height: 360 });
+  const reflow = await measurePajaLayout(page);
+  expect(reflow.document.scrollWidth, JSON.stringify(reflow)).toBe(reflow.document.clientWidth);
+  expect(reflow.document.scrollHeight, JSON.stringify(reflow)).toBeGreaterThan(reflow.document.clientHeight);
+  expect(reflow.footer.bottom, JSON.stringify(reflow)).toBeLessThanOrEqual(reflow.document.scrollHeight);
+  expect(reflow.fontSizes.every((size) => size >= 12), JSON.stringify(reflow)).toBe(true);
+  await attachPajaScreenshot(page, testInfo, 'external-200-percent-reflow');
+});
+
+test('keeps a 160-character target accessible and bounded on phone', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  const longTarget = `${targetServer.url}?target=${'x'.repeat(160)}`;
+  const longRuntime = await startPajaServer({
+    options: { targetUrl: longTarget, port: 0 },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+  try {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(longRuntime.url);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    const normalizedTarget = await page.locator('.target').textContent();
+    expect(normalizedTarget?.length).toBeGreaterThanOrEqual(160);
+    await expect(page.locator('.target')).toHaveAttribute('title', normalizedTarget ?? '');
+    await expect(page.locator('.target')).toHaveAttribute('aria-label', normalizedTarget ?? '');
+    const targetMetrics = await page.locator('.target').evaluate((target) => ({
+      height: target.getBoundingClientRect().height,
+      lineHeight: parseFloat(getComputedStyle(target).lineHeight),
+      documentWidth: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(targetMetrics.height, JSON.stringify(targetMetrics)).toBeLessThanOrEqual(targetMetrics.lineHeight * 2);
+    expect(targetMetrics.documentScrollWidth, JSON.stringify(targetMetrics)).toBe(targetMetrics.documentWidth);
+    await attachPajaScreenshot(page, testInfo, 'external-long-target-phone');
+  } finally {
+    await longRuntime.close();
+  }
 });
 
 test('applies simulation config and compact theme adjustment', async ({ page }) => {
@@ -682,6 +771,111 @@ test('keeps canonical INC protected through the real shim assignment in an opaqu
     await incRuntime.close();
   }
 });
+
+async function measurePajaLayout(page: Page) {
+  return page.evaluate(() => {
+    const rect = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`Missing layout element: ${selector}`);
+      const bounds = element.getBoundingClientRect();
+      return {
+        top: bounds.top,
+        right: bounds.right,
+        bottom: bounds.bottom,
+        left: bounds.left,
+        width: bounds.width,
+        height: bounds.height,
+      };
+    };
+    const consoleElement = document.querySelector<HTMLElement>('.console');
+    const footerElement = document.querySelector<HTMLElement>('footer.bottom');
+    if (!consoleElement || !footerElement) throw new Error('Missing Paja console or footer');
+    const visible = (element: Element) => element.getClientRects().length > 0;
+    const fontSizes = [
+      '.brand',
+      '.target',
+      '#lifecycle-status',
+      '.section-title',
+      '.console button',
+      '.console input',
+      '.signer',
+      '.log-row',
+      'footer.bottom',
+    ].flatMap((selector) => [...document.querySelectorAll<HTMLElement>(selector)])
+      .filter(visible)
+      .map((element) => parseFloat(getComputedStyle(element).fontSize));
+    const actionHeights = [...document.querySelectorAll<HTMLElement>('button, input, select, summary')]
+      .filter(visible)
+      .map((element) => element.getBoundingClientRect().height);
+    const footerStyle = getComputedStyle(footerElement);
+    const footerColumns = footerStyle.gridTemplateColumns === 'none'
+      ? []
+      : footerStyle.gridTemplateColumns.split(/\s+/).filter(Boolean);
+    return {
+      document: {
+        clientWidth: document.documentElement.clientWidth,
+        clientHeight: document.documentElement.clientHeight,
+        scrollWidth: document.documentElement.scrollWidth,
+        scrollHeight: document.documentElement.scrollHeight,
+      },
+      header: rect('header.top'),
+      console: {
+        ...rect('.console'),
+        clientHeight: consoleElement.clientHeight,
+        scrollHeight: consoleElement.scrollHeight,
+        overflowY: getComputedStyle(consoleElement).overflowY,
+      },
+      stage: rect('#napplet-stage'),
+      footer: {
+        ...rect('footer.bottom'),
+        columnCount: footerColumns.length,
+      },
+      actionHeights,
+      fontSizes,
+    };
+  });
+}
+
+async function expectVisibleFocusRing(locator: Locator): Promise<void> {
+  await locator.scrollIntoViewIfNeeded();
+  await locator.focus();
+  const focus = await locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const bounds = element.getBoundingClientRect();
+    return {
+      outlineWidth: style.outlineWidth,
+      outlineOffset: style.outlineOffset,
+      top: bounds.top,
+      bottom: bounds.bottom,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  expect(focus.outlineWidth, JSON.stringify(focus)).toBe('2px');
+  expect(focus.outlineOffset, JSON.stringify(focus)).toBe('4px');
+  expect(focus.bottom, JSON.stringify(focus)).toBeGreaterThan(0);
+  expect(focus.top, JSON.stringify(focus)).toBeLessThan(focus.viewportHeight);
+}
+
+async function attachPajaScreenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await testInfo.attach(name, {
+    body: await page.screenshot({ animations: 'disabled', fullPage: true }),
+    contentType: 'image/png',
+  });
+}
+
+async function attachViewportEvidence(
+  page: Page,
+  testInfo: TestInfo,
+  state: string,
+): Promise<void> {
+  for (const viewport of [
+    { name: 'desktop', width: 1280, height: 720 },
+    { name: 'phone', width: 375, height: 812 },
+  ] as const) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await attachPajaScreenshot(page, testInfo, `${state}-${viewport.name}`);
+  }
+}
 
 async function startTargetServer(): Promise<TargetServer> {
   let loadCount = 0;
