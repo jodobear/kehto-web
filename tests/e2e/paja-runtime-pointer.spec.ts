@@ -225,12 +225,67 @@ test('completes a verified intent and delivers its convention once to a cold tar
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs
       .find((tab) => tab.title === 'profile-target')?.status)).toBe('ready');
 
-    await page.evaluate(() => {
-      const state = window.__KEHTO_PAJA__;
-      const targetTab = state?.getState().tabs.find((tab) => tab.title === 'profile-target');
-      if (targetTab) state?.closeTab(targetTab.id);
+    const tablist = page.getByRole('tablist', { name: 'Loaded napplets' });
+    await expect(tablist.getByRole('tab')).toHaveCount(2);
+    const sourceTrigger = tablist.getByRole('tab', { name: 'intent-source' });
+    const targetTrigger = tablist.getByRole('tab', { name: 'profile-target' });
+    await expect(sourceTrigger).toHaveAttribute('tabindex', '-1');
+    await expect(sourceTrigger).toHaveAttribute('aria-selected', 'false');
+    await expect(targetTrigger).toHaveAttribute('tabindex', '0');
+    await expect(targetTrigger).toHaveAttribute('aria-selected', 'true');
+    await expect(targetTrigger).toHaveAttribute('title', 'profile-target');
+    const targetPanelId = await targetTrigger.getAttribute('aria-controls');
+    expect(targetPanelId).toBeTruthy();
+    await expect(page.locator(`#${targetPanelId}`)).toHaveAttribute('role', 'tabpanel');
+    await expect(page.locator(`#${targetPanelId}`)).toHaveAttribute('aria-labelledby', await targetTrigger.getAttribute('id') ?? '');
+    await expect(targetTrigger.getByRole('button')).toHaveCount(0);
+
+    const targetGroup = targetTrigger.locator('..');
+    const share = targetGroup.getByRole('button', { name: 'Copy share link for profile-target' });
+    const close = targetGroup.getByRole('button', { name: 'Close profile-target' });
+    await expect(share).toHaveAttribute('title', 'Copy share link for profile-target');
+    await expect(close).toHaveAttribute('title', 'Close profile-target');
+    await expect(page.locator('.target')).toHaveText(target.pointer);
+    await expect(page.locator('.target')).toHaveAttribute('title', target.pointer);
+    await expect(page.locator('.target')).toHaveAttribute('aria-label', target.pointer);
+
+    await targetTrigger.press('Home');
+    await expect(sourceTrigger).toBeFocused();
+    await expect(sourceTrigger).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('.target')).toHaveText(source.pointer);
+    await sourceTrigger.press('End');
+    await expect(targetTrigger).toBeFocused();
+    await targetTrigger.press('ArrowLeft');
+    await expect(sourceTrigger).toBeFocused();
+    await sourceTrigger.press('ArrowRight');
+    await expect(targetTrigger).toBeFocused();
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await targetTrigger.press('Home');
+    await sourceTrigger.press('End');
+    const reveal = await targetTrigger.evaluate((trigger) => {
+      const strip = trigger.closest('[role="tablist"]');
+      if (!(strip instanceof HTMLElement)) throw new Error('Missing tab strip');
+      const triggerRect = trigger.getBoundingClientRect();
+      const stripRect = strip.getBoundingClientRect();
+      return {
+        pageScrollX: window.scrollX,
+        triggerLeft: triggerRect.left,
+        triggerRight: triggerRect.right,
+        stripLeft: stripRect.left,
+        stripRight: stripRect.right,
+      };
     });
+    expect(reveal.pageScrollX).toBe(0);
+    expect(reveal.triggerLeft).toBeGreaterThanOrEqual(reveal.stripLeft);
+    expect(reveal.triggerRight).toBeLessThanOrEqual(reveal.stripRight);
+    await page.setViewportSize({ width: 1280, height: 720 });
+
+    await close.press('Enter');
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.length)).toBe(1);
+    await expect(sourceTrigger).toBeFocused();
+    await expect(sourceTrigger).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('.target')).toHaveText(source.pointer);
 
     await page.evaluate(() => {
       const state = window.__KEHTO_PAJA__;

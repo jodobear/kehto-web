@@ -76,4 +76,44 @@ describe('@kehto/paja runtime tabs', () => {
     expect(navigation).not.toContain('renderTargetErrorHtml');
     expect(navigation).not.toContain('srcdoc =');
   });
+
+  it('renders a roving composite tab with sibling native actions and bounded reveal', () => {
+    const source = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
+    const renderTab = source.slice(
+      source.indexOf('function renderTab('),
+      source.indexOf('function renderShareButton('),
+    );
+
+    expect(renderTab).toContain("const trigger = document.createElement('button');");
+    expect(renderTab).toContain("trigger.setAttribute('role', 'tab');");
+    expect(renderTab).toContain("trigger.setAttribute('aria-controls', runtimeTabPanelId(tab));");
+    expect(renderTab).toContain('trigger.tabIndex = active ? 0 : -1;');
+    expect(renderTab).toContain("case 'ArrowLeft':");
+    expect(renderTab).toContain("case 'ArrowRight':");
+    expect(renderTab).toContain("case 'Home':");
+    expect(renderTab).toContain("case 'End':");
+    expect(renderTab).toContain('wrapper.append(trigger, renderShareButton(tab), renderCloseButton(state, tab));');
+    expect(renderTab).not.toContain('trigger.append(label, renderShareButton');
+    expect(source).toContain("tabsEl.scrollTo({ left: nextScrollLeft, behavior: 'auto' });");
+    expect(source).not.toContain('scrollIntoView');
+  });
+
+  it('synchronizes active verified target context and exact action labels without changing wire state', () => {
+    const source = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const activation = source.slice(
+      source.indexOf('export function activateRuntimeTab('),
+      source.indexOf('export function closeRuntimeTab('),
+    );
+
+    expect(activation).toContain('context.setActiveTarget(tab);');
+    expect(source).toContain('context.setActiveTarget(null);');
+    expect(source).toContain('share.title = `Copy share link for ${tab.title}`;');
+    expect(source).toContain('close.title = `Close ${tab.title}`;');
+    expect(source).toContain("frame.setAttribute('role', 'tabpanel');");
+    expect(source).toContain("frame.setAttribute('aria-labelledby', runtimeTabTriggerId(id));");
+    expect(hostSource).toContain('function setTargetDisplay(label: string, frame?: HTMLIFrameElement | null): void');
+    expect(hostSource).toContain("targetEl.setAttribute('aria-label', label);");
+    expect(hostSource).toContain('setActiveTarget: (tab) => setTargetDisplay(');
+  });
 });
