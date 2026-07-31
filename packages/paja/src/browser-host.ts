@@ -41,7 +41,7 @@ import {
 } from './simulation.js';
 
 export interface PajaBrowserState {
-  readonly config: PajaHostConfig;
+  config: PajaHostConfig;
   readonly capabilities: ShellCapabilities;
   services: string[];
   simulation: PajaSimulation;
@@ -127,6 +127,7 @@ export interface PajaBrowserStateContext extends PajaRuntimeTabContext {
   externalAttemptController: AbortController | null;
   externalAttemptErrorDisposer: (() => void) | null;
   externalFocusFrameOnReady: boolean;
+  refreshExternalConfig(signal: AbortSignal): Promise<PajaHostConfig>;
   pointerTargetSurface: PajaTargetSurface | null;
   pointerAttemptGeneration: number | null;
   pointerRequestGeneration: number;
@@ -141,12 +142,16 @@ function readConfig(): PajaHostConfig {
   return JSON.parse(script.textContent) as PajaHostConfig;
 }
 
-async function readLatestConfig(fallback: PajaHostConfig): Promise<PajaHostConfig> {
+async function readLatestConfig(fallback: PajaHostConfig, signal?: AbortSignal): Promise<PajaHostConfig> {
   try {
-    const response = await fetch(new URL('./__kehto/config.json', window.location.href), { cache: 'no-store' });
+    const response = await fetch(new URL('./__kehto/config.json', window.location.href), {
+      cache: 'no-store',
+      signal,
+    });
     if (!response.ok) return fallback;
     return await response.json() as PajaHostConfig;
   } catch (error) {
+    if (signal?.aborted) throw signal.reason ?? error;
     console.warn('[paja] config refresh failed; using embedded config', error);
     return fallback;
   }
@@ -633,6 +638,7 @@ async function installPajaHost(): Promise<void> {
     runtime,
     targetSurface: null, externalAttemptGeneration: null, externalAttemptTimeoutId: null,
     externalAttemptController: null, externalAttemptErrorDisposer: null, externalFocusFrameOnReady: false,
+    refreshExternalConfig: (signal) => readLatestConfig(context.config, signal),
     pointerTargetSurface: null, pointerAttemptGeneration: null,
     pointerRequestGeneration: 0, pointerFocusFrameOnReady: false,
     navigateFrame,
@@ -641,7 +647,7 @@ async function installPajaHost(): Promise<void> {
     setStatus: (state, status) => setStatus(state as PajaBrowserState, status),
     setLifecycleStatus,
     focusPointerControl,
-    setActiveTarget: (tab) => setTargetDisplay(tab?.pointerValue ?? getTargetLabel(config), tab?.frame),
+    setActiveTarget: (tab) => setTargetDisplay(tab?.pointerValue ?? getTargetLabel(context.config), tab?.frame ?? frame),
   };
   contextRef = context;
   const state = createPajaBrowserState(context);

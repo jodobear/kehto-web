@@ -36,8 +36,9 @@ export function startExternalFrameNavigation(
   state: PajaBrowserState,
   context: PajaBrowserStateContext,
 ): void {
-  const { config, frame, bridge, adapter, runtime } = context;
+  const { frame, bridge, adapter, runtime } = context;
   if (!frame || context.externalAttemptGeneration !== null) return;
+  const attemptBudgetMs = context.config.runtime.readyTimeoutMs;
   const generation = state.generation;
   const isCurrentGeneration = () => state.generation === generation;
   cancelExternalFrameNavigation(
@@ -57,19 +58,25 @@ export function startExternalFrameNavigation(
       context,
       generation,
       controller,
-      new Error(`Target readiness timed out after ${config.runtime.readyTimeoutMs}ms without shell.ready.`),
+      new Error(`Target readiness timed out after ${attemptBudgetMs}ms without shell.ready.`),
     );
-  }, config.runtime.readyTimeoutMs);
-  void navigateFrame(
-    frame, config, generation, adapter, state.resolvedTarget, undefined, isCurrentAttempt,
-    (windowId) => {
-      if (isCurrentAttempt()) {
-        runtime.currentWindowId = windowId;
-        armExternalFrameErrorHandler(state, context, generation, controller);
-      }
-    },
-    controller.signal,
-  ).then((windowId) => {
+  }, attemptBudgetMs);
+  void context.refreshExternalConfig(controller.signal).then((attemptConfig) => {
+    if (!isCurrentAttempt()) return null;
+    context.config = attemptConfig;
+    state.config = attemptConfig;
+    context.setActiveTarget(null);
+    return navigateFrame(
+      frame, attemptConfig, generation, adapter, state.resolvedTarget, undefined, isCurrentAttempt,
+      (windowId) => {
+        if (isCurrentAttempt()) {
+          runtime.currentWindowId = windowId;
+          armExternalFrameErrorHandler(state, context, generation, controller);
+        }
+      },
+      controller.signal,
+    );
+  }).then((windowId) => {
     if (!isCurrentAttempt()) {
       unregisterSingleFrameWindow(bridge, runtime, windowId);
       if (context.externalAttemptController === controller) {

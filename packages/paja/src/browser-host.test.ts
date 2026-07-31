@@ -149,9 +149,19 @@ describe('@kehto/paja browser host runtime source guards', () => {
 
   it('keeps external target asset resolution anchored to the authored target URL', () => {
     const source = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
 
     expect(source).toContain('function injectBaseHref(html: string, targetUrl: string): string');
     expect(source).toContain('`<base href="${escapeAttribute(targetUrl)}">`');
+    expect(hostSource).toContain('signal?.aborted');
+    expect(runtimeSource.indexOf('context.externalAttemptTimeoutId = window.setTimeout('))
+      .toBeLessThan(runtimeSource.indexOf('context.refreshExternalConfig(controller.signal)'));
+    expect(runtimeSource.indexOf('context.refreshExternalConfig(controller.signal)'))
+      .toBeLessThan(runtimeSource.indexOf('return navigateFrame('));
+    expect(runtimeSource).toContain('context.config = attemptConfig;');
+    expect(runtimeSource).toContain('state.config = attemptConfig;');
+    expect(runtimeSource).toContain('context.setActiveTarget(null);');
   });
 
   it('keeps Paja wired to real relay, outbox, and identity bootstrap paths', () => {
@@ -245,7 +255,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(runtimeSource).toContain('const controller = new AbortController();');
     expect(runtimeSource).toContain('context.externalAttemptController = controller;');
     expect(runtimeSource.indexOf('context.externalAttemptTimeoutId = window.setTimeout('))
-      .toBeLessThan(runtimeSource.indexOf('void navigateFrame('));
+      .toBeLessThan(runtimeSource.indexOf('return navigateFrame('));
     expect(runtimeSource).toContain('controller.signal,');
     expect(runtimeSource).toContain('if (controller && !controller.signal.aborted) controller.abort(reason);');
     expect(runtimeSource).toContain('context.externalAttemptController !== controller');

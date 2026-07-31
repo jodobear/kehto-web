@@ -351,6 +351,53 @@ test('ignores a stale iframe error while a newer Retry attempt is fetching', asy
   }
 });
 
+test('refreshes target A to B before Retry base injection and readiness', async ({ page }) => {
+  test.setTimeout(30_000);
+  const targetA = await startTargetServer();
+  const targetB = await startTargetServer();
+  targetA.failNext('target A replaced', { hold: true });
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: targetA.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect.poll(() => targetA.htmlRequestCount).toBe(1);
+    runtime.updateTargetUrl(targetB.url);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(() => targetB.htmlRequestCount).toBe(1);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 2_000 });
+    await expect(page.locator('.target')).toHaveText(targetB.url);
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('data-target-url', targetB.url);
+    await expect(page.locator('#napplet-frame')).toHaveAttribute(
+      'srcdoc',
+      new RegExp(`<base href="${targetB.url.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')}">`),
+    );
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 2_000 },
+    );
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'ready',
+      initSent: true,
+    });
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.config.target.url)).toBe(targetB.url);
+  } finally {
+    targetA.releaseHeldFailure();
+    await runtime.close();
+    await targetA.close();
+    await targetB.close();
+  }
+});
+
 test('hosts one sandboxed target iframe and reinitializes it on reload', async ({ page }) => {
   test.setTimeout(60_000);
   const dialogMessages: string[] = [];
