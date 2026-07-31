@@ -1,83 +1,39 @@
 import {
-  buildShellCapabilities,
-  createShellBridge,
-  originRegistry,
-  type Capability,
-  type ShellBridge,
-  type ShellCapabilities,
+  buildShellCapabilities, createShellBridge, originRegistry,
+  type Capability, type ShellBridge, type ShellCapabilities,
 } from '@kehto/shell';
 
-import {
-  createDevTheme,
-  createPajaAdapter,
-  PAJA_DEV_SIGNER_PUBKEY,
-} from './browser-adapter.js';
-import {
-  confirmPajaRequest,
-  createHostSignerController,
-  hasNip07Signer,
-} from './browser-host-signer.js';
+import { createDevTheme, createPajaAdapter, PAJA_DEV_SIGNER_PUBKEY } from './browser-adapter.js';
+import { confirmPajaRequest, createHostSignerController, hasNip07Signer } from './browser-host-signer.js';
 import { unregisterSingleFrameWindow } from './browser-host-runtime.js';
 import { BrowserIntentController } from './browser-intent-controller.js';
 import {
-  clearRuntimeTabGeneration,
-  createPajaIntentTargetOptions,
-  markRuntimeTabReady,
-  pajaPointerResolverOptions,
-  subscribePajaIntentCatalogChanges,
+  clearRuntimeTabGeneration, createPajaIntentTargetOptions, markRuntimeTabReady,
+  pajaPointerResolverOptions, subscribePajaIntentCatalogChanges,
 } from './browser-intent-host.js';
 import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
 import { createPajaThemeBroadcastLink } from './theme-broadcast.js';
+import { type PajaSignerState } from './browser-signers.js';
 import {
-  type PajaSignerState,
-} from './browser-signers.js';
-import {
-  activateRuntimeTab,
-  addRuntimeTab,
-  closeRuntimeTab,
-  getActiveTab,
-  PAJA_RUNTIME_TABS_STORAGE_KEY,
-  parseRuntimeTabsSnapshot,
-  reloadActiveRuntimeTab,
-  renderRuntimeTabs,
-  resolvedTargetKey,
-  setEmptyStageVisible,
-  showDuplicatePointerDialog,
-  snapshotRuntimeTabs,
-  type PajaRuntimeTabsSnapshot,
-  type PajaRuntimeTab,
-  type PajaRuntimeTabContext,
-  type PajaRuntimeTabRuntime,
+  activateRuntimeTab, addRuntimeTab, closeRuntimeTab, getActiveTab,
+  PAJA_RUNTIME_TABS_STORAGE_KEY, parseRuntimeTabsSnapshot, reloadActiveRuntimeTab,
+  renderRuntimeTabs, resolvedTargetKey, setEmptyStageVisible, showDuplicatePointerDialog,
+  snapshotRuntimeTabs, type PajaRuntimeTabsSnapshot, type PajaRuntimeTab,
+  type PajaRuntimeTabContext, type PajaRuntimeTabRuntime,
 } from './browser-runtime-tabs.js';
 import type { BrowserIntentGeneration } from './browser-intent-controller.js';
 import {
-  appendPajaMessageLog,
-  createPajaPostMessageProxy,
-  installPajaOriginRegistryProxy,
-  renderPajaDevtools,
-  renderPajaMessageLog,
-  type PajaMessageLogEntry,
+  appendPajaMessageLog, createPajaPostMessageProxy, installPajaOriginRegistryProxy,
+  renderPajaDevtools, renderPajaMessageLog, type PajaMessageLogEntry,
 } from './browser-devtools.js';
 import type { PajaHostConfig } from './options.js';
-import {
-  getTargetIdentity,
-  navigateFrame,
-  renderTargetErrorHtml,
-} from './browser-target-frame.js';
-import {
-  createPajaTargetSurface,
-  type PajaTargetSurface,
-} from './browser-target-surface.js';
-import {
-  resolvePajaPointer,
-  type PajaResolvedPointer,
-} from './runtime-resolver.js';
+import { getTargetIdentity, navigateFrame } from './browser-target-frame.js';
+import { createPajaTargetSurface, type PajaTargetSurface } from './browser-target-surface.js';
+import { resolvePajaPointer, type PajaResolvedPointer } from './runtime-resolver.js';
 import { reportTargetCorsDiagnostic } from './browser-target-diagnostics.js';
 import {
-  PAJA_SIMULATION_DOMAINS,
-  summarizePajaSimulation,
-  type PajaSimulation,
-  type PajaCapabilityDomain,
+  PAJA_SIMULATION_DOMAINS, summarizePajaSimulation,
+  type PajaSimulation, type PajaCapabilityDomain,
 } from './simulation.js';
 
 export interface PajaBrowserState {
@@ -164,6 +120,10 @@ export interface PajaBrowserStateContext extends PajaRuntimeTabContext {
   targetSurface: PajaTargetSurface | null;
   externalAttemptGeneration: number | null;
   externalFocusFrameOnReady: boolean;
+  pointerTargetSurface: PajaTargetSurface | null;
+  pointerAttemptGeneration: number | null;
+  pointerRequestGeneration: number;
+  pointerFocusFrameOnReady: boolean;
 }
 
 function readConfig(): PajaHostConfig {
@@ -268,6 +228,11 @@ function setPointerStatus(state: PajaBrowserState, message: string): void {
   state.pointerStatus = message;
   const statusEl = document.getElementById('runtime-pointer-status');
   if (statusEl) statusEl.textContent = message;
+}
+
+function setPointerAttemptBusy(busy: boolean): void {
+  const submit = document.getElementById('runtime-pointer-load');
+  if (submit instanceof HTMLButtonElement) submit.disabled = busy;
 }
 
 function getStage(): HTMLElement {
@@ -418,6 +383,7 @@ async function loadRuntimePointer(
   const { config, runtime } = context;
   if (config.target.mode !== 'runtime-pointer') return;
   const pointer = value.trim();
+  if (context.pointerAttemptGeneration !== null) return;
   const input = document.getElementById('runtime-pointer-input');
   if (input instanceof HTMLInputElement) input.value = pointer;
   state.pointerValue = pointer;
@@ -425,11 +391,19 @@ async function loadRuntimePointer(
     setPointerStatus(state, 'idle');
     return;
   }
+  const attemptGeneration = ++context.pointerRequestGeneration;
+  context.pointerAttemptGeneration = attemptGeneration;
+  const isCurrentAttempt = () => context.pointerAttemptGeneration === attemptGeneration;
+  const focusRetry = context.pointerFocusFrameOnReady;
+  setPointerAttemptBusy(true);
+  context.pointerTargetSurface?.showLoading(focusRetry ? 'retry' : 'initial');
+  setEmptyStageVisible(false);
   setPointerStatus(state, 'resolving');
-  setStatus(state, 'booting');
+  if (!getActiveTab(state)) setStatus(state, 'booting');
   appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.resolve', pointer });
   try {
     const resolvedTarget = await resolvePajaPointer(pointer, pajaPointerResolverOptions(context));
+    if (!isCurrentAttempt()) return;
     runtime.catalog.install(resolvedTarget);
     const pointerStatus = `${resolvedTarget.dTag}:${resolvedTarget.aggregateHash.slice(0, 12)}`;
     setPointerStatus(state, pointerStatus);
@@ -441,6 +415,7 @@ async function loadRuntimePointer(
     const duplicate = options.skipDuplicatePrompt ? undefined : state.tabs.find((tab) => tab.key === resolvedTargetKey(resolvedTarget));
     if (duplicate) {
       const choice = await showDuplicatePointerDialog();
+      if (!isCurrentAttempt()) return;
       if (choice === 'cancel') {
         setStatus(state, getActiveTab(state)?.status ?? 'ready');
         setPointerStatus(state, `already running: ${duplicate.title}`);
@@ -454,14 +429,25 @@ async function loadRuntimePointer(
         return;
       }
     }
-    addRuntimeTab(state, context, pointer, resolvedTarget);
+    const tab = addRuntimeTab(state, context, pointer, resolvedTarget);
+    tab.focusFrameOnReady = focusRetry;
+    context.pointerTargetSurface?.showReady({ focusFrame: false });
     if (options.persist !== false) persistRuntimeTabs(state);
   } catch (error) {
+    if (!isCurrentAttempt()) return;
     const message = error instanceof Error ? error.message : String(error);
-    state.resolvedTarget = null;
+    state.resolvedTarget = getActiveTab(state)?.resolvedTarget ?? null;
     setPointerStatus(state, message);
-    setStatus(state, 'error');
+    setStatus(state, getActiveTab(state)?.status ?? 'error');
+    context.pointerTargetSurface?.showError(error, { focusRetry });
+    setEmptyStageVisible(state.tabs.length === 0 ? false : !getActiveTab(state));
     appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.error', error: message });
+  } finally {
+    if (isCurrentAttempt()) {
+      context.pointerAttemptGeneration = null;
+      context.pointerFocusFrameOnReady = false;
+      setPointerAttemptBusy(false);
+    }
   }
 }
 
@@ -620,14 +606,15 @@ async function installPajaHost(): Promise<void> {
     signerController,
     capabilities,
     runtime,
-    targetSurface: null,
-    externalAttemptGeneration: null,
-    externalFocusFrameOnReady: false,
+    targetSurface: null, externalAttemptGeneration: null, externalFocusFrameOnReady: false,
+    pointerTargetSurface: null, pointerAttemptGeneration: null,
+    pointerRequestGeneration: 0, pointerFocusFrameOnReady: false,
     navigateFrame,
-    renderTargetErrorHtml,
     onTabDestroyed: (tab) => clearRuntimeTabGeneration(tab, runtime),
     setPointerStatus: (state, message) => setPointerStatus(state as PajaBrowserState, message),
     setStatus: (state, status) => setStatus(state as PajaBrowserState, status),
+    setLifecycleStatus,
+    focusPointerControl,
   };
   contextRef = context;
   const state = createPajaBrowserState(context);
@@ -642,6 +629,18 @@ async function installPajaHost(): Promise<void> {
         state.reload();
       },
       onReturn: focusFirstEnabledPajaControl,
+      onLifecycleStatus: setLifecycleStatus,
+    });
+  } else {
+    context.pointerTargetSurface = createPajaTargetSurface({
+      host: stage,
+      frame: document.createElement('iframe'),
+      returnLabel: 'Back to target controls',
+      onRetry: () => {
+        context.pointerFocusFrameOnReady = true;
+        void state.loadPointer(state.pointerValue);
+      },
+      onReturn: focusPointerControl,
       onLifecycleStatus: setLifecycleStatus,
     });
   }
@@ -681,6 +680,12 @@ async function installPajaHost(): Promise<void> {
           registeredWindowId,
           { setReadyStatus: (current) => setStatus(current, 'ready') },
         )) return;
+        const isActiveTab = state.activeTabId === sourceTab.id;
+        sourceTab.targetSurface.showReady({
+          focusFrame: sourceTab.focusFrameOnReady && isActiveTab,
+        });
+        sourceTab.focusFrameOnReady = false;
+        sourceTab.frame.hidden = !isActiveTab;
       } else {
         if (sourceWindowId) runtime.readyWindowIds.add(sourceWindowId);
         state.status = 'ready';
@@ -723,6 +728,10 @@ function focusFirstEnabledPajaControl(): void {
   document.querySelector<HTMLElement>(
     '.console button:not(:disabled), .console input:not(:disabled), .console select:not(:disabled)',
   )?.focus();
+}
+
+function focusPointerControl(): void {
+  document.getElementById('runtime-pointer-input')?.focus();
 }
 
 if (typeof document !== 'undefined') {

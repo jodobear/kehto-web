@@ -72,7 +72,7 @@ describe('@kehto/paja runtime tabs', () => {
     expect(reload).toContain('tab.generation = ++state.generation;');
     expect(navigation).toContain('() => tab.generation === generation');
     expect(navigation).toContain('if (tab.generation !== generation) return;');
-    expect(navigation).toContain('tab.targetSurface.showError(error, { focusRetry });');
+    expect(navigation).toContain('handleRuntimeTabError(tab, state, context, error);');
     expect(navigation).not.toContain('renderTargetErrorHtml');
     expect(navigation).not.toContain('srcdoc =');
   });

@@ -106,7 +106,7 @@ test('recovers resolver and active-frame failures without duplicating verified t
   const target = createPointerFixture(
     server.url,
     'recovery-target',
-    '<!doctype html><html><head><title>Recovery Target</title></head><body>verified recovery<script>window.parent.postMessage({type:"shell.ready"},"*");</script></body></html>',
+    '<!doctype html><html><head><title>Recovery Target</title></head><body>verified recovery</body></html>',
     ['shell'],
   );
   const relay = 'wss://recovery-fixture.example';
