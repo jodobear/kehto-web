@@ -105,11 +105,6 @@ export async function navigateFrame(
   return registeredWindowId;
 }
 
-export function renderTargetErrorHtml(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return `<!doctype html><html><body><pre>${escapeHtml(message)}</pre></body></html>`;
-}
-
 function connectOrigins(urls: readonly string[]): string[] {
   const out = new Set<string>();
   for (const value of urls) {
