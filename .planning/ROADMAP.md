@@ -39,11 +39,26 @@ Close the archived Phase 105 `12/24` UI review debt across Paja and playground f
 **Plans**: 5 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 107-01-PLAN.md — Prove host-owned external target recovery through the existing verified loader.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 107-02-PLAN.md — Extend recovery to verified pointers/runtime tabs and complete tab/CI path coverage.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 107-03-PLAN.md — Implement and browser-prove the semantic responsive Paja composition.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 107-04-PLAN.md — Apply the semantic visual system to feed/profile without behavior drift.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 107-05-PLAN.md — Synchronize docs, add the Paja patch changeset, and run full protected-state gates.
+
 **UI hint**: yes
 
 ### Phase 108: Recoverable Napplet States and Visual Proof
