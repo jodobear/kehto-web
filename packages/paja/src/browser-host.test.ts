@@ -62,7 +62,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
     const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
     const tabsSource = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
 
-    expect(runtimeSource).toContain('if (isCurrentGeneration()) runtime.currentWindowId = windowId;');
+    expect(runtimeSource).toContain('if (isCurrentAttempt()) runtime.currentWindowId = windowId;');
     expect(tabsSource).toContain('`${config.window.id}:${tab.id}:${tab.generation}`');
     expect(tabsSource).toContain('if (state.activeTabId === tab.id) context.runtime.currentWindowId = windowId;');
   });
@@ -233,6 +233,23 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(source).toContain('if (isSingleFrameMessage && (!sourceWindowId || sourceWindowId !== runtime.currentWindowId)) return;');
     expect(targetSource).toContain('isCurrent?: () => boolean');
     expect(targetSource).toContain('if (isCurrent && !isCurrent()) return null;');
+  });
+
+  it('owns one external deadline and abort controller from fetch through trusted ready', () => {
+    const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const targetSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
+
+    expect(runtimeSource).toContain('const controller = new AbortController();');
+    expect(runtimeSource).toContain('context.externalAttemptController = controller;');
+    expect(runtimeSource.indexOf('context.externalAttemptTimeoutId = window.setTimeout('))
+      .toBeLessThan(runtimeSource.indexOf('void navigateFrame('));
+    expect(runtimeSource).toContain('controller.signal,');
+    expect(runtimeSource).toContain('if (controller && !controller.signal.aborted) controller.abort(reason);');
+    expect(targetSource).toContain('signal?: AbortSignal');
+    expect(targetSource).toContain('const html = await fetchTargetHtml(signal);');
+    expect(hostSource).toContain('settleExternalNavigationReady(context);');
+    expect(hostSource).toContain('destroyExternalFrameNavigation(context);');
   });
 
   it('registers the trusted frame identity before resolver-built srcdoc can run', () => {

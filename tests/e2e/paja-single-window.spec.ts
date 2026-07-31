@@ -252,6 +252,8 @@ test('settles a never-settling external target fetch and retries through the sam
     await page.waitForTimeout(150);
     await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
     expect(proxyRequestCount).toBe(1);
+    await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.error').length ?? -1)).toBe(1);
 
     await surface.locator('.paja-target-retry').click();
     await expect.poll(() => proxyRequestCount).toBe(2);

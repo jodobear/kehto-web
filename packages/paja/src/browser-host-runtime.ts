@@ -40,33 +40,43 @@ export function startExternalFrameNavigation(
   if (!frame || context.externalAttemptGeneration !== null) return;
   const generation = state.generation;
   const isCurrentGeneration = () => state.generation === generation;
+  cancelExternalFrameNavigation(
+    context,
+    new Error('Target navigation cancelled because a newer attempt started.'),
+  );
+  const controller = new AbortController();
   context.externalAttemptGeneration = generation;
+  context.externalAttemptController = controller;
+  const isCurrentAttempt = () => isCurrentGeneration()
+    && context.externalAttemptGeneration === generation
+    && context.externalAttemptController === controller;
   context.targetSurface?.showLoading(context.externalFocusFrameOnReady ? 'retry' : 'initial');
+  context.externalAttemptTimeoutId = window.setTimeout(() => {
+    settleExternalNavigationFailure(
+      state,
+      context,
+      generation,
+      new Error(`Target readiness timed out after ${config.runtime.readyTimeoutMs}ms without shell.ready.`),
+    );
+  }, config.runtime.readyTimeoutMs);
   void navigateFrame(
-    frame, config, generation, adapter, state.resolvedTarget, undefined, isCurrentGeneration,
+    frame, config, generation, adapter, state.resolvedTarget, undefined, isCurrentAttempt,
     (windowId) => {
-      if (isCurrentGeneration()) runtime.currentWindowId = windowId;
+      if (isCurrentAttempt()) runtime.currentWindowId = windowId;
     },
+    controller.signal,
   ).then((windowId) => {
-    if (!isCurrentGeneration()) {
+    if (!isCurrentAttempt()) {
       unregisterSingleFrameWindow(bridge, runtime, windowId);
-      if (context.externalAttemptGeneration === generation) context.externalAttemptGeneration = null;
-      return;
-    }
-    if (context.externalAttemptGeneration !== generation) {
-      unregisterSingleFrameWindow(bridge, runtime, windowId);
+      if (context.externalAttemptController === controller) {
+        cancelExternalFrameNavigation(
+          context,
+          new Error('Target navigation cancelled after a stale settlement.'),
+        );
+      }
       return;
     }
     runtime.currentWindowId = windowId;
-    clearExternalAttemptTimeout(context);
-    context.externalAttemptTimeoutId = window.setTimeout(() => {
-      settleExternalNavigationFailure(
-        state,
-        context,
-        generation,
-        new Error(`Target readiness timed out after ${config.runtime.readyTimeoutMs}ms without shell.ready.`),
-      );
-    }, config.runtime.readyTimeoutMs);
   }).catch((error) => {
     if (settleExternalNavigationFailure(state, context, generation, error)) console.error(error);
   });
@@ -79,6 +89,35 @@ export function clearExternalAttemptTimeout(context: PajaBrowserStateContext): v
   context.externalAttemptTimeoutId = null;
 }
 
+/** Cancel the current external-target attempt without projecting a new UI state. */
+export function cancelExternalFrameNavigation(
+  context: PajaBrowserStateContext,
+  reason: Error,
+): void {
+  clearExternalAttemptTimeout(context);
+  const controller = context.externalAttemptController;
+  context.externalAttemptController = null;
+  context.externalAttemptGeneration = null;
+  if (controller && !controller.signal.aborted) controller.abort(reason);
+}
+
+/** Settle trusted external readiness without aborting the live frame. */
+export function settleExternalNavigationReady(context: PajaBrowserStateContext): void {
+  clearExternalAttemptTimeout(context);
+  context.externalAttemptController = null;
+  context.externalAttemptGeneration = null;
+}
+
+/** Release external attempt and session ownership when the host is destroyed. */
+export function destroyExternalFrameNavigation(context: PajaBrowserStateContext): void {
+  cancelExternalFrameNavigation(
+    context,
+    new Error('Target navigation cancelled because the Paja host was destroyed.'),
+  );
+  context.externalFocusFrameOnReady = false;
+  unregisterSingleFrameWindow(context.bridge, context.runtime, context.runtime.currentWindowId);
+}
+
 /** Settle the current external-target attempt into retryable recovery. */
 export function settleExternalNavigationFailure(
   state: PajaBrowserState,
@@ -87,16 +126,16 @@ export function settleExternalNavigationFailure(
   error: unknown,
 ): boolean {
   if (state.generation !== generation || context.externalAttemptGeneration !== generation) return false;
-  clearExternalAttemptTimeout(context);
-  context.externalAttemptGeneration = null;
   const focusRetry = context.externalFocusFrameOnReady;
+  const failure = error instanceof Error ? error : new Error(String(error));
+  cancelExternalFrameNavigation(context, failure);
   context.externalFocusFrameOnReady = false;
   unregisterSingleFrameWindow(context.bridge, context.runtime, context.runtime.currentWindowId);
   state.status = 'error';
-  context.targetSurface?.showError(error, { focusRetry });
+  context.targetSurface?.showError(failure, { focusRetry });
   appendPajaMessageLog(state, 'paja', {
     type: 'paja.target.error',
-    error: error instanceof Error ? error.message : String(error),
+    error: failure.message,
   });
   return true;
 }

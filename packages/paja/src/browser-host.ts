@@ -6,7 +6,8 @@ import {
 import { createDevTheme, createPajaAdapter, PAJA_DEV_SIGNER_PUBKEY } from './browser-adapter.js';
 import { confirmPajaRequest, createHostSignerController, hasNip07Signer } from './browser-host-signer.js';
 import {
-  clearExternalAttemptTimeout, installExternalFrameErrorHandler,
+  cancelExternalFrameNavigation, destroyExternalFrameNavigation,
+  installExternalFrameErrorHandler, settleExternalNavigationReady,
   startExternalFrameNavigation, unregisterSingleFrameWindow,
 } from './browser-host-runtime.js';
 import { BrowserIntentController } from './browser-intent-controller.js';
@@ -124,6 +125,7 @@ export interface PajaBrowserStateContext extends PajaRuntimeTabContext {
   targetSurface: PajaTargetSurface | null;
   externalAttemptGeneration: number | null;
   externalAttemptTimeoutId: number | null;
+  externalAttemptController: AbortController | null;
   externalFocusFrameOnReady: boolean;
   pointerTargetSurface: PajaTargetSurface | null;
   pointerAttemptGeneration: number | null;
@@ -299,6 +301,10 @@ function reloadPajaTarget(state: PajaBrowserState, context: PajaBrowserStateCont
     return;
   }
   if (context.externalAttemptGeneration !== null) return;
+  cancelExternalFrameNavigation(
+    context,
+    new Error('Target navigation cancelled before reload.'),
+  );
   if (runtime.currentWindowId) {
     unregisterSingleFrameWindow(bridge, runtime, runtime.currentWindowId);
   }
@@ -570,7 +576,8 @@ async function installPajaHost(): Promise<void> {
     signerController,
     capabilities,
     runtime,
-    targetSurface: null, externalAttemptGeneration: null, externalAttemptTimeoutId: null, externalFocusFrameOnReady: false,
+    targetSurface: null, externalAttemptGeneration: null, externalAttemptTimeoutId: null,
+    externalAttemptController: null, externalFocusFrameOnReady: false,
     pointerTargetSurface: null, pointerAttemptGeneration: null,
     pointerRequestGeneration: 0, pointerFocusFrameOnReady: false,
     navigateFrame,
@@ -611,7 +618,10 @@ async function installPajaHost(): Promise<void> {
   }
 
   const stopIntentCatalogChanges = subscribePajaIntentCatalogChanges(state, context);
-  window.addEventListener('pagehide', stopIntentCatalogChanges, { once: true });
+  window.addEventListener('pagehide', () => {
+    stopIntentCatalogChanges();
+    destroyExternalFrameNavigation(context);
+  }, { once: true });
 
   window.__KEHTO_PAJA__ = state;
 
@@ -656,8 +666,7 @@ async function installPajaHost(): Promise<void> {
       } else {
         if (sourceWindowId) runtime.readyWindowIds.add(sourceWindowId);
         state.status = 'ready';
-        clearExternalAttemptTimeout(context);
-        context.externalAttemptGeneration = null;
+        settleExternalNavigationReady(context);
         const focusFrame = context.externalFocusFrameOnReady;
         context.externalFocusFrameOnReady = false;
         context.targetSurface?.showReady({ focusFrame });
