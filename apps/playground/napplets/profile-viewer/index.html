@@ -6,12 +6,38 @@
   <meta name="napplet-napp-type" content="demo-profile-viewer" />
   <title>Profile Viewer Napplet</title>
   <style>
+    :root {
+      --ui-color-background: var(--nap-theme-background, #101211);
+      --ui-color-surface: var(--nap-theme-surface-1, #181b19);
+      --ui-color-surface-raised: var(--nap-theme-surface-2, #20241f);
+      --ui-color-foreground: var(--nap-theme-text, #f4f0df);
+      --ui-color-muted: var(--nap-theme-muted, #a9ad9f);
+      --ui-color-border: var(--nap-theme-border, #626a60);
+      --ui-color-accent: var(--nap-theme-primary, #d8c36a);
+      --ui-color-danger: var(--nap-theme-danger, #f0a0a0);
+      --ui-color-danger-surface: color-mix(in srgb, var(--nap-theme-surface-1, #2b1e1e) 82%, var(--nap-theme-danger, #2b1e1e) 18%);
+      --ui-color-success: var(--nap-theme-success, #a9d38f);
+      --ui-space-xs: 4px;
+      --ui-space-sm: 8px;
+      --ui-space-md: 16px;
+      --ui-space-lg: 24px;
+      --ui-space-xl: 32px;
+      --ui-space-2xl: 48px;
+      --ui-space-3xl: 64px;
+      --ui-type-label: 12px;
+      --ui-type-body: 14px;
+      --ui-type-heading: 18px;
+      --ui-type-display: 24px;
+      --ui-type-weight-regular: 400;
+      --ui-type-weight-semibold: 600;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'JetBrains Mono', monospace;
-      background: var(--nap-theme-background, #f6f5ef);
-      color: var(--nap-theme-text, #1c1c1c);
-      font-size: 11px;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--ui-color-background);
+      color: var(--ui-color-foreground);
+      font-size: var(--ui-type-body);
+      font-weight: var(--ui-type-weight-regular);
       height: 100vh;
       overflow: hidden;
     }
@@ -19,30 +45,45 @@
       height: 100%;
       display: flex;
       flex-direction: column;
-      padding: 8px;
-      gap: 8px;
+      min-width: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding: var(--ui-space-sm);
+      gap: var(--ui-space-sm);
     }
     .profile-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      min-width: 0;
+      gap: var(--ui-space-sm);
     }
     .profile-title {
-      color: var(--nap-theme-muted, #666);
-      font-size: 9px;
+      color: var(--ui-color-muted);
+      font-size: var(--ui-type-label);
+      font-weight: var(--ui-type-weight-semibold);
       letter-spacing: 0.18em;
       text-transform: uppercase;
     }
     #profile-status {
-      color: var(--nap-theme-muted, #666);
-      font-size: 10px;
-      white-space: nowrap;
+      color: var(--ui-color-muted);
+      font-size: var(--ui-type-label);
+      font-weight: var(--ui-type-weight-regular);
+      min-width: 0;
+      overflow-wrap: anywhere;
+      text-align: right;
+    }
+    #profile-status[data-tone='success'] {
+      color: var(--ui-color-success);
+    }
+    #profile-status[data-tone='danger'] {
+      color: var(--ui-color-danger);
     }
     .profile-main {
       display: flex;
       align-items: flex-start;
-      gap: 8px;
+      min-width: 0;
+      gap: var(--ui-space-sm);
       min-height: 72px;
     }
     #profile-picture {
@@ -52,8 +93,8 @@
       border-radius: 6px;
       object-fit: cover;
       display: none;
-      border: 1px solid var(--nap-theme-border, #cfcabf);
-      background: var(--nap-theme-surface-1, #f4f1e7);
+      border: 1px solid var(--ui-color-border);
+      background: var(--ui-color-surface);
     }
     #profile-banner {
       width: 100%;
@@ -61,54 +102,60 @@
       border-radius: 6px;
       object-fit: cover;
       display: none;
-      border: 1px solid var(--nap-theme-border, #cfcabf);
-      background: var(--nap-theme-surface-1, #f4f1e7);
+      border: 1px solid var(--ui-color-border);
+      background: var(--ui-color-surface);
     }
     .profile-copy {
       min-width: 0;
       flex: 1;
     }
     #profile-name {
-      color: var(--nap-theme-text, #1a1a1a);
-      font-size: 13px;
-      font-weight: 600;
-      line-height: 1.3;
+      color: var(--ui-color-foreground);
+      font-size: var(--ui-type-heading);
+      font-weight: var(--ui-type-weight-semibold);
+      line-height: 1.25;
       overflow-wrap: anywhere;
     }
     #profile-pubkey {
       display: block;
-      color: var(--nap-theme-info, #666666);
-      font-size: 9px;
-      line-height: 1.4;
+      color: var(--ui-color-muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: var(--ui-type-label);
+      font-weight: var(--ui-type-weight-regular);
+      line-height: 1.5;
       overflow-wrap: anywhere;
-      margin-top: 2px;
+      margin-top: var(--ui-space-xs);
     }
     #profile-about {
-      color: var(--nap-theme-text, #2a2a2a);
-      font-size: 10px;
-      line-height: 1.45;
+      color: var(--ui-color-foreground);
+      font-size: var(--ui-type-body);
+      font-weight: var(--ui-type-weight-regular);
+      line-height: 1.5;
       overflow-wrap: anywhere;
     }
     #profile-details {
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: var(--ui-space-xs);
       min-height: 14px;
     }
     .profile-detail-row {
       display: flex;
       align-items: baseline;
-      gap: 6px;
+      gap: var(--ui-space-sm);
       min-width: 0;
     }
     .profile-detail-label {
-      color: var(--nap-theme-muted, #666);
-      flex: 0 0 36px;
-      font-size: 9px;
+      color: var(--ui-color-muted);
+      flex: 0 0 var(--ui-space-2xl);
+      font-size: var(--ui-type-label);
+      font-weight: var(--ui-type-weight-regular);
     }
     .profile-detail-value {
-      color: var(--nap-theme-text, #2a2a2a);
-      font-size: 10px;
+      color: var(--ui-color-foreground);
+      min-width: 0;
+      font-size: var(--ui-type-label);
+      font-weight: var(--ui-type-weight-regular);
       overflow-wrap: anywhere;
     }
   </style>
@@ -117,7 +164,7 @@
   <div id="app">
     <div class="profile-header">
       <span class="profile-title">profile</span>
-      <span id="profile-status">connecting...</span>
+      <span id="profile-status" data-tone="neutral">connecting...</span>
     </div>
     <div class="profile-main">
       <img id="profile-picture" alt="profile" />
