@@ -5,7 +5,10 @@ import {
 
 import { createDevTheme, createPajaAdapter, PAJA_DEV_SIGNER_PUBKEY } from './browser-adapter.js';
 import { confirmPajaRequest, createHostSignerController, hasNip07Signer } from './browser-host-signer.js';
-import { unregisterSingleFrameWindow } from './browser-host-runtime.js';
+import {
+  clearExternalAttemptTimeout, installExternalFrameErrorHandler,
+  startExternalFrameNavigation, unregisterSingleFrameWindow,
+} from './browser-host-runtime.js';
 import { BrowserIntentController } from './browser-intent-controller.js';
 import {
   clearRuntimeTabGeneration, createPajaIntentTargetOptions, markRuntimeTabReady,
@@ -257,85 +260,6 @@ function getFrame(): HTMLIFrameElement {
   return frame;
 }
 
-function startFrameNavigation(
-  state: PajaBrowserState,
-  context: PajaBrowserStateContext,
-): void {
-  const { config, frame, bridge, adapter, runtime } = context;
-  if (!frame) return;
-  if (context.externalAttemptGeneration !== null) return;
-  const generation = state.generation;
-  const isCurrentGeneration = () => state.generation === generation;
-  context.externalAttemptGeneration = generation;
-  context.targetSurface?.showLoading(context.externalFocusFrameOnReady ? 'retry' : 'initial');
-  void navigateFrame(
-    frame,
-    config,
-    generation,
-    adapter,
-    state.resolvedTarget,
-    undefined,
-    isCurrentGeneration,
-    (windowId) => {
-      if (isCurrentGeneration()) runtime.currentWindowId = windowId;
-    },
-  ).then((windowId) => {
-    if (!isCurrentGeneration()) {
-      unregisterSingleFrameWindow(bridge, runtime, windowId);
-      if (context.externalAttemptGeneration === generation) {
-        context.externalAttemptGeneration = null;
-      }
-      return;
-    }
-    if (context.externalAttemptGeneration !== generation) {
-      unregisterSingleFrameWindow(bridge, runtime, windowId);
-      return;
-    }
-    runtime.currentWindowId = windowId;
-    clearExternalAttemptTimeout(context);
-    context.externalAttemptTimeoutId = window.setTimeout(() => {
-      settleExternalNavigationFailure(
-        state,
-        context,
-        generation,
-        new Error(`Target readiness timed out after ${config.runtime.readyTimeoutMs}ms without shell.ready.`),
-      );
-    }, config.runtime.readyTimeoutMs);
-  }).catch((error) => {
-    if (settleExternalNavigationFailure(state, context, generation, error)) console.error(error);
-  });
-}
-
-function clearExternalAttemptTimeout(context: PajaBrowserStateContext): void {
-  if (context.externalAttemptTimeoutId === null) return;
-  window.clearTimeout(context.externalAttemptTimeoutId);
-  context.externalAttemptTimeoutId = null;
-}
-
-function settleExternalNavigationFailure(
-  state: PajaBrowserState,
-  context: PajaBrowserStateContext,
-  generation: number,
-  error: unknown,
-): boolean {
-  if (
-    state.generation !== generation
-    || context.externalAttemptGeneration !== generation
-  ) return false;
-  clearExternalAttemptTimeout(context);
-  context.externalAttemptGeneration = null;
-  const focusRetry = context.externalFocusFrameOnReady;
-  context.externalFocusFrameOnReady = false;
-  unregisterSingleFrameWindow(context.bridge, context.runtime, context.runtime.currentWindowId);
-  state.status = 'error';
-  context.targetSurface?.showError(error, { focusRetry });
-  appendPajaMessageLog(state, 'paja', {
-    type: 'paja.target.error',
-    error: error instanceof Error ? error.message : String(error),
-  });
-  return true;
-}
-
 function installPajaControlListeners(state: PajaBrowserState): void {
   document.getElementById('reload-target')?.addEventListener('click', () => {
     state.reload();
@@ -380,7 +304,7 @@ function reloadPajaTarget(state: PajaBrowserState, context: PajaBrowserStateCont
   }
   state.generation += 1;
   setStatus(state, 'reloading');
-  startFrameNavigation(state, context);
+  startExternalFrameNavigation(state, context);
 }
 
 function setRuntimeDomainEnabled(
@@ -646,8 +570,7 @@ async function installPajaHost(): Promise<void> {
     signerController,
     capabilities,
     runtime,
-    targetSurface: null, externalAttemptGeneration: null, externalAttemptTimeoutId: null,
-    externalFocusFrameOnReady: false,
+    targetSurface: null, externalAttemptGeneration: null, externalAttemptTimeoutId: null, externalFocusFrameOnReady: false,
     pointerTargetSurface: null, pointerAttemptGeneration: null,
     pointerRequestGeneration: 0, pointerFocusFrameOnReady: false,
     navigateFrame,
@@ -741,16 +664,7 @@ async function installPajaHost(): Promise<void> {
     }
   });
 
-  frame?.addEventListener('error', () => {
-    const generation = context.externalAttemptGeneration;
-    if (generation === null) return;
-    settleExternalNavigationFailure(
-      state,
-      context,
-      generation,
-      new Error('Target frame failed to load.'),
-    );
-  });
+  installExternalFrameErrorHandler(state, context, frame);
 
   installPajaControlListeners(state);
 
@@ -770,7 +684,7 @@ async function installPajaHost(): Promise<void> {
       renderRuntimeTabs(state);
     }
   } else {
-    startFrameNavigation(state, context);
+    startExternalFrameNavigation(state, context);
     void reportTargetCorsDiagnostic(state);
   }
   if (hasNip07Signer()) void state.connectNip07();

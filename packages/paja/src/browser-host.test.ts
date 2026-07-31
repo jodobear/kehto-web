@@ -59,10 +59,10 @@ describe('@kehto/paja browser host runtime source guards', () => {
   });
 
   it('preserves resolved pointer identity before the runtime iframe executes', () => {
-    const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
     const tabsSource = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
 
-    expect(source).toContain('if (isCurrentGeneration()) runtime.currentWindowId = windowId;');
+    expect(runtimeSource).toContain('if (isCurrentGeneration()) runtime.currentWindowId = windowId;');
     expect(tabsSource).toContain('`${config.window.id}:${tab.id}:${tab.generation}`');
     expect(tabsSource).toContain('if (state.activeTabId === tab.id) context.runtime.currentWindowId = windowId;');
   });
@@ -195,7 +195,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(adapterSource).not.toContain('paja.social');
     expect(diagnosticsSource).toContain('export async function reportTargetCorsDiagnostic(state: PajaBrowserState): Promise<void>');
     expect(hostSource).toContain("import { reportTargetCorsDiagnostic } from './browser-target-diagnostics.js';");
-    expect(hostSource).toContain('startFrameNavigation(state, context);\n    void reportTargetCorsDiagnostic(state);');
+    expect(hostSource).toContain('startExternalFrameNavigation(state, context);\n    void reportTargetCorsDiagnostic(state);');
   });
 
   it('uses the selected development signer identity before a fixed simulation identity', () => {
@@ -227,8 +227,8 @@ describe('@kehto/paja browser host runtime source guards', () => {
     const targetSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
 
     expect(runtimeSource).toContain('runtime.currentWindowId = null;');
-    expect(source).toContain('unregisterSingleFrameWindow(bridge, runtime, windowId);');
-    expect(source).toContain('const isCurrentGeneration = () => state.generation === generation;');
+    expect(runtimeSource).toContain('unregisterSingleFrameWindow(bridge, runtime, windowId);');
+    expect(runtimeSource).toContain('const isCurrentGeneration = () => state.generation === generation;');
     expect(source).toContain('const registeredWindowId = source ? originRegistry.getWindowId(source) ?? null : null;');
     expect(source).toContain('if (isSingleFrameMessage && (!sourceWindowId || sourceWindowId !== runtime.currentWindowId)) return;');
     expect(targetSource).toContain('isCurrent?: () => boolean');
@@ -252,7 +252,10 @@ describe('@kehto/paja browser host runtime source guards', () => {
   it('uses verified pointer records to retain and source-bind post-acceptance intent delivery', () => {
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
     const pointerLoad = source.slice(source.indexOf('async function loadRuntimePointer('), source.indexOf('async function restorePersistedRuntimeTabs('));
-    const messageHandler = source.slice(source.indexOf("window.addEventListener('message'"), source.indexOf("frame?.addEventListener('error'"));
+    const messageHandler = source.slice(
+      source.indexOf("window.addEventListener('message'"),
+      source.indexOf('  installExternalFrameErrorHandler(state, context, frame);'),
+    );
 
     expect(source).toContain("import { BrowserIntentController } from './browser-intent-controller.js';");
     expect(source).toContain("from './installed-napplet-catalog.js';");
