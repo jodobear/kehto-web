@@ -129,7 +129,7 @@ Because the frame is sandboxed without `allow-same-origin`, the napplet document
 has an opaque origin and requests its own assets with `Origin: null`. Module
 scripts are always fetched in CORS mode, so the app dev server must answer that
 origin with `Access-Control-Allow-Origin: *` or `null`, or the entry module is
-blocked and the frame renders blank. Vite's default `server.cors` allowlist
+blocked and the target cannot become ready. Vite's default `server.cors` allowlist
 matches only `localhost`, `127.0.0.1`, and `[::1]` origins, so Vite projects need
 `server: { cors: { origin: '*' } }`.
 
@@ -141,6 +141,47 @@ host requests it once per target-url boot and, for anything other than
 `allowed`, appends a `paja.target.cors.error` entry to the message log and warns
 on the console with the remedy. `classifyTargetCors` and `probeTargetCors` are
 exported for reuse.
+
+### Responsive composition and recovery
+
+At 1280x720, the host reserves 360px for the development console and gives the
+runtime stage the remaining `minmax(0, 1fr)` width. The context header is 48px
+high; the environment footer grows and wraps when a value is long. At
+`max-width: 640px`, the 375x812 composition separates product/target identity,
+the horizontally scrolling runtime-tab strip, and the lifecycle/Theme/Reload
+target command row. Main content is a 224px independently scrolling controls
+panel followed by a stage at least 320px high. The footer becomes a wrapping
+two-column grid, and local scrollers do not create horizontal page overflow.
+
+**Load target** submits the runtime-pointer form. **Reload target** reloads the
+external target or active tab. Runtime-tab triggers have roving focus: Left and
+Right move to adjacent tabs, Home and End move to the first and last tab, and
+activation reveals the tab within its strip. Share and close are separate
+named controls beside the trigger.
+
+Load failures use a stable host-DOM panel instead of iframe error HTML. It shows
+**Retry target** and either **Back to target controls** in pointer mode or
+**Back to Paja controls** in external-target mode. **Show technical details** /
+**Hide technical details** controls a collapsed literal diagnostic; error text
+is never executed as markup. Retry calls the existing external, pointer, or
+active-tab loader, with its generation checks and one current attempt. On a
+repeat failure, Retry target is re-enabled and keeps focus. A successful
+user-initiated retry focuses the active iframe. Return focuses the pointer input
+or first enabled console control without loading again, and background tab
+restoration does not take focus.
+
+The visual/recovery surface leaves the trust boundary intact. Verified pointer
+bytes still reach `srcdoc` only after signature, aggregate, and blob checks;
+the CSP and namespace prelude remain outside those signed bytes. Frames retain
+`sandbox="allow-scripts"` without `allow-same-origin`, and sessions remain bound
+to the registered `MessageEvent.source` and one bare `shell.ready`. No public
+API, NAP capability or message shape, theme payload, or session rule changed.
+The checked authorities are
+[NAP-SHELL](https://github.com/napplet/naps/blob/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24/naps/NAP-SHELL.md)
+and [NAP-THEME](https://github.com/napplet/naps/blob/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24/naps/NAP-THEME.md)
+at `napplet/naps` master `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`,
+plus [NIP-5D](https://github.com/nostr-protocol/nips/blob/eb45dfd7335b7f88cb53781984c553581d2b4c34/5D.md)
+at PR 2303 head `eb45dfd7335b7f88cb53781984c553581d2b4c34`.
 
 The console includes:
 
@@ -335,7 +376,7 @@ The normalized simulation object controls:
 - Config values returned by `config.get`.
 - Theme mode and values returned by `theme.get`.
 
-The top bar includes a theme selector and reload button; the bottom bar
+The context header includes a theme selector and **Reload target**; the footer
 summarizes active simulation state, HMR strategy, runtime address, and lifecycle
 status. Theme changes apply immediately to the Paja theme service and survive
 the next iframe reload.

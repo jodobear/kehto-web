@@ -31,10 +31,42 @@ Open the printed Paja runtime URL, not the app server URL.
 
 Paja sandboxes the target iframe without `allow-same-origin`, so the app fetches
 its own module scripts with `Origin: null`. Allow that origin in the dev server
-or the app's entry module is blocked and the frame stays blank — Vite needs
+or the app's entry module is blocked and the target cannot become ready — Vite needs
 `server: { cors: { origin: '*' } }` because its default allowlist covers only
 localhost origins. When the target would block the frame, Paja logs a
 `paja.target.cors.error` entry in **Messages** and warns on the browser console.
+
+## Read the Host and Recover a Target
+
+On a 1280x720 desktop, Paja places a 360px console beside the runtime stage. On
+a phone at `max-width: 640px`, including 375x812, identity, runtime tabs, and
+the command row are separate; controls scroll within a 224px panel, the stage
+is at least 320px high, and the footer wraps without horizontal page overflow.
+
+For pointer mode, enter an `naddr` or `nevent` and choose **Load target**. Use
+**Reload target** for the current external target or active runtime tab. Tab
+focus moves with Left/Right/Home/End and keeps the active tab visible in its
+own horizontal strip.
+
+If loading fails, Paja shows **Target couldn't load** in the host page. Choose
+**Retry target** to run the same existing loader with one current attempt.
+Choose **Back to target controls** in pointer mode or **Back to Paja controls**
+for an external target to return without another load. **Show technical details**
+and **Hide technical details** expand or collapse the literal error.
+A repeat failure keeps focus on Retry target; successful user retry focuses the
+iframe. Background restoration does not move focus.
+
+The recovery panel does not relax isolation. Paja still uses
+`sandbox="allow-scripts"` without `allow-same-origin`, binds the session to the
+registered `MessageEvent.source` and one bare `shell.ready`, verifies pointer
+bytes before `srcdoc`, and keeps the CSP/prelude outside signed bytes. Public
+APIs, NAP capabilities/messages, theme payloads, and session rules are
+unchanged. This matches
+[NAP-SHELL](https://github.com/napplet/naps/blob/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24/naps/NAP-SHELL.md)
+and [NAP-THEME](https://github.com/napplet/naps/blob/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24/naps/NAP-THEME.md)
+at `napplet/naps` master `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`,
+plus [NIP-5D](https://github.com/nostr-protocol/nips/blob/eb45dfd7335b7f88cb53781984c553581d2b4c34/5D.md)
+at PR 2303 head `eb45dfd7335b7f88cb53781984c553581d2b4c34`.
 
 ## 3. Check Identity
 

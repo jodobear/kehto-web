@@ -64,8 +64,8 @@ in target-url mode. The console includes interface injection toggles, ACL
 controls, signer status, and a filterable message log. Paja fetches the target
 HTML into injected `srcdoc` so `window.napplet.<domain>` exists before app
 bootstrap, while target assets and HMR still resolve through the framework dev
-server. The runtime reload button reinitializes the Kehto shell state around the
-same target URL.
+server. **Reload target** reinitializes Kehto shell state around the same target
+URL.
 
 The published `@napplet/shim@0.29.0` remains non-shell. Paja therefore retains
 Kehto's host-owned mandatory `window.napplet.shell` prelude, installed before
@@ -78,7 +78,7 @@ manifest-optional toggle, and Paja does not advertise NAP-DM behavior.
 Paja sandboxes the target iframe without `allow-same-origin`, so the app
 requests its own assets with `Origin: null`. Module scripts are always fetched
 in CORS mode, so the dev server must allow that origin or the app's entry module
-is blocked and the frame stays blank.
+is blocked and the target cannot become ready.
 
 Vite's default `server.cors` allowlist covers only `localhost`, `127.0.0.1`, and
 `[::1]`, so add:
@@ -93,7 +93,41 @@ export default {
 Other dev servers need the equivalent: answer `Origin: null` with
 `Access-Control-Allow-Origin: *` or `null`. If the target would block the frame,
 Paja logs a `paja.target.cors.error` entry in the **Messages** panel and warns on
-the browser console with the remedy, so a blank frame is never the only signal.
+the browser console with the remedy, so failure is never the only signal.
+
+## Verify Responsive Layout and Recovery
+
+At 1280x720, confirm the 360px console and remaining runtime stage scroll
+independently under the 48px context header. At 375x812 (`max-width: 640px`),
+confirm product/target identity, runtime tabs, and the command row remain
+visible; the controls panel is 224px high, the stage is at least 320px high,
+and the two-column footer wraps without page-level horizontal overflow.
+
+In pointer mode, **Load target** submits the current pointer. **Reload target**
+uses the existing loader for the active target. Use Left/Right/Home/End on tab
+triggers to verify roving focus and active-tab reveal.
+
+Force a target failure and check that **Target couldn't load** is host DOM,
+not iframe error content. **Retry target** must start one current existing-loader
+attempt. **Back to target controls** returns focus to the pointer input;
+**Back to Paja controls** returns focus to the first enabled console control for
+an external target. Neither return action reloads. **Show technical details**
+and **Hide technical details** expose only a collapsed literal diagnostic. A
+repeat failure keeps focus on Retry target, user-initiated recovery focuses the
+iframe, and background restoration leaves focus alone.
+
+Isolation remains part of this check: the iframe uses
+`sandbox="allow-scripts"` without `allow-same-origin`; verified runtime-pointer
+bytes are assigned through `srcdoc`; the CSP and namespace prelude stay outside
+the signed artifact; and session identity stays tied to registered
+`MessageEvent.source` and one bare `shell.ready`. Public APIs, NAP message and
+capability shapes, theme payloads, and session behavior are unchanged. The
+current authority refs are
+[NAP-SHELL](https://github.com/napplet/naps/blob/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24/naps/NAP-SHELL.md)
+and [NAP-THEME](https://github.com/napplet/naps/blob/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24/naps/NAP-THEME.md)
+at `napplet/naps` master `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`,
+plus [NIP-5D](https://github.com/nostr-protocol/nips/blob/eb45dfd7335b7f88cb53781984c553581d2b4c34/5D.md)
+at PR 2303 head `eb45dfd7335b7f88cb53781984c553581d2b4c34`.
 
 ## Use an Existing Target Server
 

@@ -40,8 +40,8 @@ is not advertised until Paja wires a deterministic development DM backend.
 The target iframe is sandboxed without `allow-same-origin`, so the napplet
 document has an opaque origin and requests its own assets with `Origin: null`.
 `<script type="module">` is always fetched in CORS mode, so a dev server that
-does not allow that origin blocks the napplet's entry module and the frame
-renders blank. Vite's default `server.cors` allowlist covers only `localhost`,
+does not allow that origin blocks the napplet's entry module and the target
+cannot become ready. Vite's default `server.cors` allowlist covers only `localhost`,
 `127.0.0.1`, and `[::1]` origins, so it rejects `null`:
 
 ```js
@@ -55,6 +55,44 @@ Any dev server works as long as it answers `Origin: null` with
 `Access-Control-Allow-Origin: *` or `null`. Paja probes the target on startup
 and logs a `paja.target.cors.error` entry in the message log, plus a console
 warning, when the target would block the sandboxed frame.
+
+## Responsive host and target recovery
+
+At 1280x720, Paja keeps a 360px development console beside a
+`minmax(0, 1fr)` runtime stage, with a 48px context header and a footer that
+wraps instead of clipping. At `max-width: 640px`, the 375x812 composition uses
+separate identity, runtime-tab, and command rows, followed by a 224px scrolling
+controls panel, a stage at least 320px high, and a wrapping two-column footer.
+Only the tab strip, controls, logs, or target content scroll locally; the page
+does not gain horizontal overflow.
+
+The pointer form uses **Load target**, and the header action is **Reload target**.
+Runtime tabs use roving focus: Left/Right select adjacent tabs, Home
+selects the first, End selects the last, and the active tab is revealed inside
+the tab strip. Share and close remain adjacent named controls rather than part
+of the tab trigger.
+
+A failed load is presented in Paja's host DOM, not as iframe error markup. The
+panel keeps the target context visible and offers **Retry target**, plus
+**Back to target controls** for pointer mode or **Back to Paja controls** for an
+external target. **Show technical details** and **Hide technical details**
+toggle a collapsed literal diagnostic. Retry delegates to the existing
+external, pointer, or active-tab loader and permits one current attempt. A
+repeat failure returns focus to Retry target; a successful user retry focuses
+the active iframe. Return focuses the pointer input or first enabled console
+control without reloading, while background restoration never moves focus.
+
+This presentation work does not change the loader or protocol boundary. Paja
+still verifies pointer bytes before `srcdoc`, injects the CSP and namespace
+prelude outside the signed artifact, uses `sandbox="allow-scripts"` without
+`allow-same-origin`, and binds each session to its registered
+`MessageEvent.source` and one bare `shell.ready`. Capability and message shapes,
+public package APIs, and the session lifecycle are unchanged. This was checked
+against [NAP-SHELL](https://github.com/napplet/naps/blob/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24/naps/NAP-SHELL.md)
+and [NAP-THEME](https://github.com/napplet/naps/blob/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24/naps/NAP-THEME.md)
+at `napplet/naps` master `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24`,
+and [NIP-5D](https://github.com/nostr-protocol/nips/blob/eb45dfd7335b7f88cb53781984c553581d2b4c34/5D.md)
+at PR 2303 head `eb45dfd7335b7f88cb53781984c553581d2b4c34`.
 
 The console shows supported interfaces with per-domain injection toggles,
 runtime ACL controls, signer controls, and a filterable message log with visible
