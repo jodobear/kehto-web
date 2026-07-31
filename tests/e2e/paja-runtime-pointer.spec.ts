@@ -100,6 +100,99 @@ test('resolves a stale embedded hint through configured live relays in the runni
   }
 });
 
+test('recovers resolver and active-frame failures without duplicating verified tabs or sessions', async ({ page }) => {
+  test.setTimeout(45_000);
+  const server = await startPointerServer();
+  const target = createPointerFixture(
+    server.url,
+    'recovery-target',
+    '<!doctype html><html><head><title>Recovery Target</title></head><body>verified recovery<script>window.parent.postMessage({type:"shell.ready"},"*");</script></body></html>',
+    ['shell'],
+  );
+  const relay = 'wss://recovery-fixture.example';
+  let resolutionRequests = 0;
+  let releaseRetry: (() => void) | null = null;
+  server.blobs.set(target.hash, target.bytes);
+  server.setConfig({
+    ...createPajaRuntimeHostConfig({ pointer: target.pointer, maxWaitMs: 2_000 }),
+    simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
+  });
+  await page.routeWebSocket(`${relay}/`, (socket) => {
+    socket.onMessage((message) => {
+      const request = JSON.parse(String(message)) as unknown[];
+      if (request[0] !== 'REQ' || typeof request[1] !== 'string') return;
+      resolutionRequests += 1;
+      const subscriptionId = request[1];
+      if (resolutionRequests === 1) {
+        socket.send(JSON.stringify(['EOSE', subscriptionId]));
+        return;
+      }
+      releaseRetry = () => {
+        socket.send(JSON.stringify(['EVENT', subscriptionId, target.event]));
+        socket.send(JSON.stringify(['EOSE', subscriptionId]));
+      };
+    });
+  });
+
+  try {
+    await page.goto(server.url);
+    const pointerSurface = page.locator('.paja-target-surface:visible');
+    await expect(pointerSurface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(pointerSurface.locator('.paja-target-return')).toHaveText('Back to target controls');
+    await expect(page.locator('#runtime-pointer-input')).toHaveValue(target.pointer);
+    await expect.poll(() => resolutionRequests).toBe(1);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.length)).toBe(0);
+
+    const retry = pointerSurface.locator('.paja-target-retry');
+    await retry.evaluate((button) => {
+      (button as HTMLButtonElement).click();
+      (button as HTMLButtonElement).click();
+    });
+    await expect.poll(() => resolutionRequests).toBe(2);
+    await expect(retry).toBeDisabled();
+    releaseRetry?.();
+
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[0]?.status))
+      .toBe('ready');
+    const firstState = await page.evaluate(() => window.__KEHTO_PAJA__?.getState());
+    expect(firstState?.tabs).toHaveLength(1);
+    expect(firstState?.iframeCount).toBe(1);
+    expect(firstState?.initSent).toBe(true);
+    expect(firstState?.messageLog.filter((entry) => entry.type === 'shell.ready')).toHaveLength(1);
+
+    const frame = page.locator('iframe.tab-panel');
+    const srcdoc = await frame.getAttribute('srcdoc');
+    expect(srcdoc).toContain('verified recovery');
+    expect(srcdoc).toContain(classOnePrefix);
+    expect(srcdoc!.indexOf('Content-Security-Policy')).toBeLessThan(
+      srcdoc!.indexOf('data-kehto-nip5d-injection'),
+    );
+    await expect(frame).toHaveAttribute('sandbox', /allow-scripts/);
+    await expect(frame).not.toHaveAttribute('sandbox', /allow-same-origin/);
+
+    await frame.evaluate((element) => element.dispatchEvent(new Event('error')));
+    const tabSurface = page.locator('.paja-target-surface:visible');
+    await expect(tabSurface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    const firstWindowId = firstState?.tabs[0]?.windowId;
+    const tabRetry = tabSurface.locator('.paja-target-retry');
+    await tabRetry.evaluate((button) => {
+      (button as HTMLButtonElement).click();
+      (button as HTMLButtonElement).click();
+    });
+
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[0]?.status))
+      .toBe('ready');
+    const recoveredState = await page.evaluate(() => window.__KEHTO_PAJA__?.getState());
+    expect(recoveredState?.tabs).toHaveLength(1);
+    expect(recoveredState?.iframeCount).toBe(1);
+    expect(recoveredState?.tabs[0]?.windowId).not.toBe(firstWindowId);
+    expect(recoveredState?.initSent).toBe(true);
+    expect(recoveredState?.messageLog.filter((entry) => entry.type === 'shell.ready')).toHaveLength(2);
+  } finally {
+    await server.close();
+  }
+});
+
 test('completes a verified intent and delivers its convention once to a cold target', async ({ page }) => {
   test.setTimeout(60_000);
   const server = await startPointerServer();

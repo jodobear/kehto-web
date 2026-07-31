@@ -268,6 +268,30 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(messageHandler).toContain("data.type === 'shell.ready'");
   });
 
+  it('keeps pre-tab pointer recovery single-flight, stale-safe, and on the verified resolver', () => {
+    const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const pointerLoad = source.slice(
+      source.indexOf('async function loadRuntimePointer('),
+      source.indexOf('async function restorePersistedRuntimeTabs('),
+    );
+    const pointerSurface = source.slice(
+      source.indexOf("if (config.target.mode === 'runtime-pointer') {"),
+      source.indexOf('const stopIntentCatalogChanges'),
+    );
+
+    expect(pointerLoad).toContain('if (context.pointerAttemptGeneration !== null) return;');
+    expect(pointerLoad).toContain('const attemptGeneration = ++context.pointerRequestGeneration;');
+    expect(pointerLoad).toContain('context.pointerAttemptGeneration = attemptGeneration;');
+    expect(pointerLoad).toContain('const isCurrentAttempt = () => context.pointerAttemptGeneration === attemptGeneration;');
+    expect(pointerLoad).toContain('await resolvePajaPointer(pointer, pajaPointerResolverOptions(context))');
+    expect(pointerLoad).toContain('if (!isCurrentAttempt()) return;');
+    expect(pointerLoad).toContain('context.pointerTargetSurface?.showError(error, { focusRetry });');
+    expect(pointerLoad).not.toContain('fetch(');
+    expect(pointerLoad).not.toContain('postMessage');
+    expect(pointerSurface).toContain('state.loadPointer(state.pointerValue)');
+    expect(pointerSurface).toContain("returnLabel: 'Back to target controls'");
+  });
+
   it('registers the trusted frame identity before resolver-built srcdoc can run', () => {
     const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
     const targetSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
