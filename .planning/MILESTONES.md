@@ -1,5 +1,30 @@
 # Milestones: Kehto Runtime
 
+## v1.29 Napplet Convention and Runtime Conformance (Shipped: 2026-07-31)
+
+**Delivered:** Kehto now conforms to the convention-based Napplet runtime model across NAP-SHELL, NAP-INC, NAP-INTENT, NAP-IDENTITY, and NAP-THEME, with the Napplet 0.31-compatible package line published to npm and JSR and verified by a clean downstream Paja consumer.
+
+**Phases completed:** 6 phases (101-106), 47 plans, 80 tasks, 49 requirements.
+
+**Verification:** All six milestone phases report `passed`; exact-source CI, Pages, AI-slop, npm/JSR registry checks, and downstream install/import/build proof passed.
+
+**Closeout:** Override closeout. Twenty-nine historical artifact markers were acknowledged and preserved in `STATE.md`: 2 fixed debug sessions, 26 old quick-task status gaps, and 1 answered Phase 81 context-question group. None represents an open v1.29 implementation or verification gap.
+
+**Key accomplishments:**
+
+- **NAP-SHELL integrity:** established one source-bound session, exactly-once ready/init lifecycle, immutable domain-only capabilities, and truthful host advertisement in shell, Paja, and playground.
+- **NAP-INC parity:** shipped exact queryless convention routing, runtime-attested dTag identities, replacement-safe browser binding, symmetric retained channel handles, admission bounds, authorization, and cleanup.
+- **Identity and theme parity:** normalized sanctioned result shapes, readonly protected bindings, eligible-session change delivery, atomic theme state, and safe failure behavior.
+- **NAP-INTENT and manifest parity:** added URI-authoritative invocation, verified manifest contracts, exact user-controlled handler selection, acceptance-only results, source-independent retained delivery, and runtime-attested sender data.
+- **Published host flows:** adopted current Napplet contracts, retained mandatory host-owned NAP-SHELL behavior, and proved Paja/playground intent, profile-resource, identity, INC, and theme flows.
+- **Release proof:** corrective PR #220 and Version Packages PR #221 published eight Napplet-0.31-compatible Kehto packages; direct npm/JSR metadata and clean downstream Paja 0.10.0 install/import/build passed.
+
+**Known debt:** Phase 105 visual audit remains 12/24 and is not visual sign-off. Track as a separately scoped maintainer follow-up.
+
+**Archive:** [v1.29-ROADMAP.md](milestones/v1.29-ROADMAP.md) | [v1.29-REQUIREMENTS.md](milestones/v1.29-REQUIREMENTS.md) | [phase artifacts](milestones/v1.29-phases/)
+
+---
+
 ## v1.17 Beautify the SPA Landing Page (Shipped: 2026-06-06)
 
 **Phases completed:** 3 phases (77-79), 3 plans, 15 requirements.

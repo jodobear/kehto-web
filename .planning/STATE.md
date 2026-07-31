@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.29
 milestone_name: Napplet Convention and Runtime Conformance
-current_phase: 106
-status: completed
-stopped_at: Phase 106 current-Napplet release complete; v1.29 ready for milestone completion
-last_updated: "2026-07-28T18:55:51Z"
-last_activity: 2026-07-28
-last_activity_desc: Phase 106 corrective Napplet 0.31 release complete
+status: Awaiting next milestone
+stopped_at: Session resumed, proceeding to reconcile planning metadata and archive v1.29
+last_updated: "2026-07-31T01:18:56.945Z"
+last_activity: 2026-07-31
+last_activity_desc: Milestone v1.29 completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
   total_plans: 47
   completed_plans: 47
   percent: 100
+current_phase: 106
 current_phase_name: Active-Surface Conformance and Release
 ---
 
@@ -21,24 +21,23 @@ current_phase_name: Active-Surface Conformance and Release
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-28)
+See: .planning/PROJECT.md (updated 2026-07-31)
 
 **Core value:** Modular, framework-agnostic runtime for hosting napplet applications.
-**Current focus:** v1.29 current-Napplet publication complete; milestone archival and the separate Phase 105 UI-debt follow-up remain
+**Current focus:** Planning the next milestone; Phase 105's 12/24 visual audit remains separately scoped maintainer debt
 
 ## Current Position
 
-Phase: 106 (Active-Surface Conformance and Release) — COMPLETE
-Plan: 3 of 3
-Status: All v1.29 phases complete — eight-package Napplet-0.31-compatible npm/JSR release published and downstream-verified
-
-Last activity: 2026-07-28 — Phase 106 current-Napplet publication gap closed
+Phase: Milestone v1.29 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-31 — Milestone v1.29 completed and archived
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 45
+- Total plans completed: 47
 - Average duration: ~6m
 - Total execution time: ~6 minutes
 
@@ -222,14 +221,49 @@ Authoritative: `nostr-protocol/nips` PR #2303 (`5D.md`) + `napplet/naps` registr
 
 ## Session Continuity
 
-Last session: 2026-07-28T18:55:51Z
-Stopped at: Phase 106 current-Napplet package line published and downstream-verified
+Last session: 2026-07-31
+Stopped at: Session resumed, proceeding to reconcile planning metadata and archive v1.29
 Resume file: None
+
+## Deferred Items
+
+Items acknowledged and deferred at milestone close on 2026-07-31:
+
+| Category | Item | Status |
+|----------|------|--------|
+| debug | nap-shell-namespace-prelude | fixed |
+| debug | shell-init-iframe-reload | fixed |
+| quick_task | 260611-iok-switch-playground-feed-to-hyprgate-style | unknown |
+| quick_task | 260611-l1s-show-profile-images-and-names-in-playgro | unknown |
+| quick_task | 260611-ln6-replace-nip-66-fixture-panel-with-relay- | unknown |
+| quick_task | 260611-lwz-show-feed-publish-time-instead-of-trunca | unknown |
+| quick_task | 260611-mq3-implement-nap-01-profile-viewer-and-clic | unknown |
+| quick_task | 260611-o91-improve-playground-theme-switcher-discov | unknown |
+| quick_task | 260611-prm-define-and-wire-nap-identity-identity-ch | unknown |
+| quick_task | 260611-r4n-sync-nap-identity-to-loaded-napplets | missing |
+| quick_task | 260616-8iv-move-playground-theme-switcher-functiona | unknown |
+| quick_task | 260617-qoi-drop-nap-class-nap-class-1-nap-connect-c | unknown |
+| quick_task | 260619-vpn-fix-flaky-playwright-service-activity-co | missing |
+| quick_task | 260623-ara-use-workspace-caret-internal-dependency- | unknown |
+| quick_task | 260624-u17-fix-relay-query-one-shot-returns-events- | unknown |
+| quick_task | 260626-u5n-add-regression-coverage-for-napplet-owne | unknown |
+| quick_task | 260626-ugy-production-harden-pr-103-nip-5d-injected | unknown |
+| quick_task | 260630-k7p-fix-gateway-audit-srcdoc-check | missing |
+| quick_task | 260703-oi0-use-in-package-dependency-upper-bounds-f | unknown |
+| quick_task | 260703-pwi-resolve-pr-138-conflicts-with-current-ma | unknown |
+| quick_task | 260703-qjv-fix-docs-package-version-rows-after-rele | unknown |
+| quick_task | 260706-o8r-fix-pr-151-injected-nip-5d-sdk-wrapper-a | missing |
+| quick_task | 260710-0p2-validate-and-resolve-kehto-web-issue-169 | missing |
+| quick_task | 260710-h7u-add-agents-guardrails-requiring-issue-an | unknown |
+| quick_task | 260710-jmo-align-paja-runtime-tabs-with-the-napplet | unknown |
+| quick_task | 260710-k7i-remove-the-gap-under-active-paja-runtime | unknown |
+| quick_task | 260710-kjt-fix-package-docs-version-rows-after-vers | unknown |
+| quick_task | 260710-kwx-chase-current-nap-outbox-publish-fanout- | unknown |
+| context_questions | Phase 81: 81-CONTEXT.md (3 questions) | open |
 
 ## Operator Next Steps
 
-- Archive the completed v1.29 milestone when maintainers are ready.
-- Track the Phase 105 12/24 UI findings as a separately scoped post-merge follow-up.
+- Start the next milestone with /gsd-new-milestone
 
 ### Key Context for v1.22 (Phases 90–94)
 
