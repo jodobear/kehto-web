@@ -437,7 +437,7 @@ async function loadRuntimePointer(
     }
     const tab = addRuntimeTab(state, context, pointer, resolvedTarget);
     tab.focusFrameOnReady = focusRetry;
-    context.pointerTargetSurface?.showReady({ focusFrame: false });
+    context.pointerTargetSurface?.hide();
     if (options.persist !== false) persistRuntimeTabs(state);
   } catch (error) {
     if (!isCurrentAttempt()) return;
