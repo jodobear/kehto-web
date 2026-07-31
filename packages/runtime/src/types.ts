@@ -440,6 +440,14 @@ export interface ServiceRuntimeContext {
    */
   listWindowIds(): readonly string[];
   /**
+   * Check a capability against the current source-bound ACL grant.
+   *
+   * @param windowId - Requesting live window.
+   * @param capability - Capability to check for that source.
+   * @returns `true` when the live source currently holds the grant.
+   */
+  hasCapability(windowId: string, capability: Capability): boolean;
+  /**
    * Send a runtime-originated message after current recipient policy checks.
    *
    * The message must have a recipient capability mapping. The target must be a

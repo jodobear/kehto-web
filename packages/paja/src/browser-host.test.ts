@@ -14,6 +14,9 @@ import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
 import type { PajaResolvedPointer } from './runtime-resolver.js';
 import { createPajaThemeBroadcastLink } from './theme-broadcast.js';
 
+import { PAJA_DEV_SIGNER_PUBKEY, createPajaAdapter } from './browser-adapter.js';
+import { createPajaHostConfig, normalizePajaOptions } from './options.js';
+
 describe('@kehto/paja browser host runtime source guards', () => {
   it('forwards one stored theme through one attached bridge without replay or replacement', () => {
     const link = createPajaThemeBroadcastLink();
@@ -166,6 +169,56 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(relaySource).toContain('backend.query(await getBootstrapRelayUrls(getSimulation, signerProvider), [{');
     expect(intentSource).toContain('...getPajaRelayUrls(context.runtime.currentSimulation),');
     expect(hostSource).toContain('if (hasNip07Signer()) void state.connectNip07();');
+  });
+
+  it('keeps the private social cache inside the established identity and outbox host boundary', () => {
+    const adapterSource = readFileSync(new URL('./browser-adapter.ts', import.meta.url), 'utf8');
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const diagnosticsSource = readFileSync(new URL('./browser-target-diagnostics.ts', import.meta.url), 'utf8');
+
+    expect(adapterSource).toContain("import { createPajaSocialCache } from './browser-social-cache.js';");
+    expect(adapterSource).toContain('const baseOutboxRouter = createOutboxRouter(backend, getSimulation, confirmRequest, signerProvider);');
+    expect(adapterSource).toContain('baseRouter: baseOutboxRouter,');
+    expect(adapterSource).toContain('getQueryRouter: (windowId, context) => socialCache.decorate(');
+    expect(adapterSource).toContain("context?.hasCapability(windowId, 'identity:read') ?? false");
+    expect(adapterSource).toContain('getFollows: socialCache.getFollows,');
+    expect(adapterSource).toContain('getActivePubkey: () => getRuntimePubkey(getSimulation, signerProvider),');
+    expect(adapterSource).toContain('getUserPubkey: () => getRuntimePubkey(getSimulation, signerProvider),');
+    const runtimePubkey = adapterSource.slice(
+      adapterSource.indexOf('function getRuntimePubkey('),
+      adapterSource.indexOf('function createRuntimeSigner('),
+    );
+    expect(runtimePubkey.indexOf('signerProvider?.getPubkey()')).toBeLessThan(
+      runtimePubkey.indexOf('getSimulation().identity.pubkey'),
+    );
+    expect(adapterSource).not.toContain('services.social');
+    expect(adapterSource).not.toContain('paja.social');
+    expect(diagnosticsSource).toContain('export async function reportTargetCorsDiagnostic(state: PajaBrowserState): Promise<void>');
+    expect(hostSource).toContain("import { reportTargetCorsDiagnostic } from './browser-target-diagnostics.js';");
+    expect(hostSource).toContain('startFrameNavigation(state, context);\n    void reportTargetCorsDiagnostic(state);');
+  });
+
+  it('uses the selected development signer identity before a fixed simulation identity', () => {
+    const simulationPubkey = 'c'.repeat(64);
+    const simulation = normalizePajaOptions({
+      targetUrl: 'http://127.0.0.1:5173',
+      simulation: { identity: { mode: 'fixed', pubkey: simulationPubkey } },
+    }).simulation;
+    const config = createPajaHostConfig(normalizePajaOptions({
+      targetUrl: 'http://127.0.0.1:5173',
+      simulation: { identity: { mode: 'fixed', pubkey: simulationPubkey } },
+    }));
+    const adapter = createPajaAdapter(
+      config,
+      () => simulation,
+      () => {},
+      () => {},
+      () => true,
+      { getSigner: () => null, getMethod: () => 'dev', getPubkey: () => null },
+    );
+
+    expect(adapter.auth.getUserPubkey()).toBe(PAJA_DEV_SIGNER_PUBKEY);
+    expect(adapter.auth.getSigner()?.getPublicKey()).toBe(PAJA_DEV_SIGNER_PUBKEY);
   });
 
   it('clears stale single-frame ownership before target reload readiness transitions', () => {

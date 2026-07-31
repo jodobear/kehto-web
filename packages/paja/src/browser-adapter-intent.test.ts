@@ -88,6 +88,7 @@ function runtimeContext(): ServiceRuntimeContext {
   return {
     resolveDTag: (windowId) => windowId === 'source' ? 'social-feed' : undefined,
     listWindowIds: () => [],
+    hasCapability: () => true,
     sendToEligibleNapplet: () => true,
   };
 }

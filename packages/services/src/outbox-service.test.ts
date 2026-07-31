@@ -168,6 +168,19 @@ describe('createOutboxService', () => {
       expect(c.sent[0]).toMatchObject({ type: 'outbox.query.result', id: 'q1', events: [RESULT] });
     });
 
+    it('selects a query router for the authenticated source window', async () => {
+      const scopedRouter = mockRouter();
+      const getQueryRouter = vi.fn(() => scopedRouter);
+      svc = createOutboxService({ router, getQueryRouter });
+
+      svc.handleMessage(WINDOW, { type: 'outbox.query', id: 'scoped', filters: [{ kinds: [1] }] } as NappletMessage, c.send);
+      await Promise.resolve();
+
+      expect(getQueryRouter).toHaveBeenCalledWith(WINDOW, undefined);
+      expect(scopedRouter.query).toHaveBeenCalledWith([{ kinds: [1] }], undefined);
+      expect(router.query).not.toHaveBeenCalled();
+    });
+
     it('passes options through and forwards incomplete + error fields', async () => {
       router.query = vi.fn(async () => ({ events: [], incomplete: true, error: 'relay timeout' }));
       svc.handleMessage(WINDOW, {

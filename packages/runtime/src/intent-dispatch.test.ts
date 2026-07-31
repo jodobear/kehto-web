@@ -105,6 +105,7 @@ describe('runtime intent domain dispatch', () => {
         availability: { archetype: 'note', available: false, candidates: [], hasDefault: false },
       } as NappletMessage;
 
+      expect(context?.hasCapability(TARGET_WINDOW_ID, 'intent:read')).toBe(true);
       expect(context?.sendToEligibleNapplet(TARGET_WINDOW_ID, changed)).toBe(true);
       expect(localCtx.sent).toEqual([{ windowId: TARGET_WINDOW_ID, message: changed }]);
 
@@ -124,6 +125,7 @@ describe('runtime intent domain dispatch', () => {
 
       intentDomainAllowed = true;
       localRuntime.aclState.revoke('', TARGET_DTAG, TARGET_HASH, 'intent:read');
+      expect(context?.hasCapability(TARGET_WINDOW_ID, 'intent:read')).toBe(false);
       expect(context?.sendToEligibleNapplet(TARGET_WINDOW_ID, changed)).toBe(false);
       expect(localCtx.sent).toHaveLength(0);
     });

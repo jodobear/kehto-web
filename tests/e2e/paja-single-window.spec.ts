@@ -2,11 +2,12 @@ import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
-import { verifyEvent } from 'nostr-tools/pure';
+import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools/pure';
 import { startPajaServer, type PajaServer } from '../../packages/paja/dist/index.js';
 
 interface TargetServer {
   readonly url: string;
+  readonly requestOrigins: string[];
   close(): Promise<void>;
 }
 
@@ -293,6 +294,93 @@ test('shows error details and routes signing through NIP-07', async ({ page }) =
   await expect(page.locator('#message-log .log-row[data-error="true"]')).toContainText('visible boom');
 });
 
+test('routes standard identity follows and OUTBOX profile queries without a target-CORS false positive', async ({ page }) => {
+  test.setTimeout(60_000);
+  const accountSecret = generateSecretKey();
+  const followedSecret = generateSecretKey();
+  const accountPubkey = getPublicKey(accountSecret);
+  const followedPubkey = getPublicKey(followedSecret);
+  const contactList = finalizeEvent({
+    kind: 3,
+    created_at: 1_700_000_000,
+    tags: [['p', followedPubkey]],
+    content: '',
+  }, accountSecret);
+  const profile = finalizeEvent({
+    kind: 0,
+    created_at: 1_700_000_001,
+    tags: [],
+    content: JSON.stringify({ name: 'followed fixture' }),
+  }, followedSecret);
+  const socialRuntime = await startPajaServer({
+    options: {
+      targetUrl: `${targetServer.url}?manualTraffic=1`,
+      port: 0,
+      simulation: {
+        relay: {
+          mode: 'memory',
+          fixtures: [contactList, profile],
+        },
+      },
+    },
+    now: new Date('2026-06-21T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(socialRuntime.url);
+    await expect.poll(() => targetServer.requestOrigins.includes('null')).toBe(true);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().status)).toBe('ready');
+    await page.evaluate((pubkey) => {
+      const host = window as Window & { nostr?: unknown };
+      host.nostr = {
+        getPublicKey: async () => pubkey,
+        getRelays: async () => ({ 'wss://relay.test': { read: true, write: true } }),
+        signEvent: async (event: Record<string, unknown>) => ({
+          ...event,
+          id: '8'.repeat(64),
+          pubkey,
+          sig: '9'.repeat(128),
+          kind: typeof event.kind === 'number' ? event.kind : 1,
+          tags: Array.isArray(event.tags) ? event.tags : [],
+          content: typeof event.content === 'string' ? event.content : '',
+          created_at: typeof event.created_at === 'number' ? event.created_at : Math.floor(Date.now() / 1000),
+        }),
+      };
+    }, accountPubkey);
+    await page.locator('#signer-nip07').click();
+    await expect(page.locator('#signer-status')).toContainText('NIP-07 connected');
+    await expect(page.locator('#signer-status')).toContainText(accountPubkey);
+
+    const corsErrorLogged = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .some((entry) => entry.type === 'paja.target.cors.error') ?? false);
+    expect(corsErrorLogged).toBe(false);
+
+    const frame = page.frameLocator('#napplet-frame');
+    await expect(frame.locator('#target-status')).toHaveText('shell-init received', { timeout: 15_000 });
+    await sendFixtureMessage(frame, { type: 'identity.getPublicKey', id: 'social-pubkey' });
+    await expect.poll(() => readFixtureMessage(frame, 'identity.getPublicKey.result', 'social-pubkey')).toMatchObject({
+      pubkey: accountPubkey,
+    });
+
+    await sendFixtureMessage(frame, { type: 'identity.getFollows', id: 'social-follows' });
+    await expect.poll(() => readFixtureMessage(frame, 'identity.getFollows.result', 'social-follows')).toMatchObject({
+      pubkeys: [followedPubkey],
+    });
+
+    await sendFixtureMessage(frame, {
+      type: 'outbox.query',
+      id: 'social-profile',
+      filters: [{ kinds: [0], authors: [followedPubkey] }],
+      options: { authors: [followedPubkey] },
+    });
+    await expect.poll(() => readFixtureMessage(frame, 'outbox.query.result', 'social-profile')).toMatchObject({
+      events: [expect.objectContaining({ event: expect.objectContaining({ id: profile.id, kind: 0 }) })],
+    });
+  } finally {
+    await socialRuntime.close();
+  }
+});
+
 test('stores disclosed bytes through a signed Blossom upload and fails closed on denial or incomplete proof', async ({ page }) => {
   test.setTimeout(60_000);
   const blossom = await startBlossomServer();
@@ -494,7 +582,9 @@ test('keeps canonical INC protected through the real shim assignment in an opaqu
 
 async function startTargetServer(): Promise<TargetServer> {
   let loadCount = 0;
+  const requestOrigins: string[] = [];
   const server = createServer((request, response) => {
+    requestOrigins.push(typeof request.headers.origin === 'string' ? request.headers.origin : '');
     const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
     if (requestUrl.pathname === '/shim-prelude.js') {
       response.writeHead(200, {
@@ -512,6 +602,7 @@ async function startTargetServer(): Promise<TargetServer> {
 
     loadCount += 1;
     response.writeHead(200, {
+      'access-control-allow-origin': '*',
       'cache-control': 'no-store',
       'content-type': 'text/html; charset=utf-8',
     });
@@ -538,6 +629,7 @@ async function startTargetServer(): Promise<TargetServer> {
 
   return {
     url: `http://127.0.0.1:${address.port}/`,
+    requestOrigins,
     close: () => new Promise((resolve, reject) => {
       server.close((error) => {
         if (error) {
