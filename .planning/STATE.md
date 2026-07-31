@@ -4,9 +4,9 @@ milestone: v1.30
 milestone_name: Visual Recovery
 current_phase: 107
 current_phase_name: Readable Responsive Paja System
-status: executing
-stopped_at: Completed 107-04-PLAN.md
-last_updated: "2026-07-31T06:28:09.465Z"
+status: blocked_human_action
+stopped_at: Plan 107-05 Task 2 blocked at Chromium permission quota
+last_updated: "2026-07-31T12:18:09+05:30"
 last_activity: 2026-07-31
 last_activity_desc: Plan 107-04 completed
 progress:
@@ -30,8 +30,8 @@ See: `.planning/PROJECT.md` (updated 2026-07-31)
 
 Phase: 107 (Readable Responsive Paja System) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
-Last activity: 2026-07-31 — Plan 107-04 completed
+Status: Human action required to restore unsandboxed Chromium approval availability
+Last activity: 2026-07-31 — Plan 107-05 Task 1 complete; Task 2 partial gates committed
 
 Progress: [████████░░] 80%
 
@@ -68,7 +68,7 @@ None in `.planning/todos/pending/`.
 
 ### Blockers/Concerns
 
-- No human-action blocker.
+- Human action: restore unsandboxed-command approval availability (quota reset shown as 2026-08-05 09:39) or explicitly approve retry of `corepack pnpm test:e2e` after being informed it launches Chromium outside the sandbox.
 - Nested registered `.claude/worktrees/*` contaminate recursive package-alignment tests; leave active/locked worktrees untouched and use the verified scoped exclusions in Plan 107-05.
 - Phase 105's 12/24 review remains the acceptance baseline until v1.30 browser evidence supersedes it.
 
@@ -82,9 +82,9 @@ None in `.planning/todos/pending/`.
 
 ## Session Continuity
 
-Last session: 2026-07-31T06:28:09.457Z
-Stopped at: Completed 107-04-PLAN.md
-Resume file: None
+Last session: 2026-07-31T12:18:09+05:30
+Stopped at: Plan 107-05 Task 2 blocked at Chromium permission quota
+Resume file: .planning/phases/107-readable-responsive-paja-system/.continue-here.md
 
 ## Decisions
 
