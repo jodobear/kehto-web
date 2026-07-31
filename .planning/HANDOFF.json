@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-31T00:17:08.694Z",
+  "phase": "104",
+  "phase_name": "approved-writer-integration",
+  "phase_dir": ".planning/phases/104-approved-writer-integration",
+  "plan": 0,
+  "task": 0,
+  "total_tasks": 0,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "Complete Phase 103 pinned Blossom rail", "status": "done", "commit": "2bc4dc39"},
+    {"id": 2, "name": "Complete Phase 101 Writer preflight packet", "status": "done", "commit": "422c2ddd"},
+    {"id": 3, "name": "Keep fork/local main synced with upstream", "status": "done", "commit": "3a4d71a8"}
+  ],
+  "remaining_tasks": [
+    {"id": 1, "name": "Select exact Paja dependency for Writer integration", "status": "not_started"},
+    {"id": 2, "name": "Present and obtain explicit Phase 104 Writer approval", "status": "blocked"},
+    {"id": 3, "name": "Discuss, plan, and execute Phase 104 on a dedicated Writer branch", "status": "blocked"}
+  ],
+  "blockers": [
+    {"description": "Phase 104 requires exact Paja dependency selection and explicit user approval", "type": "human_action", "workaround": "Review Phase 101 packet; likely select Phase 103 tip 2bc4dc39"},
+    {"description": "PR #217 awaits maintainer re-review", "type": "external", "workaround": "Continue against integration pin b004f203 and repin after merge"}
+  ],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {"action": "Choose exact Paja dependency/artifact and approve Writer integration worktree/source scope", "context": "Required before any Writer source edit", "blocking": true},
+    {"action": "Maintainer re-review PR #217", "context": "Nonblocking for fork development", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Writer canonical baseline is jodobear/writer master at 51c854affca96a159840a6da7cfa81e3772a36f8", "rationale": "User-provided canonical remote and verified SHA", "phase": "101"},
+    {"decision": "Writer cleanup/switch to clean master was intentional; former WIP is safe or no longer needed", "rationale": "Explicit user confirmation", "phase": "101"},
+    {"decision": "Main remains exact upstream mirror; #217 stays dedicated; development uses integration pin", "rationale": "Keep upstream sync clean while continuing without merge", "phase": "103"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Review 101-WRITER-CONTRIBUTION-PLAN.md, select exact Paja dependency (recommended Phase 103 tip 2bc4dc39), then ask the explicit Phase 104 approval question before creating any Writer branch/worktree or editing source.",
+  "context_notes": "Planning packet commit 422c2ddd. Writer checkout /workspace/projects/napplets/writer is clean on master 51c854af with origin jodobear/writer. No Writer source changes were made."
+}
