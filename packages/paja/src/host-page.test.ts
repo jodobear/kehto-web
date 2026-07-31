@@ -73,6 +73,7 @@ describe('@kehto/paja host page', () => {
     expect(html).toContain('grid-template-columns: minmax(0, 1fr) 32px 32px;');
     expect(html).toContain('grid-template-columns: minmax(0, 1fr) 48px 48px;');
     expect(html).toContain('.tab-share, .tab-close');
+    expect(html).toContain('.tab-frame[hidden] { display: none; }');
     expect(html).toContain('id="napplet-stage"');
     expect(html).toContain('id="empty-runtime-stage"');
     expect(html).toContain('<h2>No runtime loaded</h2>');

@@ -107,6 +107,7 @@ export function renderPajaHtml(config: PajaHostConfig): string {
       .tab-panel { position: absolute; inset: 0; min-width: 0; min-height: 0; }
       .tab-panel[hidden] { display: none; }
       iframe { width: 100%; height: 100%; border: 0; background: var(--ui-color-background); display: block; }
+      .tab-frame[hidden] { display: none; }
       code { min-width: 0; color: var(--ui-color-foreground); font-family: var(--ui-font-mono); font-size: var(--ui-type-label); font-weight: var(--ui-type-weight-regular); overflow-wrap: anywhere; }
       .paja-target-surface { position: absolute; inset: 0; z-index: 2; width: min(560px, calc(100% - (2 * var(--ui-space-md)))); max-height: calc(100% - (2 * var(--ui-space-md))); margin: auto; overflow: auto; align-self: center; border: 1px solid var(--ui-color-border); border-radius: 8px; background: var(--ui-color-surface); padding: var(--ui-space-lg); display: grid; align-content: center; gap: var(--ui-space-md); }
       .paja-target-surface[hidden] { display: none; }
