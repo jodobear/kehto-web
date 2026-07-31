@@ -156,6 +156,54 @@ test('recovers an external target through stable host error controls', async ({ 
   }
 });
 
+test('settles a missing external shell.ready handshake into retryable recovery', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 100,
+    },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+  await page.addInitScript(() => {
+    let withholdFirstReady = true;
+    window.addEventListener('message', (event) => {
+      const data = event.data as { type?: unknown } | null;
+      if (!withholdFirstReady || !data || data.type !== 'shell.ready') return;
+      withholdFirstReady = false;
+      event.stopImmediatePropagation();
+    }, true);
+  });
+
+  try {
+    await page.goto(runtime.url);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(
+      'Target readiness timed out after 100ms without shell.ready.',
+    );
+    await expect(surface.locator('.paja-target-retry')).toBeEnabled();
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'error',
+      initSent: false,
+    });
+
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(() => target.htmlRequestCount).toBe(2);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('napplet-frame');
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'ready',
+      initSent: true,
+    });
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
 test('hosts one sandboxed target iframe and reinitializes it on reload', async ({ page }) => {
   test.setTimeout(60_000);
   const dialogMessages: string[] = [];

@@ -120,6 +120,7 @@ export interface PajaBrowserStateContext extends PajaRuntimeTabContext {
   runtime: PajaHostRuntimeState;
   targetSurface: PajaTargetSurface | null;
   externalAttemptGeneration: number | null;
+  externalAttemptTimeoutId: number | null;
   externalFocusFrameOnReady: boolean;
   pointerTargetSurface: PajaTargetSurface | null;
   pointerAttemptGeneration: number | null;
@@ -286,20 +287,53 @@ function startFrameNavigation(
       }
       return;
     }
+    if (context.externalAttemptGeneration !== generation) {
+      unregisterSingleFrameWindow(bridge, runtime, windowId);
+      return;
+    }
     runtime.currentWindowId = windowId;
+    clearExternalAttemptTimeout(context);
+    context.externalAttemptTimeoutId = window.setTimeout(() => {
+      settleExternalNavigationFailure(
+        state,
+        context,
+        generation,
+        new Error(`Target readiness timed out after ${config.runtime.readyTimeoutMs}ms without shell.ready.`),
+      );
+    }, config.runtime.readyTimeoutMs);
   }).catch((error) => {
-    if (!isCurrentGeneration()) return;
-    context.externalAttemptGeneration = null;
-    const focusRetry = context.externalFocusFrameOnReady;
-    context.externalFocusFrameOnReady = false;
-    state.status = 'error';
-    context.targetSurface?.showError(error, { focusRetry });
-    appendPajaMessageLog(state, 'paja', {
-      type: 'paja.target.error',
-      error: error instanceof Error ? error.message : String(error),
-    });
-    console.error(error);
+    if (settleExternalNavigationFailure(state, context, generation, error)) console.error(error);
   });
+}
+
+function clearExternalAttemptTimeout(context: PajaBrowserStateContext): void {
+  if (context.externalAttemptTimeoutId === null) return;
+  window.clearTimeout(context.externalAttemptTimeoutId);
+  context.externalAttemptTimeoutId = null;
+}
+
+function settleExternalNavigationFailure(
+  state: PajaBrowserState,
+  context: PajaBrowserStateContext,
+  generation: number,
+  error: unknown,
+): boolean {
+  if (
+    state.generation !== generation
+    || context.externalAttemptGeneration !== generation
+  ) return false;
+  clearExternalAttemptTimeout(context);
+  context.externalAttemptGeneration = null;
+  const focusRetry = context.externalFocusFrameOnReady;
+  context.externalFocusFrameOnReady = false;
+  unregisterSingleFrameWindow(context.bridge, context.runtime, context.runtime.currentWindowId);
+  state.status = 'error';
+  context.targetSurface?.showError(error, { focusRetry });
+  appendPajaMessageLog(state, 'paja', {
+    type: 'paja.target.error',
+    error: error instanceof Error ? error.message : String(error),
+  });
+  return true;
 }
 
 function installPajaControlListeners(state: PajaBrowserState): void {
@@ -612,7 +646,8 @@ async function installPajaHost(): Promise<void> {
     signerController,
     capabilities,
     runtime,
-    targetSurface: null, externalAttemptGeneration: null, externalFocusFrameOnReady: false,
+    targetSurface: null, externalAttemptGeneration: null, externalAttemptTimeoutId: null,
+    externalFocusFrameOnReady: false,
     pointerTargetSurface: null, pointerAttemptGeneration: null,
     pointerRequestGeneration: 0, pointerFocusFrameOnReady: false,
     navigateFrame,
@@ -697,6 +732,7 @@ async function installPajaHost(): Promise<void> {
       } else {
         if (sourceWindowId) runtime.readyWindowIds.add(sourceWindowId);
         state.status = 'ready';
+        clearExternalAttemptTimeout(context);
         context.externalAttemptGeneration = null;
         const focusFrame = context.externalFocusFrameOnReady;
         context.externalFocusFrameOnReady = false;
@@ -706,7 +742,14 @@ async function installPajaHost(): Promise<void> {
   });
 
   frame?.addEventListener('error', () => {
-    setStatus(state, 'error');
+    const generation = context.externalAttemptGeneration;
+    if (generation === null) return;
+    settleExternalNavigationFailure(
+      state,
+      context,
+      generation,
+      new Error('Target frame failed to load.'),
+    );
   });
 
   installPajaControlListeners(state);
