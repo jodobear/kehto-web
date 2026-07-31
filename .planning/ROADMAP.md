@@ -27,7 +27,7 @@ Close the archived Phase 105 `12/24` UI review debt across Paja and playground f
 ### Phase 107: Readable Responsive Paja System
 
 **Goal**: Paja users retain clear product/target context and usable controls across desktop, phone, and target-load failure states within one coherent visual system.
-**Depends on**: Nothing (first v1.30 phase)
+**Depends on**: Nothing
 **Requirements**: VIS-01, VIS-02, VIS-03, PAJA-01, PAJA-02, PAJA-03, PAJA-04
 **Success Criteria** (what must be TRUE):
 
