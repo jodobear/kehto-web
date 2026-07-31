@@ -168,15 +168,14 @@ test('settles a missing external shell.ready handshake into retryable recovery',
     now: new Date('2026-07-31T00:00:00.000Z'),
   });
   await page.addInitScript(() => {
-    let withholdFirstReady = true;
+    const host = window as Window & { __pajaWithholdReady?: boolean };
+    host.__pajaWithholdReady = true;
     window.addEventListener('message', (event) => {
       const data = event.data as { type?: unknown } | null;
-      if (!withholdFirstReady || !data || data.type !== 'shell.ready') return;
-      withholdFirstReady = false;
+      if (!host.__pajaWithholdReady || !data || data.type !== 'shell.ready') return;
       event.stopImmediatePropagation();
     }, true);
   });
-
   try {
     await page.goto(runtime.url);
     const surface = page.locator('.paja-target-surface');
@@ -190,6 +189,9 @@ test('settles a missing external shell.ready handshake into retryable recovery',
       initSent: false,
     });
 
+    await page.evaluate(() => {
+      (window as Window & { __pajaWithholdReady?: boolean }).__pajaWithholdReady = false;
+    });
     await surface.locator('.paja-target-retry').click();
     await expect.poll(() => target.htmlRequestCount).toBe(2);
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
