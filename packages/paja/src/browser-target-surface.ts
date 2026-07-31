@@ -78,7 +78,7 @@ export function createPajaTargetSurface(
       elements.heading.textContent = kind === 'retry' ? 'Retrying target…' : 'Loading target…';
       elements.message.textContent = '';
       elements.message.removeAttribute('role');
-      elements.actions.hidden = true;
+      elements.actions.hidden = kind === 'initial';
       elements.details.hidden = true;
       elements.retry.disabled = true;
       reportLifecycle(elements.heading.textContent);
