@@ -145,14 +145,18 @@ async function readLatestConfig(fallback: PajaHostConfig): Promise<PajaHostConfi
   }
 }
 
-function setTargetUrlDisplay(config: PajaHostConfig, frame?: HTMLIFrameElement | null): void {
-  const label = getTargetLabel(config);
+function setTargetDisplay(label: string, frame?: HTMLIFrameElement | null): void {
   const targetEl = document.querySelector('.target');
   if (targetEl) {
     targetEl.textContent = label;
     targetEl.setAttribute('title', label);
+    targetEl.setAttribute('aria-label', label);
   }
   if (frame) frame.dataset.targetUrl = label;
+}
+
+function setTargetUrlDisplay(config: PajaHostConfig, frame?: HTMLIFrameElement | null): void {
+  setTargetDisplay(getTargetLabel(config), frame);
 }
 
 function getTargetLabel(config: PajaHostConfig): string {
@@ -615,6 +619,7 @@ async function installPajaHost(): Promise<void> {
     setStatus: (state, status) => setStatus(state as PajaBrowserState, status),
     setLifecycleStatus,
     focusPointerControl,
+    setActiveTarget: (tab) => setTargetDisplay(tab?.pointerValue ?? getTargetLabel(config), tab?.frame),
   };
   contextRef = context;
   const state = createPajaBrowserState(context);

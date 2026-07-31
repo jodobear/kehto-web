@@ -83,6 +83,7 @@ export interface PajaRuntimeTabContext {
   setStatus(state: PajaRuntimeTabState, status: PajaRuntimeStatus): void;
   setLifecycleStatus(message: string): void;
   focusPointerControl(): void;
+  setActiveTarget(tab: PajaRuntimeTab | null): void;
   /** Clear host-owned retained-delivery state before session and frame teardown. */
   onTabDestroyed?(tab: PajaRuntimeTab): void;
 }
@@ -171,6 +172,10 @@ export function renderRuntimeTabs(state: PajaRuntimeTabState): void {
   const tabsEl = document.getElementById('napplet-tabs');
   if (!(tabsEl instanceof HTMLElement)) return;
   tabsEl.replaceChildren(...state.tabs.map((tab) => renderTab(state, tab)));
+  const activeTrigger = state.activeTabId
+    ? document.getElementById(runtimeTabTriggerId(state.activeTabId))
+    : null;
+  if (activeTrigger instanceof HTMLButtonElement) revealRuntimeTabTrigger(activeTrigger);
 }
 
 export function activateRuntimeTab(
@@ -190,6 +195,7 @@ export function activateRuntimeTab(
   if (input instanceof HTMLInputElement) input.value = tab.pointerValue;
   context.setPointerStatus(state, tab.pointerStatus);
   context.setStatus(state, tab.status);
+  context.setActiveTarget(tab);
   setEmptyStageVisible(false);
   for (const entry of state.tabs) {
     const active = entry.id === tab.id;
@@ -227,6 +233,7 @@ export function closeRuntimeTab(
   context.setStatus(state, 'ready');
   setEmptyStageVisible(true);
   renderRuntimeTabs(state);
+  context.setActiveTarget(null);
 }
 
 export function addRuntimeTab(
@@ -330,26 +337,73 @@ export function showDuplicatePointerDialog(): Promise<PajaDuplicateChoice> {
 }
 
 function renderTab(state: PajaRuntimeTabState, tab: PajaRuntimeTab): HTMLElement {
-  const tabButton = document.createElement('div');
-  tabButton.className = 'tab';
-  tabButton.dataset.tabId = tab.id;
-  tabButton.dataset.active = String(tab.id === state.activeTabId);
-  tabButton.setAttribute('role', 'tab');
-  tabButton.setAttribute('aria-selected', String(tab.id === state.activeTabId));
-  tabButton.tabIndex = 0;
-  tabButton.title = tab.pointerValue;
-  tabButton.addEventListener('click', () => state.activateTab(tab.id));
-  tabButton.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
+  const active = tab.id === state.activeTabId;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tab';
+  wrapper.dataset.tabId = tab.id;
+  wrapper.dataset.active = String(active);
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'tab-trigger';
+  trigger.id = runtimeTabTriggerId(tab);
+  trigger.setAttribute('role', 'tab');
+  trigger.setAttribute('aria-selected', String(active));
+  trigger.setAttribute('aria-controls', runtimeTabPanelId(tab));
+  trigger.setAttribute('aria-label', tab.title);
+  trigger.tabIndex = active ? 0 : -1;
+  trigger.title = tab.title;
+  trigger.addEventListener('click', () => activateAndFocusRuntimeTab(state, tab.id));
+  trigger.addEventListener('keydown', (event) => {
+    let nextTabId: string | null = null;
+    const index = state.tabs.findIndex((entry) => entry.id === tab.id);
+    if (index < 0) return;
+    switch (event.key) {
+      case 'ArrowLeft':
+        nextTabId = state.tabs[(index - 1 + state.tabs.length) % state.tabs.length]?.id ?? null;
+        break;
+      case 'ArrowRight':
+        nextTabId = state.tabs[(index + 1) % state.tabs.length]?.id ?? null;
+        break;
+      case 'Home':
+        nextTabId = state.tabs[0]?.id ?? null;
+        break;
+      case 'End':
+        nextTabId = state.tabs.at(-1)?.id ?? null;
+        break;
+      default:
+        return;
+    }
     event.preventDefault();
-    state.activateTab(tab.id);
+    if (nextTabId) activateAndFocusRuntimeTab(state, nextTabId);
   });
 
   const label = document.createElement('span');
   label.className = 'tab-label';
   label.textContent = tab.title;
-  tabButton.append(label, renderShareButton(tab), renderCloseButton(state, tab));
-  return tabButton;
+  trigger.append(label);
+  wrapper.append(trigger, renderShareButton(tab), renderCloseButton(state, tab));
+  return wrapper;
+}
+
+function activateAndFocusRuntimeTab(state: PajaRuntimeTabState, tabId: string): void {
+  state.activateTab(tabId);
+  const trigger = document.getElementById(runtimeTabTriggerId(tabId));
+  if (!(trigger instanceof HTMLButtonElement)) return;
+  trigger.focus({ preventScroll: true });
+  revealRuntimeTabTrigger(trigger);
+}
+
+function revealRuntimeTabTrigger(trigger: HTMLButtonElement): void {
+  const tabsEl = document.getElementById('napplet-tabs');
+  if (!(tabsEl instanceof HTMLElement)) return;
+  const stripRect = tabsEl.getBoundingClientRect();
+  const triggerRect = trigger.getBoundingClientRect();
+  let nextScrollLeft = tabsEl.scrollLeft;
+  if (triggerRect.left < stripRect.left) nextScrollLeft -= Math.ceil(stripRect.left - triggerRect.left);
+  if (triggerRect.right > stripRect.right) nextScrollLeft += Math.ceil(triggerRect.right - stripRect.right);
+  nextScrollLeft = Math.max(0, Math.min(nextScrollLeft, tabsEl.scrollWidth - tabsEl.clientWidth));
+  tabsEl.scrollTo({ left: nextScrollLeft, behavior: 'auto' });
 }
 
 function renderShareButton(tab: PajaRuntimeTab): HTMLButtonElement {
@@ -357,17 +411,11 @@ function renderShareButton(tab: PajaRuntimeTab): HTMLButtonElement {
   share.type = 'button';
   share.className = 'tab-share';
   share.setAttribute('aria-label', `Copy share link for ${tab.title}`);
-  share.title = 'Copy share link';
+  share.title = `Copy share link for ${tab.title}`;
   share.textContent = '↗';
   share.addEventListener('click', (event) => {
     event.stopPropagation();
-    void shareRuntimeTab(tab, share).catch((error) => console.error(error));
-  });
-  share.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    event.stopPropagation();
-    void shareRuntimeTab(tab, share).catch((error) => console.error(error));
+    void shareRuntimeTab(tab).catch((error) => console.error(error));
   });
   return share;
 }
@@ -377,21 +425,19 @@ function renderCloseButton(state: PajaRuntimeTabState, tab: PajaRuntimeTab): HTM
   close.type = 'button';
   close.className = 'tab-close';
   close.setAttribute('aria-label', `Close ${tab.title}`);
+  close.title = `Close ${tab.title}`;
   close.textContent = 'x';
   close.addEventListener('click', (event) => {
     event.stopPropagation();
     state.closeTab(tab.id);
-  });
-  close.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    event.stopPropagation();
-    state.closeTab(tab.id);
+    const activeTabId = state.activeTabId;
+    if (activeTabId) activateAndFocusRuntimeTab(state, activeTabId);
+    else document.getElementById('runtime-pointer-input')?.focus();
   });
   return close;
 }
 
-async function shareRuntimeTab(tab: PajaRuntimeTab, button: HTMLButtonElement): Promise<void> {
+async function shareRuntimeTab(tab: PajaRuntimeTab): Promise<void> {
   const shareUrl = createPajaShareUrl(tab.pointerValue);
   const clipboard = navigator.clipboard;
   if (!clipboard) {
@@ -404,10 +450,14 @@ async function shareRuntimeTab(tab: PajaRuntimeTab, button: HTMLButtonElement): 
     window.prompt('Copy Paja share link', shareUrl);
     return;
   }
-  button.title = 'Share link copied';
-  window.setTimeout(() => {
-    button.title = 'Copy share link';
-  }, 1200);
+}
+
+function runtimeTabTriggerId(tab: string | Pick<PajaRuntimeTab, 'id'>): string {
+  return `paja-runtime-tab-${typeof tab === 'string' ? tab : tab.id}`;
+}
+
+function runtimeTabPanelId(tab: string | Pick<PajaRuntimeTab, 'id'>): string {
+  return `napplet-frame-${typeof tab === 'string' ? tab : tab.id}`;
 }
 
 function getPointerParamName(pointer: string): 'naddr' | 'nevent' | 'pointer' {
@@ -449,9 +499,11 @@ function createRuntimeTabFrame(
   onError: () => void,
 ): HTMLIFrameElement {
   const frame = document.createElement('iframe');
-  frame.id = `napplet-frame-${id}`;
+  frame.id = runtimeTabPanelId(id);
   frame.className = 'tab-panel';
   frame.title = `Napplet runtime target: ${title}`;
+  frame.setAttribute('role', 'tabpanel');
+  frame.setAttribute('aria-labelledby', runtimeTabTriggerId(id));
   frame.sandbox.add('allow-scripts');
   frame.sandbox.remove('allow-same-origin');
   frame.dataset.tabId = id;
