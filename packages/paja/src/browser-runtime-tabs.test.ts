@@ -113,6 +113,19 @@ describe('@kehto/paja runtime tabs', () => {
     expect(navigation).not.toContain('srcdoc =');
   });
 
+  it('destroys every runtime-tab generation through one idempotent host teardown', () => {
+    const source = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
+    const teardown = source.slice(
+      source.indexOf('export function destroyRuntimeTabHost('),
+      source.indexOf('export function addRuntimeTab('),
+    );
+
+    expect(teardown).toContain('for (const tab of state.tabs) destroyRuntimeTabSession(tab, context);');
+    expect(teardown).toContain('context.runtime.currentWindowId = null;');
+    expect(source).toContain('context.onTabDestroyed?.(tab);');
+    expect(source).toContain('tab.windowId = null;');
+  });
+
   it('renders a roving composite tab with sibling native actions and bounded reveal', () => {
     const source = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
     const renderTab = source.slice(

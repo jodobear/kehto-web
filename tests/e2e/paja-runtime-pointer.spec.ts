@@ -363,6 +363,88 @@ test('times out a never-ready verified runtime generation and ignores stale read
   }
 });
 
+test('keeps BFCache runtime ownership and destroys ready and booting tabs on final pagehide', async ({ page }) => {
+  test.setTimeout(30_000);
+  const server = await startPointerServer();
+  const first = createPointerFixture(
+    server.url,
+    'bfcache-first-target',
+    '<!doctype html><html><body><p>first BFCache target</p></body></html>',
+    ['shell'],
+  );
+  const second = createPointerFixture(
+    server.url,
+    'bfcache-second-target',
+    '<!doctype html><html><body><p>second BFCache target</p></body></html>',
+    ['shell'],
+  );
+  const relay = 'wss://bfcache-fixture.example';
+  server.blobs.set(first.hash, first.bytes);
+  server.blobs.set(second.hash, second.bytes);
+  const baseConfig = createPajaRuntimeHostConfig({ pointer: first.pointer, maxWaitMs: 2_000 });
+  server.setConfig({
+    ...baseConfig,
+    runtime: { ...baseConfig.runtime, readyTimeoutMs: 5_000 },
+    simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
+  });
+  await page.routeWebSocket(`${relay}/`, (socket) => {
+    socket.onMessage((message) => {
+      const request = JSON.parse(String(message)) as unknown[];
+      if (request[0] !== 'REQ' || typeof request[1] !== 'string') return;
+      socket.send(JSON.stringify(['EVENT', request[1], first.event]));
+      socket.send(JSON.stringify(['EVENT', request[1], second.event]));
+      socket.send(JSON.stringify(['EOSE', request[1]]));
+    });
+  });
+  await installShellReadyHold(page);
+
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[0]?.status))
+      .toBe('ready');
+    await holdNextShellReady(page);
+    await page.evaluate((pointer) => window.__KEHTO_PAJA__?.loadPointer(pointer), second.pointer);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[1]?.status))
+      .toBe('booting');
+    const beforeCache = await page.evaluate(() => window.__KEHTO_PAJA__?.getState());
+    expect(beforeCache?.tabs.map((tab) => tab.status)).toEqual(['ready', 'booting']);
+    expect(beforeCache?.tabs.every((tab) => tab.windowId !== null)).toBe(true);
+
+    await page.evaluate(() => {
+      for (const type of ['pagehide', 'pageshow']) {
+        const event = new Event(type);
+        Object.defineProperty(event, 'persisted', { value: true });
+        window.dispatchEvent(event);
+      }
+    });
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs)).toEqual(beforeCache?.tabs);
+    await releaseHeldShellReady(page);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[1]?.status))
+      .toBe('ready');
+
+    await holdNextShellReady(page);
+    await page.locator('#reload-target').click();
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[1]?.status))
+      .toBe('reloading');
+    const readyLogCount = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'shell.ready').length ?? -1);
+    await page.evaluate(() => {
+      for (let index = 0; index < 2; index += 1) {
+        const event = new Event('pagehide');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+      }
+    });
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs
+      .map((tab) => tab.windowId))).toEqual([null, null]);
+    await releaseHeldShellReady(page);
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'shell.ready').length ?? -1)).toBe(readyLogCount);
+  } finally {
+    await server.close();
+  }
+});
+
 test('completes a verified intent and delivers its convention once to a cold target', async ({ page }) => {
   test.setTimeout(60_000);
   const server = await startPointerServer();

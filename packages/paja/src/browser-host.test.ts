@@ -252,6 +252,19 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(hostSource).toContain('destroyExternalFrameNavigation(context);');
   });
 
+  it('keeps BFCache runtime ownership and tears down every tab only on final pagehide', () => {
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const pagehide = hostSource.slice(
+      hostSource.indexOf("window.addEventListener('pagehide'"),
+      hostSource.indexOf('window.__KEHTO_PAJA__ = state;'),
+    );
+
+    expect(pagehide).toContain('if (event.persisted) return;');
+    expect(pagehide).toContain("if (config.target.mode === 'runtime-pointer') destroyRuntimeTabHost(state, context);");
+    expect(pagehide).toContain('else destroyExternalFrameNavigation(context);');
+    expect(pagehide).not.toContain('{ once: true }');
+  });
+
   it('registers the trusted frame identity before resolver-built srcdoc can run', () => {
     const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
     const targetSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');

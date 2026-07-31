@@ -270,6 +270,15 @@ export function closeRuntimeTab(
   context.setActiveTarget(null);
 }
 
+/** Release every runtime-tab session owned by one host page. */
+export function destroyRuntimeTabHost(
+  state: PajaRuntimeTabState,
+  context: PajaRuntimeTabContext,
+): void {
+  for (const tab of state.tabs) destroyRuntimeTabSession(tab, context);
+  context.runtime.currentWindowId = null;
+}
+
 export function addRuntimeTab(
   state: PajaRuntimeTabState,
   context: PajaRuntimeTabContext,

@@ -19,7 +19,7 @@ import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
 import { createPajaThemeBroadcastLink } from './theme-broadcast.js';
 import { type PajaSignerState } from './browser-signers.js';
 import {
-  activateRuntimeTab, addRuntimeTab, closeRuntimeTab, getActiveTab,
+  activateRuntimeTab, addRuntimeTab, closeRuntimeTab, destroyRuntimeTabHost, getActiveTab,
   PAJA_RUNTIME_TABS_STORAGE_KEY, parseRuntimeTabsSnapshot, reloadActiveRuntimeTab,
   projectActiveRuntimeTabLifecycle, renderRuntimeTabs, resolvedTargetKey,
   setEmptyStageVisible, settleRuntimeTabReady, showDuplicatePointerDialog,
@@ -673,10 +673,12 @@ async function installPajaHost(): Promise<void> {
   }
 
   const stopIntentCatalogChanges = subscribePajaIntentCatalogChanges(state, context);
-  window.addEventListener('pagehide', () => {
+  window.addEventListener('pagehide', (event) => {
+    if (event.persisted) return;
     stopIntentCatalogChanges();
-    destroyExternalFrameNavigation(context);
-  }, { once: true });
+    if (config.target.mode === 'runtime-pointer') destroyRuntimeTabHost(state, context);
+    else destroyExternalFrameNavigation(context);
+  });
 
   window.__KEHTO_PAJA__ = state;
   installPajaMessageListener(state, context);
