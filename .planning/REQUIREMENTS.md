@@ -14,10 +14,10 @@
 
 ### Paja Host Recovery
 
-- [ ] **PAJA-01**: Desktop Paja preserves its working console/runtime split while keeping product identity, target context, active tabs, controls, and status visually distinct.
-- [ ] **PAJA-02**: Phone Paja uses a purpose-built narrow-screen composition that keeps the Kehto/Paja identity and current target visible, exposes essential controls and status without clipping, and gives the active runtime useful first-viewport space.
-- [ ] **PAJA-03**: A target-load failure renders inside Paja's semantic error surface with a plain-language cause, a keyboard-accessible retry action, a clear return path, and secondary diagnostic detail instead of a raw iframe `<pre>`.
-- [ ] **PAJA-04**: Retrying a failed Paja target uses the existing verified host loading path and preserves the current NAP/session security boundary; visual recovery does not add, remove, or reshape protocol messages.
+- [x] **PAJA-01**: Desktop Paja preserves its working console/runtime split while keeping product identity, target context, active tabs, controls, and status visually distinct.
+- [x] **PAJA-02**: Phone Paja uses a purpose-built narrow-screen composition that keeps the Kehto/Paja identity and current target visible, exposes essential controls and status without clipping, and gives the active runtime useful first-viewport space.
+- [x] **PAJA-03**: A target-load failure renders inside Paja's semantic error surface with a plain-language cause, a keyboard-accessible retry action, a clear return path, and secondary diagnostic detail instead of a raw iframe `<pre>`.
+- [x] **PAJA-04**: Retrying a failed Paja target uses the existing verified host loading path and preserves the current NAP/session security boundary; visual recovery does not add, remove, or reshape protocol messages.
 
 ### Feed and Profile Recovery
 
@@ -63,10 +63,10 @@
 | VIS-01 | Phase 107 | Pending |
 | VIS-02 | Phase 107 | Pending |
 | VIS-03 | Phase 107 | Pending |
-| PAJA-01 | Phase 107 | Pending |
-| PAJA-02 | Phase 107 | Pending |
-| PAJA-03 | Phase 107 | Pending |
-| PAJA-04 | Phase 107 | Pending |
+| PAJA-01 | Phase 107 | Complete |
+| PAJA-02 | Phase 107 | Complete |
+| PAJA-03 | Phase 107 | Complete |
+| PAJA-04 | Phase 107 | Complete |
 | RECOV-01 | Phase 108 | Pending |
 | RECOV-02 | Phase 108 | Pending |
 | RECOV-03 | Phase 108 | Pending |
@@ -77,6 +77,7 @@
 | PROOF-03 | Phase 108 | Pending |
 
 **Coverage:**
+
 - v1.30 requirements: 15 total
 - Mapped to phases: 15
 - Unmapped: 0 ✓
