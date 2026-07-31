@@ -235,6 +235,39 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(targetSource).toContain('if (isCurrent && !isCurrent()) return null;');
   });
 
+  it('keeps external recovery single-flight, source-bound, and protocol-neutral', () => {
+    const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const navigation = source.slice(
+      source.indexOf('function startFrameNavigation('),
+      source.indexOf('function installPajaControlListeners('),
+    );
+    const reload = source.slice(
+      source.indexOf('function reloadPajaTarget('),
+      source.indexOf('function setRuntimeDomainEnabled('),
+    );
+    const surfaceBinding = source.slice(
+      source.indexOf('context.targetSurface = createPajaTargetSurface({'),
+      source.indexOf('const stopIntentCatalogChanges'),
+    );
+    const messageHandler = source.slice(
+      source.indexOf("window.addEventListener('message'"),
+      source.indexOf("frame?.addEventListener('error'"),
+    );
+
+    expect(navigation).toContain('if (context.externalAttemptGeneration !== null) return;');
+    expect(navigation).toContain('const isCurrentGeneration = () => state.generation === generation;');
+    expect(navigation).toContain('unregisterSingleFrameWindow(bridge, runtime, windowId);');
+    expect(reload.indexOf('if (context.externalAttemptGeneration !== null) return;'))
+      .toBeLessThan(reload.indexOf('state.generation += 1;'));
+    expect(surfaceBinding).toContain('state.reload();');
+    expect(surfaceBinding).toContain('onReturn: focusFirstEnabledPajaControl');
+    expect(surfaceBinding).not.toContain('postMessage');
+    expect(surfaceBinding).not.toMatch(/type:\s*['"]/);
+    expect(messageHandler).toContain('event.source === frame.contentWindow');
+    expect(messageHandler).toContain('sourceWindowId !== runtime.currentWindowId');
+    expect(messageHandler).toContain("data.type === 'shell.ready'");
+  });
+
   it('registers the trusted frame identity before resolver-built srcdoc can run', () => {
     const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
     const targetSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');

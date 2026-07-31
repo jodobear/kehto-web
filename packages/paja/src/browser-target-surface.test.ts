@@ -189,4 +189,46 @@ describe('@kehto/paja target surface', () => {
     fixture.surface.destroy();
     expect(fixture.host.children).toEqual([fixture.frame]);
   });
+
+  it('keeps the same retry control visible, single-fire, and focused across repeat failure', () => {
+    const fixture = createFixture();
+    const panel = findByClass(fixture.host, 'paja-target-surface');
+    const heading = findByClass(panel, 'paja-target-heading');
+    const actions = findByClass(panel, 'paja-target-actions');
+    const retry = findByClass(panel, 'paja-target-retry');
+    const diagnostic = findByClass(panel, 'paja-target-diagnostic');
+
+    fixture.surface.showError('first failure', { focusRetry: false });
+    retry.focus();
+    retry.click();
+    fixture.surface.showLoading('retry');
+
+    expect(fixture.onRetry).toHaveBeenCalledTimes(1);
+    expect(panel.getAttribute('aria-busy')).toBe('true');
+    expect(heading.textContent).toBe('Retrying target…');
+    expect(actions.hidden).toBe(false);
+    expect(retry.disabled).toBe(true);
+    retry.click();
+    expect(fixture.onRetry).toHaveBeenCalledTimes(1);
+
+    fixture.surface.showError('second failure', { focusRetry: true });
+
+    expect(findByClass(panel, 'paja-target-retry')).toBe(retry);
+    expect(retry.disabled).toBe(false);
+    expect(diagnostic.textContent).toBe('second failure');
+    expect(fixture.document.activeElement).toBe(retry);
+    expect(fixture.lifecycle).toEqual([
+      "Target couldn't load",
+      'Retrying target…',
+      "Target couldn't load",
+    ]);
+
+    fixture.surface.showError('updated detail only', { focusRetry: true });
+    expect(diagnostic.textContent).toBe('updated detail only');
+    expect(fixture.lifecycle).toEqual([
+      "Target couldn't load",
+      'Retrying target…',
+      "Target couldn't load",
+    ]);
+  });
 });

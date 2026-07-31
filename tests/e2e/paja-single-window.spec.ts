@@ -92,9 +92,45 @@ test('recovers an external target through stable host error controls', async ({ 
     await surface.locator('.paja-target-details-summary').click();
     await expect(surface.locator('.paja-target-details-summary')).toHaveText('Show technical details');
 
+    const retry = surface.locator('.paja-target-retry');
+    const retryNode = await retry.elementHandle();
     const failedGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
-    await surface.locator('.paja-target-retry').click();
+    const repeatDiagnostic = 'second failure <strong data-repeat-diagnostic="unsafe">still inert</strong>';
+    recoveryTarget.failNext(repeatDiagnostic, { hold: true });
+    await retry.focus();
+    await retry.press('Enter');
     await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(2);
+    await expect(surface).toHaveAttribute('aria-busy', 'true');
+    await expect(surface.locator('.paja-target-heading')).toHaveText('Retrying target…');
+    await expect(retry).toBeVisible();
+    await expect(retry).toBeDisabled();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Space');
+    await retry.evaluate((button) => button.click());
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(2);
+    await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1))
+      .toBe(failedGeneration + 1);
+
+    recoveryTarget.releaseHeldFailure();
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(repeatDiagnostic);
+    await expect(page.locator('[data-repeat-diagnostic="unsafe"]')).toHaveCount(0);
+    await expect(retry).toBeEnabled();
+    await expect.poll(() => retry.evaluate((button) => button === document.activeElement)).toBe(true);
+    expect(await retry.evaluate((button, original) => button === original, retryNode)).toBe(true);
+
+    const repeatFailureGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
+    const repeatFailureRequests = recoveryTarget.htmlRequestCount;
+    await surface.locator('.paja-target-return').click();
+    await expect.poll(() => page.evaluate(() => document.activeElement?.matches(
+      '.console button:not(:disabled), .console input:not(:disabled), .console select:not(:disabled)',
+    ) ?? false)).toBe(true);
+    expect(recoveryTarget.htmlRequestCount).toBe(repeatFailureRequests);
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1))
+      .toBe(repeatFailureGeneration);
+
+    await retry.click();
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(3);
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
     await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
       'shell-init received',
@@ -104,7 +140,7 @@ test('recovers an external target through stable host error controls', async ({ 
     await expect(page.locator('#napplet-frame')).toHaveAttribute('sandbox', 'allow-scripts');
     await expect(page.locator('#napplet-frame')).not.toHaveAttribute('sandbox', /allow-same-origin/);
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
-      generation: failedGeneration + 1,
+      generation: failedGeneration + 2,
       status: 'ready',
       iframeCount: 1,
       initSent: true,
