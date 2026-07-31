@@ -361,17 +361,6 @@ test('completes a verified intent and delivers its convention once to a cold tar
     await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
       .find((tab) => tab.title === title)?.status, longTitle), { timeout: 15_000 }).toBe('ready');
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
-    expect(await page.evaluate(() => (window as Window & {
-      __pajaLifecycleTransitions?: string[];
-    }).__pajaLifecycleTransitions)).toEqual([
-      'Target ready',
-      'Loading target…',
-      'Target ready',
-      "Target couldn't load",
-      'Retrying target…',
-      'Target ready',
-    ]);
-
     await longPanel.locator('iframe').evaluate((frame) => frame.dispatchEvent(new Event('error')));
     await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
       .find((tab) => tab.title === title)?.status, longTitle)).toBe('error');
@@ -394,6 +383,16 @@ test('completes a verified intent and delivers its convention once to a cold tar
     await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
       .find((tab) => tab.title === title)?.status, longTitle), { timeout: 15_000 }).toBe('ready');
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
+    expect(await page.evaluate(() => (window as Window & {
+      __pajaLifecycleTransitions?: string[];
+    }).__pajaLifecycleTransitions)).toEqual([
+      'Target ready',
+      'Loading target…',
+      'Target ready',
+      "Target couldn't load",
+      'Retrying target…',
+      'Target ready',
+    ]);
 
     await page.setViewportSize({ width: 375, height: 812 });
     await longTrigger.focus();
