@@ -463,7 +463,7 @@ This removes inline raw color fallbacks without changing feed/profile recovery b
 |---|-------|---------|---------------|
 | — | None. All implementation claims were checked against the repository, locked phase artifacts, live upstream specs, or cited standards documentation. | — | — |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 No blocking product or protocol questions remain. Exact private module names, test-file placement, and fixture mechanics are intentionally delegated to the implementing agent by `107-CONTEXT.md`; the plan should lock behavior and verification, not those incidental spellings. [VERIFIED: 107-CONTEXT.md]
 
