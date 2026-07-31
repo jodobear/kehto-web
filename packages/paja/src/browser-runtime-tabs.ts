@@ -257,7 +257,7 @@ export function addRuntimeTab(
     host: surfaceHost,
     frame,
     returnLabel: 'Back to target controls',
-    onRetry: () => reloadActiveRuntimeTab(state, context),
+    onRetry: () => reloadActiveRuntimeTab(state, context, { focusFrameOnReady: true }),
     onReturn: context.focusPointerControl,
     onLifecycleStatus: context.setLifecycleStatus,
   });
@@ -286,6 +286,7 @@ export function addRuntimeTab(
 export function reloadActiveRuntimeTab(
   state: PajaRuntimeTabState,
   context: PajaRuntimeTabContext,
+  options: { readonly focusFrameOnReady?: boolean } = {},
 ): void {
   const tab = getActiveTab(state);
   if (!tab) return;
@@ -293,7 +294,7 @@ export function reloadActiveRuntimeTab(
   tab.generation = ++state.generation;
   tab.windowId = null;
   tab.status = 'reloading';
-  tab.focusFrameOnReady = true;
+  tab.focusFrameOnReady = options.focusFrameOnReady === true;
   activateRuntimeTab(state, context, tab.id);
   startRuntimeTabNavigation(tab, state, context);
 }

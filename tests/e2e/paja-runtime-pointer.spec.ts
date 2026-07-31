@@ -316,6 +316,15 @@ test('completes a verified intent and delivers its convention once to a cold tar
     await targetTrigger.click();
 
     await holdNextShellReady(page);
+    const headerReload = page.locator('#reload-target');
+    await headerReload.focus();
+    await headerReload.click();
+    await releaseHeldShellReady(page);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs
+      .find((tab) => tab.title === 'profile-target')?.status), { timeout: 15_000 }).toBe('ready');
+    await expect(headerReload).toBeFocused();
+
+    await holdNextShellReady(page);
     await page.evaluate((pointer) => window.__KEHTO_PAJA__?.loadPointer(pointer), longTarget.pointer);
     await expect(tablist.getByRole('tab')).toHaveCount(3);
     const longTrigger = tablist.getByRole('tab', { name: longTitle });

@@ -68,8 +68,9 @@ describe('@kehto/paja runtime tabs', () => {
     );
 
     expect(source).toContain("from './browser-target-surface.js';");
-    expect(source).toContain('onRetry: () => reloadActiveRuntimeTab(state, context)');
+    expect(source).toContain('onRetry: () => reloadActiveRuntimeTab(state, context, { focusFrameOnReady: true })');
     expect(reload).toContain('tab.generation = ++state.generation;');
+    expect(reload).toContain('tab.focusFrameOnReady = options.focusFrameOnReady === true;');
     expect(navigation).toContain('() => tab.generation === generation');
     expect(navigation).toContain('if (tab.generation !== generation) return;');
     expect(navigation).toContain('handleRuntimeTabError(tab, state, context, error);');
