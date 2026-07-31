@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createPajaHostConfig, createPajaRuntimeHostConfig, normalizePajaOptions } from './options.js';
 import { renderPajaHtml } from './host-page.js';
@@ -61,6 +62,24 @@ describe('@kehto/paja host page', () => {
     expect(html).toContain('id="kehto-paja-config"');
     expect(html).toContain('https://example.test/%3Cnapplet%3E');
     expect(html).not.toContain('https://example.test/<napplet>');
+  });
+
+  it('keeps lifecycle status in the documented context-header command row', () => {
+    const config = createPajaHostConfig(normalizePajaOptions({ targetUrl: 'http://127.0.0.1:5173' }));
+    const html = renderPajaHtml(config);
+    const header = html.slice(html.indexOf('<header class="bar top">'), html.indexOf('</header>'));
+    const footer = html.slice(
+      html.indexOf('<footer class="bar bottom"'),
+      html.indexOf('</footer>') + '</footer>'.length,
+    );
+    const guide = readFileSync(new URL('../../../docs/packages/paja.md', import.meta.url), 'utf8');
+
+    expect(header).toContain('id="lifecycle-status"');
+    expect(footer).not.toContain('id="lifecycle-status"');
+    expect([...footer.matchAll(/class="status-label">([^<]+)</g)].map((match) => match[1]))
+      .toEqual(['Mode', 'HMR', 'Runtime', 'Simulation']);
+    expect(guide).toContain('The context-header command row includes lifecycle status');
+    expect(guide).toContain('The environment footer lists only Mode, HMR, Runtime, and');
   });
 
   it('renders semantic runtime pointer controls and empty state without target-url HMR', () => {

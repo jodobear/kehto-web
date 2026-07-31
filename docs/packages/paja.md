@@ -376,10 +376,10 @@ The normalized simulation object controls:
 - Config values returned by `config.get`.
 - Theme mode and values returned by `theme.get`.
 
-The context header includes a theme selector and **Reload target**; the footer
-summarizes active simulation state, HMR strategy, runtime address, and lifecycle
-status. Theme changes apply immediately to the Paja theme service and survive
-the next iframe reload.
+The context-header command row includes lifecycle status, a theme selector, and
+**Reload target**. The environment footer lists only Mode, HMR, Runtime, and
+Simulation. Theme changes apply immediately to the Paja theme service and
+survive the next iframe reload.
 
 ## Scope Boundaries
 
