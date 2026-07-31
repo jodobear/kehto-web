@@ -421,6 +421,7 @@ async function loadRuntimePointer(
       const choice = await showDuplicatePointerDialog();
       if (!isCurrentAttempt()) return;
       if (choice === 'cancel') {
+        context.pointerTargetSurface?.hide();
         setStatus(state, getActiveTab(state)?.status ?? 'ready');
         setPointerStatus(state, `already running: ${duplicate.title}`);
         appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.duplicate.cancelled', tabId: duplicate.id });
@@ -428,6 +429,7 @@ async function loadRuntimePointer(
       }
       if (choice === 'open-tab') {
         activateRuntimeTab(state, context, duplicate.id);
+        context.pointerTargetSurface?.hide();
         if (options.persist !== false) persistRuntimeTabs(state);
         appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.duplicate.opened', tabId: duplicate.id });
         return;

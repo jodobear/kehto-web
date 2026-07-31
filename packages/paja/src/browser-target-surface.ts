@@ -4,6 +4,7 @@ export interface PajaTargetSurface {
   readonly phase: PajaTargetSurfacePhase;
   showEmpty(): void;
   showLoading(kind: 'initial' | 'retry'): void;
+  hide(): void;
   showReady(options: { readonly focusFrame: boolean }): void;
   showError(error: unknown, options: { readonly focusRetry: boolean }): void;
   destroy(): void;
@@ -82,6 +83,10 @@ export function createPajaTargetSurface(
       elements.details.hidden = true;
       elements.retry.disabled = true;
       reportLifecycle(elements.heading.textContent);
+    },
+    hide() {
+      elements.panel.hidden = true;
+      elements.panel.setAttribute('aria-busy', 'false');
     },
     showReady({ focusFrame }) {
       phase = 'ready';

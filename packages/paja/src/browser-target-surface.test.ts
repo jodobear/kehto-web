@@ -190,6 +190,20 @@ describe('@kehto/paja target surface', () => {
     expect(fixture.host.children).toEqual([fixture.frame]);
   });
 
+  it('hides a presentation overlay without changing phase or announcing readiness', () => {
+    const fixture = createFixture();
+    const panel = findByClass(fixture.host, 'paja-target-surface');
+
+    fixture.surface.showLoading('initial');
+    fixture.surface.hide();
+
+    expect(fixture.surface.phase).toBe('loading');
+    expect(panel.hidden).toBe(true);
+    expect(panel.getAttribute('aria-busy')).toBe('false');
+    expect(fixture.frame.hidden).toBe(true);
+    expect(fixture.lifecycle).toEqual(['Loading target…']);
+  });
+
   it('keeps the same retry control visible, single-fire, and focused across repeat failure', () => {
     const fixture = createFixture();
     const panel = findByClass(fixture.host, 'paja-target-surface');

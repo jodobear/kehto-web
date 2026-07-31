@@ -296,6 +296,25 @@ test('completes a verified intent and delivers its convention once to a cold tar
     await expect(page.locator('.target')).toHaveAttribute('title', target.pointer);
     await expect(page.locator('.target')).toHaveAttribute('aria-label', target.pointer);
 
+    await page.evaluate((pointer) => {
+      void window.__KEHTO_PAJA__?.loadPointer(pointer);
+    }, source.pointer);
+    await expect(page.locator('#duplicate-pointer-dialog')).toBeVisible();
+    await page.locator('#duplicate-cancel').click();
+    await expect(page.locator('#duplicate-pointer-dialog')).toBeHidden();
+    await expect(page.locator('.paja-target-surface:visible')).toHaveCount(0);
+    await expect(targetTrigger).toHaveAttribute('aria-selected', 'true');
+
+    await page.evaluate((pointer) => {
+      void window.__KEHTO_PAJA__?.loadPointer(pointer);
+    }, source.pointer);
+    await expect(page.locator('#duplicate-pointer-dialog')).toBeVisible();
+    await page.locator('#duplicate-open-tab').click();
+    await expect(page.locator('#duplicate-pointer-dialog')).toBeHidden();
+    await expect(page.locator('.paja-target-surface:visible')).toHaveCount(0);
+    await expect(sourceTrigger).toHaveAttribute('aria-selected', 'true');
+    await targetTrigger.click();
+
     await holdNextShellReady(page);
     await page.evaluate((pointer) => window.__KEHTO_PAJA__?.loadPointer(pointer), longTarget.pointer);
     await expect(tablist.getByRole('tab')).toHaveCount(3);
