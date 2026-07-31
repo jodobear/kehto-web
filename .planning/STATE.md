@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.29
 milestone_name: Napplet Convention and Runtime Conformance
 status: Awaiting next milestone
-stopped_at: context exhaustion at 75% (2026-07-31)
+stopped_at: v1.29 archived; PR #1 open
 last_updated: "2026-07-31T01:27:15.334Z"
 last_activity: 2026-07-31
 last_activity_desc: Milestone v1.29 completed and archived
