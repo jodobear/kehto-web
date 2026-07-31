@@ -197,7 +197,7 @@ test('recovers resolver and active-frame failures without duplicating verified t
     expect(firstState?.initSent).toBe(true);
     expect(firstState?.messageLog.filter((entry) => entry.type === 'shell.ready')).toHaveLength(1);
 
-    const frame = page.locator('iframe.tab-panel');
+    const frame = page.locator('iframe.tab-frame');
     const srcdoc = await frame.getAttribute('srcdoc');
     expect(srcdoc).toContain('verified recovery');
     expect(srcdoc).toContain(classOnePrefix);
@@ -334,6 +334,13 @@ test('completes a verified intent and delivers its convention once to a cold tar
     await expect(page.locator('.target')).toHaveAttribute('aria-label', longTarget.pointer);
     await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
       .find((tab) => tab.title === title)?.status, longTitle)).toBe('booting');
+    const longPanelId = await longTrigger.getAttribute('aria-controls');
+    expect(longPanelId).toBeTruthy();
+    const longPanel = page.locator(`#${longPanelId}`);
+    await expect(longPanel).toHaveAttribute('role', 'tabpanel');
+    await expect(longPanel).toHaveAttribute('aria-labelledby', await longTrigger.getAttribute('id') ?? '');
+    await expect(longPanel).toBeVisible();
+    await expect(longPanel.locator('iframe')).toBeHidden();
     const loadingStatuses = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.map((tab) => tab.status));
     expect(loadingStatuses.filter((status) => status === 'ready')).toHaveLength(2);
     expect(loadingStatuses).toContain('booting');
@@ -341,9 +348,8 @@ test('completes a verified intent and delivers its convention once to a cold tar
     await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
       .find((tab) => tab.title === title)?.status, longTitle), { timeout: 15_000 }).toBe('ready');
 
-    const longFrameId = await longTrigger.getAttribute('aria-controls');
-    expect(longFrameId).toBeTruthy();
-    await page.locator(`#${longFrameId}`).evaluate((frame) => frame.dispatchEvent(new Event('error')));
+    await expect(longPanel.locator('iframe')).toBeVisible();
+    await longPanel.locator('iframe').evaluate((frame) => frame.dispatchEvent(new Event('error')));
     await expect.poll(async () => page.evaluate((title) => window.__KEHTO_PAJA__?.getState().tabs
       .find((tab) => tab.title === title)?.status, longTitle)).toBe('error');
     const errorStatuses = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.map((tab) => tab.status));
@@ -351,6 +357,8 @@ test('completes a verified intent and delivers its convention once to a cold tar
     expect(errorStatuses).toContain('error');
     const longSurface = page.locator('.paja-target-surface:visible');
     await expect(longSurface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(longPanel).toBeVisible();
+    await expect(longPanel.locator('iframe')).toBeHidden();
     await holdNextShellReady(page);
     await longSurface.locator('.paja-target-retry').focus();
     await longSurface.locator('.paja-target-retry').press('Space');
@@ -427,7 +435,7 @@ test('completes a verified intent and delivers its convention once to a cold tar
     await page.evaluate(() => {
       const state = window.__KEHTO_PAJA__;
       const sourceTab = state?.getState().tabs.find((tab) => tab.title === 'intent-source');
-      const frame = sourceTab ? document.getElementById(`napplet-frame-${sourceTab.id}`) : null;
+      const frame = sourceTab ? document.getElementById(`napplet-frame-${sourceTab.id}-content`) : null;
       if (!(frame instanceof HTMLIFrameElement)) throw new Error('Missing verified source frame');
       frame.contentWindow?.postMessage({ type: 'test.invoke' }, '*');
     });
@@ -444,7 +452,7 @@ test('completes a verified intent and delivers its convention once to a cold tar
     const targetTabId = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs
       .find((tab) => tab.title === 'profile-target')?.id ?? null);
     expect(targetTabId).toBeTruthy();
-    const targetFrame = page.frameLocator(`#napplet-frame-${targetTabId}`);
+    const targetFrame = page.frameLocator(`#napplet-frame-${targetTabId}-content`);
     await expect(targetFrame.locator('#delivery-count')).toHaveText('1', { timeout: 15_000 });
     await expect(targetFrame.locator('#delivery-pubkey')).toHaveText('f'.repeat(64));
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog

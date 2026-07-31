@@ -249,10 +249,14 @@ export function addRuntimeTab(
   const frame = createRuntimeTabFrame(id, title, pointerValue, () => {
     handleRuntimeTabError(tab, state, context, new Error('Target frame failed to load.'));
   });
-  const surfaceHost = document.createElement('div');
-  surfaceHost.className = 'tab-panel tab-target-surface';
+  const surfaceHost = document.createElement('section');
+  surfaceHost.id = runtimeTabPanelId(id);
+  surfaceHost.className = 'tab-panel';
+  surfaceHost.setAttribute('role', 'tabpanel');
+  surfaceHost.setAttribute('aria-labelledby', runtimeTabTriggerId(id));
   surfaceHost.dataset.tabId = id;
   surfaceHost.hidden = true;
+  surfaceHost.append(frame);
   const targetSurface = createPajaTargetSurface({
     host: surfaceHost,
     frame,
@@ -276,7 +280,7 @@ export function addRuntimeTab(
     windowId: null,
     status: 'booting',
   };
-  context.stage.append(tab.surfaceHost, tab.frame);
+  context.stage.append(tab.surfaceHost);
   state.tabs.push(tab);
   activateRuntimeTab(state, context, tab.id);
   startRuntimeTabNavigation(tab, state, context);
@@ -461,6 +465,10 @@ function runtimeTabPanelId(tab: string | Pick<PajaRuntimeTab, 'id'>): string {
   return `napplet-frame-${typeof tab === 'string' ? tab : tab.id}`;
 }
 
+function runtimeTabFrameId(tab: string | Pick<PajaRuntimeTab, 'id'>): string {
+  return `${runtimeTabPanelId(tab)}-content`;
+}
+
 function getPointerParamName(pointer: string): 'naddr' | 'nevent' | 'pointer' {
   if (pointer.startsWith('naddr')) return 'naddr';
   if (pointer.startsWith('nevent')) return 'nevent';
@@ -500,11 +508,9 @@ function createRuntimeTabFrame(
   onError: () => void,
 ): HTMLIFrameElement {
   const frame = document.createElement('iframe');
-  frame.id = runtimeTabPanelId(id);
-  frame.className = 'tab-panel';
+  frame.id = runtimeTabFrameId(id);
+  frame.className = 'tab-frame';
   frame.title = `Napplet runtime target: ${title}`;
-  frame.setAttribute('role', 'tabpanel');
-  frame.setAttribute('aria-labelledby', runtimeTabTriggerId(id));
   frame.sandbox.add('allow-scripts');
   frame.sandbox.remove('allow-same-origin');
   frame.dataset.tabId = id;

@@ -111,8 +111,11 @@ describe('@kehto/paja runtime tabs', () => {
     expect(source).toContain('context.setActiveTarget(null);');
     expect(source).toContain('share.title = `Copy share link for ${tab.title}`;');
     expect(source).toContain('close.title = `Close ${tab.title}`;');
-    expect(source).toContain("frame.setAttribute('role', 'tabpanel');");
-    expect(source).toContain("frame.setAttribute('aria-labelledby', runtimeTabTriggerId(id));");
+    expect(source).toContain("surfaceHost.setAttribute('role', 'tabpanel');");
+    expect(source).toContain("surfaceHost.setAttribute('aria-labelledby', runtimeTabTriggerId(id));");
+    expect(source).toContain('surfaceHost.append(frame);');
+    expect(source).toContain("frame.className = 'tab-frame';");
+    expect(source).not.toContain("frame.setAttribute('role', 'tabpanel');");
     expect(hostSource).toContain('function setTargetDisplay(label: string, frame?: HTMLIFrameElement | null): void');
     expect(hostSource).toContain("targetEl.setAttribute('aria-label', label);");
     expect(hostSource).toContain('setActiveTarget: (tab) => setTargetDisplay(');
