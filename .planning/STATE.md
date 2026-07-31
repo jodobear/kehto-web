@@ -4,17 +4,17 @@ milestone: v1.30
 milestone_name: Visual Recovery
 current_phase: 107
 current_phase_name: Readable Responsive Paja System
-status: ready_to_execute
-stopped_at: Completed 107-06-PLAN.md
-last_updated: "2026-07-31T11:41:54.999Z"
+status: ready_for_verification
+stopped_at: Completed 107-07-PLAN.md
+last_updated: "2026-07-31T11:59:41.378Z"
 last_activity: 2026-07-31
-last_activity_desc: Plan 107-06 complete; Plan 107-07 ready to execute
+last_activity_desc: Plan 107-07 complete; Phase 107 ready for verification
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 7
-  completed_plans: 6
-  percent: 86
+  completed_plans: 7
+  percent: 100
 ---
 
 # Project State
@@ -28,18 +28,18 @@ See: `.planning/PROJECT.md` (updated 2026-07-31)
 
 ## Current Position
 
-Phase: 107 (Readable Responsive Paja System) — READY TO EXECUTE
-Plan: 6 of 7
-Status: Gap-closure Plan 107-07 is ready to execute
-Last activity: 2026-07-31 — Plan 107-06 complete; Plan 107-07 ready
+Phase: 107 (Readable Responsive Paja System) — READY FOR VERIFICATION
+Plan: 7 of 7
+Status: All seven Phase 107 plans executed; ready for verification and human judgment
+Last activity: 2026-07-31 — Plan 107-07 complete; Phase 107 ready for verification
 
-Progress: [█████████░] 86%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 - Historical plans completed: 48
-- v1.30 plans completed: 6
-- v1.30 phase plan counts: Phase 107 has 7 plans (6 executed, 1 gap-closure ready); Phase 108 is unplanned
+- v1.30 plans completed: 7
+- v1.30 phase plan counts: Phase 107 has 7 plans (7 executed; ready for verification); Phase 108 is unplanned
 
 **Per-Plan Metrics:**
 
@@ -51,6 +51,7 @@ Progress: [█████████░] 86%
 | Phase 107 P04 | 20 min | 2 tasks | 6 files |
 | Phase 107 P05 | 2h 24m | 2 tasks | 7 files |
 | Phase 107 P06 | 21m | 3 tasks | 13 files |
+| Phase 107 P07 | 10m | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -83,8 +84,8 @@ None in `.planning/todos/pending/`.
 
 ## Session Continuity
 
-Last session: 2026-07-31T11:41:54.991Z
-Stopped at: Completed 107-06-PLAN.md
+Last session: 2026-07-31T11:59:41.370Z
+Stopped at: Completed 107-07-PLAN.md
 Resume file: None
 
 ## Decisions
@@ -107,3 +108,5 @@ Resume file: None
 - [Phase 107]: Keep PajaHostConfig.runtime.readyTimeoutMs as the sole availability budget across runtime tabs, browser attempts, and server proxy fetches.
 - [Phase 107]: Own external navigation as one AbortController-backed attempt from proxy fetch through trusted current-source shell.ready.
 - [Phase 107]: Preserve NAP-SHELL, NAP-THEME, NIP-5D verified-byte, CSP/prelude, sandbox, capability, routing, and message contracts unchanged.
+- [Phase 107]: Use literal b7d045f560d6945e7974f9719fcd9c02314f9588 for final Phase 107 diff and pinned scanner gates; sandbox child-Git reruns never change base or policy. — Immutable-base evidence must remain reproducible and non-overridable.
+- [Phase 107]: Keep inherited upload defect 28 separate and preserve all three descriptor-less prohibitions for human judgment. — Automated evidence supports but cannot silently resolve explicit judgment gates.
