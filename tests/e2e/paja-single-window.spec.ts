@@ -174,7 +174,7 @@ test('hosts one sandboxed target iframe and reinitializes it on reload', async (
   await expect(page.locator('#message-log .log-row')).not.toHaveCount(0);
   await expect(page.locator('#message-log .log-row').first()).toContainText('identity.getPublicKey');
   await page.locator('#message-filter').fill('');
-  await expect(page.locator('#lifecycle-status')).toHaveText('ready');
+  await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
   await expect(page.locator('#simulation-status')).toContainText('identity:anon relay:live:4 storage:local upload:memory:simulator theme:dark off:none');
 
   const firstLoadId = await targetFrame.locator('#load-id').textContent();

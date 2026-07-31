@@ -135,7 +135,8 @@ async function fetchTargetHtml(): Promise<string> {
     },
   });
   if (!response.ok) {
-    throw new Error(`Paja target fetch failed: ${response.status} ${response.statusText}`);
+    const detail = (await response.text()).trim();
+    throw new Error(detail || `Paja target fetch failed: ${response.status} ${response.statusText}`);
   }
   return response.text();
 }

@@ -65,6 +65,10 @@ import {
   renderTargetErrorHtml,
 } from './browser-target-frame.js';
 import {
+  createPajaTargetSurface,
+  type PajaTargetSurface,
+} from './browser-target-surface.js';
+import {
   resolvePajaPointer,
   type PajaResolvedPointer,
 } from './runtime-resolver.js';
@@ -157,6 +161,9 @@ export interface PajaBrowserStateContext extends PajaRuntimeTabContext {
   signerController: PajaSignerController;
   capabilities: ShellCapabilities;
   runtime: PajaHostRuntimeState;
+  targetSurface: PajaTargetSurface | null;
+  externalAttemptGeneration: number | null;
+  externalFocusFrameOnReady: boolean;
 }
 
 function readConfig(): PajaHostConfig {
@@ -240,6 +247,15 @@ function setStatus(state: PajaBrowserState, status: PajaBrowserState['status']):
   if (statusEl) statusEl.textContent = status;
 }
 
+function setLifecycleStatus(message: string): void {
+  const statusEl = document.getElementById('lifecycle-status');
+  if (!statusEl || statusEl.textContent === message) return;
+  statusEl.setAttribute('role', 'status');
+  statusEl.setAttribute('aria-live', 'polite');
+  statusEl.setAttribute('aria-atomic', 'true');
+  statusEl.textContent = message;
+}
+
 function setSimulationStatus(state: PajaBrowserState): void {
   const statusEl = document.getElementById('simulation-status');
   if (statusEl) statusEl.textContent = summarizePajaSimulation(state.simulation);
@@ -278,8 +294,11 @@ function startFrameNavigation(
 ): void {
   const { config, frame, bridge, adapter, runtime } = context;
   if (!frame) return;
+  if (context.externalAttemptGeneration !== null) return;
   const generation = state.generation;
   const isCurrentGeneration = () => state.generation === generation;
+  context.externalAttemptGeneration = generation;
+  context.targetSurface?.showLoading(context.externalFocusFrameOnReady ? 'retry' : 'initial');
   void navigateFrame(
     frame,
     config,
@@ -294,14 +313,19 @@ function startFrameNavigation(
   ).then((windowId) => {
     if (!isCurrentGeneration()) {
       unregisterSingleFrameWindow(bridge, runtime, windowId);
+      if (context.externalAttemptGeneration === generation) {
+        context.externalAttemptGeneration = null;
+      }
       return;
     }
     runtime.currentWindowId = windowId;
   }).catch((error) => {
     if (!isCurrentGeneration()) return;
-    frame.removeAttribute('src');
-    frame.srcdoc = renderTargetErrorHtml(error);
-    setStatus(state, 'error');
+    context.externalAttemptGeneration = null;
+    const focusRetry = context.externalFocusFrameOnReady;
+    context.externalFocusFrameOnReady = false;
+    state.status = 'error';
+    context.targetSurface?.showError(error, { focusRetry });
     appendPajaMessageLog(state, 'paja', {
       type: 'paja.target.error',
       error: error instanceof Error ? error.message : String(error),
@@ -348,6 +372,7 @@ function reloadPajaTarget(state: PajaBrowserState, context: PajaBrowserStateCont
     reloadActiveRuntimeTab(state, context);
     return;
   }
+  if (context.externalAttemptGeneration !== null) return;
   if (runtime.currentWindowId) {
     unregisterSingleFrameWindow(bridge, runtime, runtime.currentWindowId);
   }
@@ -595,6 +620,9 @@ async function installPajaHost(): Promise<void> {
     signerController,
     capabilities,
     runtime,
+    targetSurface: null,
+    externalAttemptGeneration: null,
+    externalFocusFrameOnReady: false,
     navigateFrame,
     renderTargetErrorHtml,
     onTabDestroyed: (tab) => clearRuntimeTabGeneration(tab, runtime),
@@ -604,6 +632,19 @@ async function installPajaHost(): Promise<void> {
   contextRef = context;
   const state = createPajaBrowserState(context);
   stateRef = state;
+  if (frame) {
+    context.targetSurface = createPajaTargetSurface({
+      host: stage,
+      frame,
+      returnLabel: 'Back to Paja controls',
+      onRetry: () => {
+        context.externalFocusFrameOnReady = true;
+        state.reload();
+      },
+      onReturn: focusFirstEnabledPajaControl,
+      onLifecycleStatus: setLifecycleStatus,
+    });
+  }
 
   const stopIntentCatalogChanges = subscribePajaIntentCatalogChanges(state, context);
   window.addEventListener('pagehide', stopIntentCatalogChanges, { once: true });
@@ -642,7 +683,11 @@ async function installPajaHost(): Promise<void> {
         )) return;
       } else {
         if (sourceWindowId) runtime.readyWindowIds.add(sourceWindowId);
-        setStatus(state, 'ready');
+        state.status = 'ready';
+        context.externalAttemptGeneration = null;
+        const focusFrame = context.externalFocusFrameOnReady;
+        context.externalFocusFrameOnReady = false;
+        context.targetSurface?.showReady({ focusFrame });
       }
     }
   });
@@ -672,6 +717,12 @@ async function installPajaHost(): Promise<void> {
     void reportTargetCorsDiagnostic(state);
   }
   if (hasNip07Signer()) void state.connectNip07();
+}
+
+function focusFirstEnabledPajaControl(): void {
+  document.querySelector<HTMLElement>(
+    '.console button:not(:disabled), .console input:not(:disabled), .console select:not(:disabled)',
+  )?.focus();
 }
 
 if (typeof document !== 'undefined') {
