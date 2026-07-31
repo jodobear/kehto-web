@@ -5,16 +5,16 @@ milestone_name: Visual Recovery
 current_phase: 107
 current_phase_name: Readable Responsive Paja System
 status: ready_to_execute
-stopped_at: Planned 107-06 and 107-07 gap closure
-last_updated: "2026-07-31T16:37:53+05:30"
+stopped_at: Completed 107-06-PLAN.md
+last_updated: "2026-07-31T11:41:54.999Z"
 last_activity: 2026-07-31
-last_activity_desc: Phase 107 gap closure planned; 2 plans ready to execute
+last_activity_desc: Plan 107-06 complete; Plan 107-07 ready to execute
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 7
-  completed_plans: 5
-  percent: 71
+  completed_plans: 6
+  percent: 86
 ---
 
 # Project State
@@ -29,17 +29,17 @@ See: `.planning/PROJECT.md` (updated 2026-07-31)
 ## Current Position
 
 Phase: 107 (Readable Responsive Paja System) — READY TO EXECUTE
-Plan: 5 of 7
-Status: Gap-closure plans 107-06 and 107-07 are ready to execute
-Last activity: 2026-07-31 — Phase 107 gap closure planned; 2 plans ready
+Plan: 6 of 7
+Status: Gap-closure Plan 107-07 is ready to execute
+Last activity: 2026-07-31 — Plan 107-06 complete; Plan 107-07 ready
 
-Progress: [███████░░░] 71%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
 - Historical plans completed: 48
-- v1.30 plans completed: 5
-- v1.30 phase plan counts: Phase 107 has 7 plans (5 executed, 2 gap-closure ready); Phase 108 is unplanned
+- v1.30 plans completed: 6
+- v1.30 phase plan counts: Phase 107 has 7 plans (6 executed, 1 gap-closure ready); Phase 108 is unplanned
 
 **Per-Plan Metrics:**
 
@@ -50,6 +50,7 @@ Progress: [███████░░░] 71%
 | Phase 107 P03 | 30 min | 2 tasks | 6 files |
 | Phase 107 P04 | 20 min | 2 tasks | 6 files |
 | Phase 107 P05 | 2h 24m | 2 tasks | 7 files |
+| Phase 107 P06 | 21m | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -82,9 +83,9 @@ None in `.planning/todos/pending/`.
 
 ## Session Continuity
 
-Last session: 2026-07-31T16:37:53+05:30
-Stopped at: Planned 107-06 and 107-07 gap closure
-Resume file: `.planning/phases/107-readable-responsive-paja-system/107-06-PLAN.md`
+Last session: 2026-07-31T11:41:54.991Z
+Stopped at: Completed 107-06-PLAN.md
+Resume file: None
 
 ## Decisions
 
@@ -103,3 +104,6 @@ Resume file: `.planning/phases/107-readable-responsive-paja-system/107-06-PLAN.m
 - [Phase 107]: Phase 107 documentation preserves the existing NAP-SHELL, NAP-THEME, NIP-5D, verified-loader, source-session, and sandbox boundaries.
 - [Phase 107]: Release intent is one patch changeset for @kehto/paja with no direct version metadata edits.
 - [Phase 107]: Inherited upload-domain browser defect 28 remains separate while all Phase 107-owned browser cases pass.
+- [Phase 107]: Keep PajaHostConfig.runtime.readyTimeoutMs as the sole availability budget across runtime tabs, browser attempts, and server proxy fetches.
+- [Phase 107]: Own external navigation as one AbortController-backed attempt from proxy fetch through trusted current-source shell.ready.
+- [Phase 107]: Preserve NAP-SHELL, NAP-THEME, NIP-5D verified-byte, CSP/prelude, sandbox, capability, routing, and message contracts unchanged.
