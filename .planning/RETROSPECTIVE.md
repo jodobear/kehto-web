@@ -484,6 +484,51 @@
 
 ---
 
+## Milestone: v1.29 — Napplet Convention and Runtime Conformance
+
+**Shipped:** 2026-07-31
+**Phases:** 6 (101-106) | **Plans:** 47 | **Tasks:** 89 | **Requirements:** 54/54
+
+### What Was Built
+
+- Source-bound, exactly-once NAP-SHELL sessions with immutable domain-only capability environments.
+- Exact convention-based NAP-INC events and symmetric channels with runtime-attested dTags and bounded retained lifecycle behavior.
+- Contract-shaped identity/theme results and changes, protected readonly bindings, and atomic host state propagation.
+- Verified-manifest NAP-INTENT resolution with user-controlled selection, acceptance-only results, and source-independent delivery.
+- Real Paja/playground intent, profile-resource, identity, INC, and theme flows on the published Napplet line.
+- Eight Napplet-0.31-compatible Kehto packages published to npm and JSR, then verified through a clean downstream Paja consumer.
+
+### What Worked
+
+- Exact upstream refs and published package contracts stayed explicit throughout implementation and release proof.
+- Runtime, binding, service, host, docs, static guards, unit tests, and browser tests moved together per NAP conformance rules.
+- Corrective release proof checked exact-main CI, registries, and a downstream build instead of treating workflow success as sufficient.
+
+### What Was Inefficient
+
+- The original release path omitted required Changesets, requiring corrective PR #220 and Version Packages PR #221.
+- Generated milestone accomplishments copied noisy plan summaries and needed manual consolidation.
+- Historical debug, quick-task, and context metadata produced 29 closeout warnings unrelated to v1.29 verification.
+
+### Patterns Established
+
+- Draft NAP heads may serve as working authority when recorded exactly and revalidated before release.
+- Accepted intent delivery must remain independent of source lifetime and carrier choice.
+- Release completion requires registry metadata plus downstream consumption, not only successful CI or publish jobs.
+
+### Key Lessons
+
+1. Audit Changeset coverage before calling a release branch complete.
+2. Keep protocol authority, package contract, host wiring, and browser evidence in one traceable chain.
+3. Repair closeout metadata during normal task completion so milestone archival does not inherit stale markers.
+
+### Cost Observations
+
+- **Sessions:** Multi-session milestone with focused phase planning, execution, verification, and corrective publication follow-up.
+- **Notable:** Final closeout archived 149 phase artifacts; Phase 105's 12/24 visual audit remains separate maintainer debt.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution

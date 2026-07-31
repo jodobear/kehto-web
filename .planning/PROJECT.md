@@ -6,7 +6,7 @@
 
 Provide a modular, framework-agnostic runtime for hosting napplet applications — so any Nostr client can embed sandboxed mini-apps by integrating @kehto/shell.
 
-## Current Milestone: v1.29 Napplet Convention and Runtime Conformance
+## Latest Milestone: v1.29 Napplet Convention and Runtime Conformance (shipped 2026-07-31)
 
 **Goal:** Conform Kehto to `napplet/naps@6461e4b`: remove numbered cross-napplet negotiation, adopt `napplet:<archetype>/<intent>[...?params]` conventions, and close every active contract gap in NAP-SHELL, NAP-INTENT, NAP-INC, NAP-IDENTITY, and NAP-THEME.
 
@@ -318,4 +318,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-28 after the Phase 106 publication follow-up — the v1.29 package line is available on npm and JSR; the 12/24 UI audit remains explicit non-passing debt.*
+*Last updated: 2026-07-31 after v1.29 archival — the current package line is available on npm and JSR; the 12/24 UI audit remains explicit non-passing debt.*
