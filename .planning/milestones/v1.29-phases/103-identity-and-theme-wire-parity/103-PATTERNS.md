@@ -32,7 +32,7 @@
 
 **Analog:** the existing optional-provider result pattern in this file.
 
-**Safe typed-result pattern** ([`identity-service.ts:77-93`](../../../packages/services/src/identity-service.ts#L77-L93)):
+**Safe typed-result pattern** ([`identity-service.ts:77-93`](../../../../packages/services/src/identity-service.ts#L77-L93)):
 
 ```ts
 if (!buildResult) {
@@ -46,13 +46,13 @@ Promise.resolve(getCurrentPubkey(options))
   .catch((err: unknown) => sendProviderError(send, fallbackResult, errorFallback, err));
 ```
 
-Retain the one-response asynchronous structure, but make the `getPublicKey` catch send its already-typed `identity.getPublicKey.result` fallback (`pubkey: ''`) rather than a derived error envelope. The existing no-signer branch is the exact public-key sentinel pattern ([223-245](../../../packages/services/src/identity-service.ts#L223-L245)). For each other supported read, retain its explicit field fallback (`{}`, `null`, `[]`) illustrated by [273-371](../../../packages/services/src/identity-service.ts#L273-L371). Unknown identity actions should return without sending, replacing the current default error at [416-419](../../../packages/services/src/identity-service.ts#L416-L419).
+Retain the one-response asynchronous structure, but make the `getPublicKey` catch send its already-typed `identity.getPublicKey.result` fallback (`pubkey: ''`) rather than a derived error envelope. The existing no-signer branch is the exact public-key sentinel pattern ([223-245](../../../../packages/services/src/identity-service.ts#L223-L245)). For each other supported read, retain its explicit field fallback (`{}`, `null`, `[]`) illustrated by [273-371](../../../../packages/services/src/identity-service.ts#L273-L371). Unknown identity actions should return without sending, replacing the current default error at [416-419](../../../../packages/services/src/identity-service.ts#L416-L419).
 
 ### `packages/services/src/theme-service.ts` (service, request-response + event-driven)
 
 **Analog:** existing single state owner and callback in the same file.
 
-**Get-result and state-before-push pattern** ([`theme-service.ts:152-186`](../../../packages/services/src/theme-service.ts#L152-L186)):
+**Get-result and state-before-push pattern** ([`theme-service.ts:152-186`](../../../../packages/services/src/theme-service.ts#L152-L186)):
 
 ```ts
 if (message.type === 'theme.get') {
@@ -73,11 +73,11 @@ function publishTheme(theme: Theme): ThemeChangedMessage {
 }
 ```
 
-Keep `publishTheme` as the only mutation: assignment precedes the sole synchronous callback, so a subsequent `theme.get` observes the byte-equivalent theme. Replace the current unknown-message error branch ([169-173](../../../packages/services/src/theme-service.ts#L169-L173)) with a no-op; do not add subscribe/unsubscribe behavior.
+Keep `publishTheme` as the only mutation: assignment precedes the sole synchronous callback, so a subsequent `theme.get` observes the byte-equivalent theme. Replace the current unknown-message error branch ([169-173](../../../../packages/services/src/theme-service.ts#L169-L173)) with a no-op; do not add subscribe/unsubscribe behavior.
 
 ### `packages/runtime/src/identity-handler.ts` and `packages/runtime/src/domain-handlers.ts` (handlers, request-response)
 
-**Analog:** service-first fallback routing in [`identity-handler.ts:14-18`](../../../packages/runtime/src/identity-handler.ts#L14-L18) and [`domain-handlers.ts:162-176`](../../../packages/runtime/src/domain-handlers.ts#L162-L176).
+**Analog:** service-first fallback routing in [`identity-handler.ts:14-18`](../../../../packages/runtime/src/identity-handler.ts#L14-L18) and [`domain-handlers.ts:162-176`](../../../../packages/runtime/src/domain-handlers.ts#L162-L176).
 
 ```ts
 const identityService = serviceRegistry['identity'];
@@ -95,13 +95,13 @@ if (msg.type === 'theme.get') {
 }
 ```
 
-Preserve service-first dispatch and only produce results for known actions. The concrete fallback constant in `domain-handlers.ts` is the source for a complete theme payload when a service is unavailable. Replace the local `sendError` / derived `${msg.type}.error` helper in [`identity-handler.ts:24-29`](../../../packages/runtime/src/identity-handler.ts#L24-L29) with a narrow supported-action result factory, shared where practical with runtime denial shaping.
+Preserve service-first dispatch and only produce results for known actions. The concrete fallback constant in `domain-handlers.ts` is the source for a complete theme payload when a service is unavailable. Replace the local `sendError` / derived `${msg.type}.error` helper in [`identity-handler.ts:24-29`](../../../../packages/runtime/src/identity-handler.ts#L24-L29) with a narrow supported-action result factory, shared where practical with runtime denial shaping.
 
 ### `packages/runtime/src/runtime.ts` and `packages/runtime/src/dispatch.test.ts` (middleware + test, request-response)
 
 **Analog:** one response-shaping seam consumed by both gates.
 
-**Shared ACL/firewall structure** ([`runtime.ts:270-283`](../../../packages/runtime/src/runtime.ts#L270-L283), [`runtime.ts:324-341`](../../../packages/runtime/src/runtime.ts#L324-L341)):
+**Shared ACL/firewall structure** ([`runtime.ts:270-283`](../../../../packages/runtime/src/runtime.ts#L270-L283), [`runtime.ts:324-341`](../../../../packages/runtime/src/runtime.ts#L324-L341)):
 
 ```ts
 const id = (envelope as NappletMessage & { id?: string }).id ?? '';
@@ -118,7 +118,7 @@ Use a typed canonical-result factory at this existing common seam so ACL and fir
 
 **Analog:** frozen environment domain grant and source-bound session registration.
 
-**Eligibility foundations** ([`shell-ready.ts:34-40`](../../../packages/shell/src/shell-ready.ts#L34-L40), [`shell-ready.ts:78-104`](../../../packages/shell/src/shell-ready.ts#L78-L104)):
+**Eligibility foundations** ([`shell-ready.ts:34-40`](../../../../packages/shell/src/shell-ready.ts#L34-L40), [`shell-ready.ts:78-104`](../../../../packages/shell/src/shell-ready.ts#L78-L104)):
 
 ```ts
 isDomainAllowed(windowId, domain): boolean {
@@ -131,15 +131,15 @@ runtime.sessionRegistry.register(windowId, entry);
 state.sessionRegistration.set(windowId, sourceRegistrationId);
 ```
 
-Build a single bridge-owned eligible-session push helper adjacent to `broadcastToNapplets`. Iterate live session entries/windows, require the frozen environment to include the pushed domain, and resolve the same registered iframe window before posting. Then route both public `publishTheme` and `publishIdentityChanged` through it. The old raw pattern ([`shell-bridge.ts:205-216`](../../../packages/shell/src/shell-bridge.ts#L205-L216)) is explicitly not reusable because it enumerates registrations before `shell.ready` and ignores domain grants.
+Build a single bridge-owned eligible-session push helper adjacent to `broadcastToNapplets`. Iterate live session entries/windows, require the frozen environment to include the pushed domain, and resolve the same registered iframe window before posting. Then route both public `publishTheme` and `publishIdentityChanged` through it. The old raw pattern ([`shell-bridge.ts:205-216`](../../../../packages/shell/src/shell-bridge.ts#L205-L216)) is explicitly not reusable because it enumerates registrations before `shell.ready` and ignores domain grants.
 
-Do not move source authentication out of `handleMessage`: its `event.source` → `originRegistry` → `shell.ready` ordering at [220-251](../../../packages/shell/src/shell-bridge.ts#L220-L251) is the established trust boundary.
+Do not move source authentication out of `handleMessage`: its `event.source` → `originRegistry` → `shell.ready` ordering at [220-251](../../../../packages/shell/src/shell-bridge.ts#L220-L251) is the established trust boundary.
 
 ### `packages/shell/src/napplet-namespace.ts` (browser binding, request-response + event-driven)
 
 **Analog:** identity/theme request correlation plus parent-only change delivery.
 
-**Protected listener and result-correlation pattern** ([`napplet-namespace.ts:661-705`](../../../packages/shell/src/napplet-namespace.ts#L661-L705)):
+**Protected listener and result-correlation pattern** ([`napplet-namespace.ts:661-705`](../../../../packages/shell/src/napplet-namespace.ts#L661-L705)):
 
 ```ts
 const read = <T>(type: string, field: string, fallback: T) => request(
@@ -156,7 +156,7 @@ const off = listen((event) => {
 });
 ```
 
-Keep parent-source filtering and the request-correlator; do not create a child-to-parent identity/theme change path. If Phase 103 protects later reassignment, follow the namespace's existing controlled construction seam (`makeDomain` and `guardNappletNamespace`, [1427-1462](../../../packages/shell/src/napplet-namespace.ts#L1427-L1462)) rather than ad-hoc host globals. Scope that decision narrowly: current behavior deliberately rebuilds a permitted domain on assignment.
+Keep parent-source filtering and the request-correlator; do not create a child-to-parent identity/theme change path. If Phase 103 protects later reassignment, follow the namespace's existing controlled construction seam (`makeDomain` and `guardNappletNamespace`, [1427-1462](../../../../packages/shell/src/napplet-namespace.ts#L1427-L1462)) rather than ad-hoc host globals. Scope that decision narrowly: current behavior deliberately rebuilds a permitted domain on assignment.
 
 ### `packages/paja/src/browser-adapter.ts` and `packages/paja/src/browser-host.ts` (host wiring/controller, event-driven)
 
@@ -170,7 +170,7 @@ const theme = createThemeService({
 onThemeService(theme);
 ```
 
-([`browser-adapter.ts:321-334`](../../../packages/paja/src/browser-adapter.ts#L321-L334))
+([`browser-adapter.ts:321-334`](../../../../packages/paja/src/browser-adapter.ts#L321-L334))
 
 ```ts
 runtime.themeService?.publishTheme(
@@ -178,20 +178,20 @@ runtime.themeService?.publishTheme(
 );
 ```
 
-([`browser-host.ts:571-581`](../../../packages/paja/src/browser-host.ts#L571-L581))
+([`browser-host.ts:571-581`](../../../../packages/paja/src/browser-host.ts#L571-L581))
 
 Preserve this separation: the adapter owns service construction, host controller owns one simulation update. Replace only the no-op callback with the shared bridge eligibility delivery; never add a second direct post in `setThemeMode`.
 
 ### `apps/playground/src/demo-hooks.ts`, `apps/playground/src/main-preferences.ts`, and `apps/playground/src/shell-host.ts` (host wiring/controller, event-driven)
 
-**Analog:** a single registered ThemeService bundle in `createDemoHooks` ([`demo-hooks.ts:115-154`](../../../apps/playground/src/demo-hooks.ts#L115-L154)).
+**Analog:** a single registered ThemeService bundle in `createDemoHooks` ([`demo-hooks.ts:115-154`](../../../../apps/playground/src/demo-hooks.ts#L115-L154)).
 
 ```ts
 const themeBundle = createThemeService({ onBroadcast: () => {} });
 // register themeBundle.handler with the ShellAdapter services and retain the bundle
 ```
 
-Make the service callback call the bridge helper exactly once. Have preferences call the host/service update route only. The current `relay.publishTheme` plus raw iframe loop ([`main-preferences.ts:72-78`](../../../apps/playground/src/main-preferences.ts#L72-L78)) is an anti-pattern: it duplicates protocol deliveries and bypasses eligibility. Delete identity bootstrap/poll/request-tap sends rather than adapting them: [`shell-host.ts:225-242`](../../../apps/playground/src/shell-host.ts#L225-L242) and [`shell-host.ts:391-428`](../../../apps/playground/src/shell-host.ts#L391-L428) show the duplicate-producing paths.
+Make the service callback call the bridge helper exactly once. Have preferences call the host/service update route only. The current `relay.publishTheme` plus raw iframe loop ([`main-preferences.ts:72-78`](../../../../apps/playground/src/main-preferences.ts#L72-L78)) is an anti-pattern: it duplicates protocol deliveries and bypasses eligibility. Delete identity bootstrap/poll/request-tap sends rather than adapting them: [`shell-host.ts:225-242`](../../../../apps/playground/src/shell-host.ts#L225-L242) and [`shell-host.ts:391-428`](../../../../apps/playground/src/shell-host.ts#L391-L428) show the duplicate-producing paths.
 
 ## Test Patterns
 
@@ -201,16 +201,16 @@ Extend `packages/services/src/identity-service.test.ts`, `packages/services/src/
 
 ### Shell bridge eligibility fixture
 
-Use [`packages/shell/src/shell-bridge.test.ts:103-235`](../../../packages/shell/src/shell-bridge.test.ts#L103-L235) as the fixture style: `originRegistry.clear()` in hooks, fake `Window` objects with `postMessage: vi.fn()`, and minimal `ShellAdapter` hooks. Combine it with its source-bound ready registration examples beginning at [443](../../../packages/shell/src/shell-bridge.test.ts#L443): test pre-ready, no-domain, granted, and revoked/replaced-session frames. Assert normal identity, sign-out identity, and theme pushes each arrive once only at eligible recipients.
+Use [`packages/shell/src/shell-bridge.test.ts:103-235`](../../../../packages/shell/src/shell-bridge.test.ts#L103-L235) as the fixture style: `originRegistry.clear()` in hooks, fake `Window` objects with `postMessage: vi.fn()`, and minimal `ShellAdapter` hooks. Combine it with its source-bound ready registration examples beginning at [443](../../../../packages/shell/src/shell-bridge.test.ts#L443): test pre-ready, no-domain, granted, and revoked/replaced-session frames. Assert normal identity, sign-out identity, and theme pushes each arrive once only at eligible recipients.
 
 ### Binding and browser tests
 
-Use the parent-message harness in [`packages/shell/src/napplet-namespace.test.ts:38-118`](../../../packages/shell/src/napplet-namespace.test.ts#L38-L118) to prove forged child events are ignored and exposed identity/theme API ownership remains read-only under the chosen reassignment policy. For host proof, extend `packages/paja/src/browser-host.test.ts` static wiring checks and the existing Playwright fixtures:
+Use the parent-message harness in [`packages/shell/src/napplet-namespace.test.ts:38-118`](../../../../packages/shell/src/napplet-namespace.test.ts#L38-L118) to prove forged child events are ignored and exposed identity/theme API ownership remains read-only under the chosen reassignment policy. For host proof, extend `packages/paja/src/browser-host.test.ts` static wiring checks and the existing Playwright fixtures:
 
-- [`tests/e2e/paja-single-window.spec.ts:174-216`](../../../tests/e2e/paja-single-window.spec.ts#L174-L216) for one Paja theme control transition and later `theme.get` state.
-- [`tests/e2e/nap-identity.spec.ts`](../../../tests/e2e/nap-identity.spec.ts), [`tests/e2e/nap-theme.spec.ts`](../../../tests/e2e/nap-theme.spec.ts), and [`tests/e2e/theme-broadcast.spec.ts`](../../../tests/e2e/theme-broadcast.spec.ts) for playground wire delivery/cardinality.
+- [`tests/e2e/paja-single-window.spec.ts:174-216`](../../../../tests/e2e/paja-single-window.spec.ts#L174-L216) for one Paja theme control transition and later `theme.get` state.
+- [`tests/e2e/nap-identity.spec.ts`](../../../../tests/e2e/nap-identity.spec.ts), [`tests/e2e/nap-theme.spec.ts`](../../../../tests/e2e/nap-theme.spec.ts), and [`tests/e2e/theme-broadcast.spec.ts`](../../../../tests/e2e/theme-broadcast.spec.ts) for playground wire delivery/cardinality.
 
-Remove the old synthetic public-key-error visibility fixture at [`paja-single-window.spec.ts:270-279`](../../../tests/e2e/paja-single-window.spec.ts#L270-L279)); it asserts the envelope class Phase 103 forbids.
+Remove the old synthetic public-key-error visibility fixture at [`paja-single-window.spec.ts:270-279`](../../../../tests/e2e/paja-single-window.spec.ts#L270-L279)); it asserts the envelope class Phase 103 forbids.
 
 ## Shared Patterns
 

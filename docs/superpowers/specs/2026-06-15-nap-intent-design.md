@@ -1,7 +1,7 @@
 > **Superseded historical design — not protocol authority.** This dated intent
 > design is retained as historical context. Follow the current
 > [NIP-5D conformance policy](../../policies/NIP-5D-CONFORMANCE.md) and the
-> [Phase 106 authority revalidation](https://github.com/kehto/web/blob/chore/napplet-scheme-conformance/.planning/phases/106-active-surface-conformance-and-release/106-AUTHORITY-REVALIDATION.md).
+> [Phase 106 authority revalidation](../../../.planning/milestones/v1.29-phases/106-active-surface-conformance-and-release/106-AUTHORITY-REVALIDATION.md).
 
 # NAP-INTENT — Archetype intent dispatch (kehto runtime)
 

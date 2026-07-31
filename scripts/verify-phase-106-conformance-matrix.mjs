@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const matrixPath = resolve(repoRoot, '.planning/phases/106-active-surface-conformance-and-release/106-CONFORMANCE-MATRIX.md');
-const requirementsPath = resolve(repoRoot, '.planning/REQUIREMENTS.md');
+const matrixPath = resolve(repoRoot, '.planning/milestones/v1.29-phases/106-active-surface-conformance-and-release/106-CONFORMANCE-MATRIX.md');
+const requirementsPath = resolve(repoRoot, '.planning/milestones/v1.29-REQUIREMENTS.md');
 const CANONICAL_COMMAND = 'node scripts/verify-phase-106-conformance-matrix.mjs --check';
 const FOCUSED_TEST_FILES = [
   'tests/unit/nip5d-conformance-guard.test.ts',
@@ -16,6 +16,7 @@ const FOCUSED_TEST_FILES = [
   'tests/unit/published-napplet-contract.test.ts',
   'packages/shell/src/napplet-namespace.test.ts',
   'packages/shell/src/shell-supports-conformance.test.ts',
+  'packages/paja/src/browser-host.test.ts',
   'tests/unit/identity-theme-conformance-guard.test.ts',
   'tests/unit/nap-inc-conformance.test.ts',
 ];
