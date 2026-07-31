@@ -58,31 +58,29 @@
 
 ## Traceability
 
-Updated during roadmap creation. Every v1.30 requirement must map to exactly one phase.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VIS-01 | TBD | Pending |
-| VIS-02 | TBD | Pending |
-| VIS-03 | TBD | Pending |
-| PAJA-01 | TBD | Pending |
-| PAJA-02 | TBD | Pending |
-| PAJA-03 | TBD | Pending |
-| PAJA-04 | TBD | Pending |
-| RECOV-01 | TBD | Pending |
-| RECOV-02 | TBD | Pending |
-| RECOV-03 | TBD | Pending |
-| A11Y-01 | TBD | Pending |
-| A11Y-02 | TBD | Pending |
-| PROOF-01 | TBD | Pending |
-| PROOF-02 | TBD | Pending |
-| PROOF-03 | TBD | Pending |
+| VIS-01 | Phase 107 | Pending |
+| VIS-02 | Phase 107 | Pending |
+| VIS-03 | Phase 107 | Pending |
+| PAJA-01 | Phase 107 | Pending |
+| PAJA-02 | Phase 107 | Pending |
+| PAJA-03 | Phase 107 | Pending |
+| PAJA-04 | Phase 107 | Pending |
+| RECOV-01 | Phase 108 | Pending |
+| RECOV-02 | Phase 108 | Pending |
+| RECOV-03 | Phase 108 | Pending |
+| A11Y-01 | Phase 108 | Pending |
+| A11Y-02 | Phase 108 | Pending |
+| PROOF-01 | Phase 108 | Pending |
+| PROOF-02 | Phase 108 | Pending |
+| PROOF-03 | Phase 108 | Pending |
 
 **Coverage:**
 - v1.30 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15
+- Mapped to phases: 15
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-31*
-*Last updated: 2026-07-31 after v1.30 scope definition*
+*Last updated: 2026-07-31 after v1.30 roadmap creation*

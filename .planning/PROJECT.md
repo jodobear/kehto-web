@@ -262,7 +262,7 @@ v1.6 unblocked hyprgate v2.0 by closing 6 of 8 Kehto Migration gap-analysis issu
 - **Decrypt-demo fixture pending repair** — Backlog 999.1 remains valid and intentionally separate from the static publication route milestone.
 - **Lint task surface** — `pnpm lint` succeeds but turbo currently reports no configured package lint tasks; type-check, unit tests, E2E, and static guards carry verification.
 - **Stricter structural scanner policy** — v1.16 removed the current-threshold warnings. Lowering `maxFunctionLoc` toward 80 and `maxFileLoc` toward 400 remains future policy work.
-- **Paja/playground visual follow-up** — Phase 105's desktop/mobile audit scored 12/24. Recoverability, type scale, semantic tokens/spacing, and mobile composition remain non-passing post-merge debt owned by Kehto maintainers; Phase 106 provides protocol/runtime conformance, not visual sign-off.
+- **Paja/playground visual follow-up** — Phase 105's desktop/mobile audit scored 12/24. v1.30 now owns recoverability, type scale, semantic tokens/spacing, and mobile Paja composition; the broader playground topology-canvas redesign remains future work.
 
 ## Key Decisions
 
@@ -313,6 +313,9 @@ v1.6 unblocked hyprgate v2.0 by closing 6 of 8 Kehto Migration gap-analysis issu
 | 42 | The Phase 105 12/24 UI audit remains non-passing post-merge debt | The audit is acknowledged and owned by Kehto maintainers, but Phase 106 closes protocol/runtime conformance only and must not imply visual approval. | 2026-07-27 |
 | 43 | v1.29 registry publication is a separate terminal proof after PR readiness | Release completion requires exact-main CI and Pages, successful npm/JSR workflow steps, direct registry metadata for all seven versions, and a clean downstream install/import/build; Release #30350331202 and the recorded consumer smoke provide that proof. | 2026-07-28 |
 | 44 | Phase 106 publication must remain compatible with the current Napplet `latest` line | PR #211 had no package changeset and the former Kehto release accepted only Napplet 0.29. Corrective PR #220 added explicit eight-package release intent and canonical 0.31 adoption; Version Packages PR #221 plus Release #30389303760 published and downstream-verified the current line. | 2026-07-28 |
+| 45 | v1.30 is visual and accessibility recovery only | Closing the Phase 105 12/24 audit must not add, remove, reshape, or reinterpret NAP messages, capabilities, routing, lifecycle behavior, or package versions. | 2026-07-31 |
+| 46 | A validated UI-SPEC gates v1.30 implementation | Mobile hierarchy, recovery interactions, semantic token roles, and visual proof need one explicit design contract before code changes begin. | 2026-07-31 |
+| 47 | v1.31 follows with the issue #187 runtime conformance suite | The suite has higher long-term leverage but requires a separate live-authority refresh and a larger engine, CLI, and browser scope. | 2026-07-31 |
 
 ## Evolution
 
