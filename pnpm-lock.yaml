@@ -519,9 +519,6 @@ importers:
       '@kehto/wm':
         specifier: workspace:^
         version: link:../wm
-      es-module-lexer:
-        specifier: ^2.0.0
-        version: 2.0.0
     devDependencies:
       '@napplet/core':
         specifier: '>=0.31.0 <0.32.0'

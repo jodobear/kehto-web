@@ -31,8 +31,7 @@
     "@kehto/runtime": "workspace:^",
     "@kehto/services": "workspace:^",
     "@kehto/shell": "workspace:^",
-    "@kehto/wm": "workspace:^",
-    "es-module-lexer": "^2.0.0"
+    "@kehto/wm": "workspace:^"
   },
   "peerDependencies": {
     "@napplet/core": ">=0.31.0 <0.32.0",

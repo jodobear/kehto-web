@@ -6,7 +6,8 @@ import {
 import { createDevTheme, createPajaAdapter, PAJA_DEV_SIGNER_PUBKEY } from './browser-adapter.js';
 import { confirmPajaRequest, createHostSignerController, hasNip07Signer } from './browser-host-signer.js';
 import {
-  cancelExternalFrameNavigation, destroyExternalFrameNavigation, settleExternalNavigationReady,
+  cancelExternalFrameNavigation, destroyExternalFrameNavigation, failCurrentExternalNavigation,
+  settleExternalNavigationIfReady,
   startExternalFrameNavigation, unregisterSingleFrameWindow,
 } from './browser-host-runtime.js';
 import { BrowserIntentController } from './browser-intent-controller.js';
@@ -130,6 +131,9 @@ export interface PajaBrowserStateContext extends PajaRuntimeTabContext {
   externalAttemptTimeoutId: number | null;
   externalAttemptController: AbortController | null;
   externalAttemptErrorDisposer: (() => void) | null;
+  externalLifecycleToken: string | null;
+  externalShellReady: boolean;
+  externalDocumentComplete: boolean;
   externalFocusFrameOnReady: boolean;
   refreshExternalConfig(signal: AbortSignal): Promise<PajaHostConfig>;
   pointerTargetSurface: PajaTargetSurface | null;
@@ -464,6 +468,30 @@ function installPajaMessageListener(
     const sourceWindowId = sourceTab?.windowId ?? registeredWindowId ?? undefined;
     if (sourceTab && (!source || !sourceWindowId || registeredWindowId !== sourceWindowId)) return;
     if (isSingleFrameMessage && (!sourceWindowId || sourceWindowId !== runtime.currentWindowId)) return;
+    const data = event.data as { type?: unknown; source?: unknown; token?: unknown } | null;
+    if (isSingleFrameMessage && data && typeof data === 'object') {
+      if (data.type === 'paja.external.document.complete') {
+        if (data.token !== context.externalLifecycleToken) return;
+        context.externalDocumentComplete = true;
+        settleExternalNavigationIfReady(state, context);
+        return;
+      }
+      if (data.type === 'paja.external.module.error') {
+        if (data.token !== context.externalLifecycleToken) return;
+        const moduleSource = typeof data.source === 'string' && data.source
+          ? ` (${data.source})`
+          : '';
+        failCurrentExternalNavigation(
+          state,
+          context,
+          new Error(
+            `Target module failed to load in the sandboxed frame${moduleSource}. `
+            + 'Check module URLs, redirects, credentials, and CORS for opaque Origin: null.',
+          ),
+        );
+        return;
+      }
+    }
     appendPajaMessageLog(state, 'napplet->shell', event.data, sourceWindowId);
     const proxiedSource = createPajaPostMessageProxy(event.source as Window, state, sourceWindowId);
     const syntheticEvent = new Proxy(event, {
@@ -474,7 +502,6 @@ function installPajaMessageListener(
       },
     }) as MessageEvent;
     bridge.handleMessage(syntheticEvent);
-    const data = event.data as { type?: unknown } | null;
     if (data && typeof data === 'object' && data.type === 'shell.ready') {
       if (sourceTab) {
         if (source && !markRuntimeTabReady(
@@ -495,11 +522,8 @@ function installPajaMessageListener(
         sourceTab.frame.hidden = !isActiveTab;
       } else {
         if (sourceWindowId) runtime.readyWindowIds.add(sourceWindowId);
-        state.status = 'ready';
-        settleExternalNavigationReady(context);
-        const focusFrame = context.externalFocusFrameOnReady;
-        context.externalFocusFrameOnReady = false;
-        context.targetSurface?.showReady({ focusFrame });
+        context.externalShellReady = true;
+        settleExternalNavigationIfReady(state, context);
       }
     }
   });
@@ -551,7 +575,8 @@ async function installPajaHost(): Promise<void> {
     capabilities,
     runtime,
     targetSurface: null, externalAttemptGeneration: null, externalAttemptTimeoutId: null,
-    externalAttemptController: null, externalAttemptErrorDisposer: null, externalFocusFrameOnReady: false,
+    externalAttemptController: null, externalAttemptErrorDisposer: null, externalLifecycleToken: null,
+    externalShellReady: false, externalDocumentComplete: false, externalFocusFrameOnReady: false,
     refreshExternalConfig: (signal) => readLatestConfig(context.config, signal),
     pointerTargetSurface: null, pointerAttemptGeneration: null, pointerAttemptController: null,
     pointerRequestGeneration: 0, pointerFocusFrameOnReady: false, destroyed: false,

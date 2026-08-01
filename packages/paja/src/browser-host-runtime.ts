@@ -4,7 +4,6 @@ import {
 } from '@kehto/shell';
 
 import { appendPajaMessageLog } from './browser-devtools.js';
-import { requireTargetCorsAllowed } from './browser-target-diagnostics.js';
 import type {
   PajaBrowserState,
   PajaBrowserStateContext,
@@ -47,8 +46,12 @@ export function startExternalFrameNavigation(
     new Error('Target navigation cancelled because a newer attempt started.'),
   );
   const controller = new AbortController();
+  const lifecycleToken = createExternalLifecycleToken();
   context.externalAttemptGeneration = generation;
   context.externalAttemptController = controller;
+  context.externalLifecycleToken = lifecycleToken;
+  context.externalShellReady = false;
+  context.externalDocumentComplete = false;
   const isCurrentAttempt = () => isCurrentGeneration()
     && context.externalAttemptGeneration === generation
     && context.externalAttemptController === controller;
@@ -59,7 +62,9 @@ export function startExternalFrameNavigation(
       context,
       generation,
       controller,
-      new Error(`Target readiness timed out after ${attemptBudgetMs}ms without shell.ready.`),
+      new Error(
+        `Target readiness timed out after ${attemptBudgetMs}ms without ${pendingExternalReadiness(context)}.`,
+      ),
     );
   }, attemptBudgetMs);
   void context.refreshExternalConfig(controller.signal).then((attemptConfig) => {
@@ -67,19 +72,17 @@ export function startExternalFrameNavigation(
     context.config = attemptConfig;
     state.config = attemptConfig;
     context.setActiveTarget(null);
-    return requireTargetCorsAllowed(state, controller.signal).then(() => {
-      if (!isCurrentAttempt()) return null;
-      return navigateFrame(
-        frame, attemptConfig, generation, adapter, state.resolvedTarget, undefined, isCurrentAttempt,
-        (windowId) => {
-          if (isCurrentAttempt()) {
-            runtime.currentWindowId = windowId;
-            armExternalFrameErrorHandler(state, context, generation, controller);
-          }
-        },
-        controller.signal,
-      );
-    });
+    return navigateFrame(
+      frame, attemptConfig, generation, adapter, state.resolvedTarget, undefined, isCurrentAttempt,
+      (windowId) => {
+        if (isCurrentAttempt()) {
+          runtime.currentWindowId = windowId;
+          armExternalFrameErrorHandler(state, context, generation, controller);
+        }
+      },
+      controller.signal,
+      lifecycleToken,
+    );
   }).then((windowId) => {
     if (!isCurrentAttempt()) {
       unregisterSingleFrameWindow(bridge, runtime, windowId);
@@ -114,6 +117,9 @@ export function cancelExternalFrameNavigation(
   const controller = context.externalAttemptController;
   context.externalAttemptController = null;
   context.externalAttemptGeneration = null;
+  context.externalLifecycleToken = null;
+  context.externalShellReady = false;
+  context.externalDocumentComplete = false;
   if (controller && !controller.signal.aborted) controller.abort(reason);
 }
 
@@ -123,6 +129,43 @@ export function settleExternalNavigationReady(context: PajaBrowserStateContext):
   clearExternalFrameErrorHandler(context);
   context.externalAttemptController = null;
   context.externalAttemptGeneration = null;
+  context.externalLifecycleToken = null;
+  context.externalShellReady = false;
+  context.externalDocumentComplete = false;
+}
+
+/** Show external readiness only after protocol and browser lifecycle gates both settle. */
+export function settleExternalNavigationIfReady(
+  state: PajaBrowserState,
+  context: PajaBrowserStateContext,
+): boolean {
+  const generation = context.externalAttemptGeneration;
+  const controller = context.externalAttemptController;
+  if (
+    !context.externalShellReady
+    || !context.externalDocumentComplete
+    || generation === null
+    || controller === null
+    || state.generation !== generation
+  ) return false;
+  state.status = 'ready';
+  settleExternalNavigationReady(context);
+  const focusFrame = context.externalFocusFrameOnReady;
+  context.externalFocusFrameOnReady = false;
+  context.targetSurface?.showReady({ focusFrame });
+  return true;
+}
+
+/** Fail the currently owned external attempt from a trusted browser lifecycle signal. */
+export function failCurrentExternalNavigation(
+  state: PajaBrowserState,
+  context: PajaBrowserStateContext,
+  error: Error,
+): boolean {
+  const generation = context.externalAttemptGeneration;
+  const controller = context.externalAttemptController;
+  if (generation === null || controller === null) return false;
+  return settleExternalNavigationFailure(state, context, generation, controller, error);
 }
 
 /** Release external attempt and session ownership when the host is destroyed. */
@@ -193,4 +236,17 @@ export function armExternalFrameErrorHandler(
 function clearExternalFrameErrorHandler(context: PajaBrowserStateContext): void {
   context.externalAttemptErrorDisposer?.();
   context.externalAttemptErrorDisposer = null;
+}
+
+function pendingExternalReadiness(context: PajaBrowserStateContext): string {
+  const pending = [
+    context.externalShellReady ? null : 'shell.ready',
+    context.externalDocumentComplete ? null : 'document completion',
+  ].filter((value): value is string => value !== null);
+  return pending.join(' and ') || 'readiness completion';
+}
+
+function createExternalLifecycleToken(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `paja-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }

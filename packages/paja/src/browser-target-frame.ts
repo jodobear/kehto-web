@@ -86,6 +86,7 @@ export async function navigateFrame(
   isCurrent?: () => boolean,
   onRegistered?: (windowId: string | null) => void,
   signal?: AbortSignal,
+  externalLifecycleToken?: string,
 ): Promise<string | null> {
   const identity = getTargetOriginIdentity(config, resolvedTarget);
   const environment = resolvePajaFrameEnvironment(adapter, identity);
@@ -109,13 +110,19 @@ export async function navigateFrame(
     );
     return registeredWindowId;
   }
+  if (!externalLifecycleToken) {
+    throw new Error('External target navigation requires an owned lifecycle token.');
+  }
   const html = await fetchTargetHtml(signal);
   if (isCurrent && !isCurrent()) return null;
   const registeredWindowId = registerFrameForGeneration(frame, config, generation, identity, environment, windowId);
   onRegistered?.(registeredWindowId);
   frame.removeAttribute('src');
   frame.srcdoc = injectNappletNamespacePrelude(
-    injectBaseHref(html, config.target.url),
+    injectExternalTargetLifecycleObserver(
+      injectBaseHref(html, config.target.url),
+      externalLifecycleToken,
+    ),
     { domains },
   );
   return registeredWindowId;
@@ -162,6 +169,44 @@ function injectBaseHref(html: string, targetUrl: string): string {
     return html.replace(/<html[^>]*>/i, (open) => `${open}<head>${base}</head>`);
   }
   return `${base}${html}`;
+}
+
+/** Insert Paja's external-target-only browser lifecycle observer before authored scripts. */
+function injectExternalTargetLifecycleObserver(html: string, token: string): string {
+  const tokenJson = JSON.stringify(token).replace(/</g, '\\u003c');
+  const observer = `<script data-kehto-paja-external-lifecycle>(${externalTargetLifecycleObserver.toString()})(${tokenJson});</script>`;
+  const cspMeta = /(<meta\s+http-equiv=["']Content-Security-Policy["'][^>]*>)/i;
+  if (cspMeta.test(html)) {
+    return html.replace(cspMeta, (match) => `${match}${observer}`);
+  }
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/<head[^>]*>/i, (open) => `${open}${observer}`);
+  }
+  if (/<html[^>]*>/i.test(html)) {
+    return html.replace(/<html[^>]*>/i, (open) => `${open}<head>${observer}</head>`);
+  }
+  return `${observer}${html}`;
+}
+
+/** Runs inside external target srcdoc; keep self-contained for serialization. */
+function externalTargetLifecycleObserver(token: string): void {
+  let moduleFailureReported = false;
+  const postToParent = window.parent.postMessage.bind(window.parent);
+  document.currentScript?.remove();
+  const post = (message: Record<string, unknown>): void => postToParent({ ...message, token }, '*');
+  window.addEventListener('error', (event) => {
+    const target = event.target;
+    if (moduleFailureReported || !(target instanceof HTMLScriptElement)) return;
+    if (target.type.trim().toLowerCase() !== 'module') return;
+    moduleFailureReported = true;
+    post({
+      type: 'paja.external.module.error',
+      source: target.src || document.baseURI,
+    });
+  }, true);
+  window.addEventListener('load', () => {
+    post({ type: 'paja.external.document.complete' });
+  }, { once: true });
 }
 
 function escapeAttribute(value: string): string {

@@ -73,7 +73,7 @@ test('recovers an external target through stable host error controls', async ({ 
 
   try {
     await page.goto(recoveryRuntime.url);
-    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(2);
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(1);
     await page.locator('#message-filter').focus();
     recoveryTarget.releaseHeldFailure();
 
@@ -106,7 +106,7 @@ test('recovers an external target through stable host error controls', async ({ 
     recoveryTarget.failNext(repeatDiagnostic, { hold: true });
     await retry.focus();
     await retry.press('Enter');
-    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(4);
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(2);
     await expect(surface).toHaveAttribute('aria-busy', 'true');
     await expect(surface.locator('.paja-target-heading')).toHaveText('Retrying target…');
     await expect(retry).toBeVisible();
@@ -115,7 +115,7 @@ test('recovers an external target through stable host error controls', async ({ 
     await page.keyboard.press('Enter');
     await page.keyboard.press('Space');
     await retry.evaluate((button) => button.click());
-    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(4);
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(2);
     await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1))
       .toBe(failedGeneration + 1);
 
@@ -139,7 +139,7 @@ test('recovers an external target through stable host error controls', async ({ 
       .toBe(repeatFailureGeneration);
 
     await retry.click();
-    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(6);
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(3);
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
     await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
       'shell-init received',
@@ -200,7 +200,7 @@ test('settles a missing external shell.ready handshake into retryable recovery',
       (window as Window & { __pajaWithholdReady?: boolean }).__pajaWithholdReady = false;
     });
     await surface.locator('.paja-target-retry').click();
-    await expect.poll(() => target.htmlRequestCount).toBe(4);
+    await expect.poll(() => target.htmlRequestCount).toBe(2);
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
     await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('napplet-frame');
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
@@ -245,7 +245,7 @@ test('settles a never-settling external target fetch and retries through the sam
     const surface = page.locator('.paja-target-surface');
     await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
     await expect(surface.locator('.paja-target-diagnostic')).toContainText(
-      'Target readiness timed out after 100ms without shell.ready.',
+      'Target readiness timed out after 100ms without shell.ready and document completion.',
     );
     await expect(surface.locator('.paja-target-retry')).toBeEnabled();
     const failedGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
@@ -264,7 +264,7 @@ test('settles a never-settling external target fetch and retries through the sam
 
     await surface.locator('.paja-target-retry').click();
     await expect.poll(() => proxyRequestCount).toBe(2);
-    await expect.poll(() => target.htmlRequestCount).toBe(3);
+    await expect.poll(() => target.htmlRequestCount).toBe(1);
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
     await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
       'shell-init received',
@@ -387,16 +387,16 @@ test('keeps a CORS-blocked target module in recovery until retry can load it', a
     const surface = page.locator('.paja-target-surface');
     await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
     await expect(surface.locator('.paja-target-diagnostic')).toContainText(
-      'Target sent no access-control-allow-origin for an Origin: null request.',
+      'Target module failed to load in the sandboxed frame',
     );
     await expect(surface.locator('.paja-target-retry')).toBeEnabled();
-    expect(await page.locator('#napplet-frame').getAttribute('srcdoc')).toBeNull();
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('srcdoc', /Paja inactive target/);
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
       status: 'error',
       initSent: false,
     });
     expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
-      .filter((entry) => entry.type === 'paja.target.cors.error').length ?? -1)).toBe(1);
+      .filter((entry) => entry.type === 'paja.target.error').length ?? -1)).toBe(1);
 
     target.setModuleCorsAllowed(true);
     await surface.locator('.paja-target-retry').click();
@@ -487,6 +487,37 @@ test('loads browser-supported data module imports without terminal rejection', a
   }
 });
 
+test('ignores an authored forged completion before a real module failure', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  target.setExternalModule(true);
+  target.setModuleCorsAllowed(false);
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: `${target.url}?forgedLifecycle=1`,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(
+      'Target module failed to load in the sandboxed frame',
+    );
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'error',
+      initSent: false,
+    });
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
 test('keeps a CORS-blocked module dependency in recovery until retry can load it', async ({ page }) => {
   test.setTimeout(30_000);
   const target = await startTargetServer();
@@ -507,7 +538,7 @@ test('keeps a CORS-blocked module dependency in recovery until retry can load it
     const surface = page.locator('.paja-target-surface');
     await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
     await expect(surface.locator('.paja-target-diagnostic')).toContainText(
-      'Target sent no access-control-allow-origin for an Origin: null request.',
+      'Target module failed to load in the sandboxed frame',
     );
     await expect(surface.locator('.paja-target-retry')).toBeEnabled();
 
@@ -611,13 +642,13 @@ test('refreshes target A to B before Retry base injection and readiness', async 
 
   try {
     await page.goto(runtime.url);
-    await expect.poll(() => targetA.htmlRequestCount).toBe(2);
+    await expect.poll(() => targetA.htmlRequestCount).toBe(1);
     runtime.updateTargetUrl(targetB.url);
     const surface = page.locator('.paja-target-surface');
     await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
 
     await surface.locator('.paja-target-retry').click();
-    await expect.poll(() => targetB.htmlRequestCount).toBe(2);
+    await expect.poll(() => targetB.htmlRequestCount).toBe(1);
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 2_000 });
     await expect(page.locator('.target')).toHaveText(targetB.url);
     await expect(page.locator('#napplet-frame')).toHaveAttribute('data-target-url', targetB.url);
@@ -1374,7 +1405,6 @@ async function startTargetServer(): Promise<TargetServer> {
   const failures: Array<{
     readonly message: string;
     readonly hold: boolean;
-    remainingDocumentScans: number;
   }> = [];
   let corsAllowed = true;
   let externalModule = false;
@@ -1429,11 +1459,7 @@ async function startTargetServer(): Promise<TargetServer> {
 
     if (typeof request.headers.origin !== 'string') {
       htmlRequestCount += 1;
-      const pendingFailure = failures[0];
-      const failure = pendingFailure?.remainingDocumentScans === 0 ? failures.shift() : undefined;
-      if (pendingFailure && pendingFailure.remainingDocumentScans > 0) {
-        pendingFailure.remainingDocumentScans -= 1;
-      }
+      const failure = failures.shift();
       if (failure) {
         const respond = () => {
           (response as typeof response & { statusMessage: string }).statusMessage = failure.message;
@@ -1470,6 +1496,7 @@ async function startTargetServer(): Promise<TargetServer> {
       externalModule,
       inertModule: requestUrl.searchParams.get('inertModule') === '1',
       dataModule: requestUrl.searchParams.get('dataModule') === '1',
+      forgedLifecycle: requestUrl.searchParams.get('forgedLifecycle') === '1',
     }));
   });
 
@@ -1496,7 +1523,6 @@ async function startTargetServer(): Promise<TargetServer> {
       failures.push({
         message,
         hold: options?.hold === true,
-        remainingDocumentScans: 1,
       });
     },
     setCorsAllowed(allowed) {
@@ -1553,6 +1579,7 @@ function renderTargetHtml(
     externalModule: boolean;
     inertModule: boolean;
     dataModule: boolean;
+    forgedLifecycle: boolean;
   },
 ): string {
   const requiredDomainsJson = JSON.stringify(options.requiredDomains);
@@ -1564,6 +1591,7 @@ function renderTargetHtml(
   <head>
     <meta charset="utf-8">
     <title>Kehto Paja fixture</title>
+    ${options.forgedLifecycle ? '<script>window.parent.postMessage({ type: "paja.external.document.complete", token: "forged" }, "*");</script>' : ''}
     ${options.externalModule ? '<script type="module" src="/entry.js"></script>' : ''}
     ${options.inertModule ? '<!-- <script type="module" src="/inert-module.js"></script> --><template><script type="module" src="/inert-module.js"></script></template>' : ''}
     ${options.dataModule ? '<script type="module">import "data:text/javascript,document.documentElement.dataset.pajaData=%27loaded%27";</script>' : ''}

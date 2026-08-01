@@ -83,7 +83,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
     );
     expect(source).toContain("if (config.target.mode === 'runtime-pointer')");
     expect(source).toContain(
-      'frame.srcdoc = injectNappletNamespacePrelude(\n    injectBaseHref(html, config.target.url),',
+      'frame.srcdoc = injectNappletNamespacePrelude(\n    injectExternalTargetLifecycleObserver(\n      injectBaseHref(html, config.target.url),',
     );
     expect(source).not.toContain('bridge.runtime.sessionRegistry.register(');
   });
@@ -132,6 +132,8 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(frameSource).toContain("'paja.external.document.complete'");
     expect(frameSource).toContain("'paja.external.module.error'");
     expect(frameSource).toContain('injectExternalTargetLifecycleObserver(');
+    expect(frameSource).toContain('document.currentScript?.remove();');
+    expect(hostSource).toContain('data.token !== context.externalLifecycleToken');
     expect(hostSource).toContain("data.type === 'paja.external.document.complete'");
     expect(hostSource).toContain("data.type === 'paja.external.module.error'");
     expect(runtimeSource).not.toContain('requireTargetCorsAllowed');
@@ -282,7 +284,8 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(runtimeSource).toContain("frame.addEventListener('error', handleError, { once: true });");
     expect(targetSource).toContain('signal?: AbortSignal');
     expect(targetSource).toContain('const html = await fetchTargetHtml(signal);');
-    expect(hostSource).toContain('settleExternalNavigationReady(context);');
+    expect(hostSource).toContain('settleExternalNavigationIfReady(state, context);');
+    expect(runtimeSource).toContain('settleExternalNavigationReady(context);');
     expect(hostSource).toContain('destroyExternalFrameNavigation(context);');
   });
 

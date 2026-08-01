@@ -132,107 +132,14 @@ describe('@kehto/paja server', () => {
     }
   });
 
-  it('allows self-contained target HTML without a CORS response header', async () => {
-    const target = await startTargetServer(
-      '<!doctype html><html><body>target</body></html>',
-      () => ({}),
-    );
-    const server = await startPajaServer({ options: { targetUrl: target.url, port: 0 } });
-
-    try {
-      const diagnostic = JSON.parse(await fetchText(`${server.url}__kehto/target-cors.json`)) as {
-        status: string;
-        allowOrigin: string | null;
-        hint: string | null;
-      };
-
-      expect(diagnostic.status).toBe('allowed');
-      expect(diagnostic.allowOrigin).toBeNull();
-      expect(diagnostic.hint).toBeNull();
-    } finally {
-      await server.close();
-      await target.close();
-    }
-  });
-
-  it('reports an external module that blocks the sandboxed frame null origin', async () => {
-    const target = await startTargetServer(
-      '<!doctype html><html><head><script type="module" src="/entry.js"></script></head></html>',
-      (_origin, pathname): Record<string, string> =>
-        pathname === '/entry.js' ? {} : { 'access-control-allow-origin': '*' },
-    );
-    const server = await startPajaServer({ options: { targetUrl: target.url, port: 0 } });
-
-    try {
-      const diagnostic = JSON.parse(await fetchText(`${server.url}__kehto/target-cors.json`)) as {
-        status: string;
-        targetUrl: string;
-        hint: string | null;
-      };
-
-      expect(diagnostic.status).toBe('blocked');
-      expect(diagnostic.targetUrl).toBe(`${target.url}entry.js`);
-      expect(diagnostic.hint).toContain('allow-same-origin');
-    } finally {
-      await server.close();
-      await target.close();
-    }
-  });
-
-  it('allows an external module that accepts the sandboxed frame null origin', async () => {
-    const target = await startTargetServer(
-      '<!doctype html><html><head><script src="/classic.js"></script><script src="/entry.js" type="module"></script></head></html>',
-      () => ({ 'access-control-allow-origin': '*' }),
-    );
-    const server = await startPajaServer({ options: { targetUrl: target.url, port: 0 } });
-
-    try {
-      const diagnostic = JSON.parse(await fetchText(`${server.url}__kehto/target-cors.json`)) as {
-        status: string;
-        hint: string | null;
-      };
-
-      expect(diagnostic.status).toBe('allowed');
-      expect(diagnostic.hint).toBeNull();
-    } finally {
-      await server.close();
-      await target.close();
-    }
-  });
-
-  it('scans a target whose document rejects synthetic Origin headers', async () => {
-    const target = await startTargetServer(
-      '<!doctype html><html><head><script type="module" src="/entry.js"></script></head></html>',
-      () => ({ 'access-control-allow-origin': '*' }),
-      { rejectDocumentOrigin: true },
-    );
-    const server = await startPajaServer({ options: { targetUrl: target.url, port: 0 } });
-
-    try {
-      const diagnostic = JSON.parse(await fetchText(`${server.url}__kehto/target-cors.json`)) as {
-        status: string;
-        hint: string | null;
-      };
-
-      expect(diagnostic.status).toBe('allowed');
-      expect(diagnostic.hint).toBeNull();
-    } finally {
-      await server.close();
-      await target.close();
-    }
-  });
-
-  it('reports an unreachable target without failing the endpoint', async () => {
+  it('keeps module loading browser-authoritative instead of exposing a crawler endpoint', async () => {
     const server = await startPajaServer({
-      options: { targetUrl: 'http://127.0.0.1:1/', port: 0 },
+      options: { targetUrl: 'http://127.0.0.1:5173/', port: 0 },
     });
 
     try {
-      const diagnostic = JSON.parse(await fetchText(`${server.url}__kehto/target-cors.json`)) as {
-        status: string;
-      };
-
-      expect(diagnostic.status).toBe('unreachable');
+      const response = await fetch(`${server.url}__kehto/target-cors.json`);
+      expect(response.status).toBe(404);
     } finally {
       await server.close();
     }
@@ -254,21 +161,12 @@ async function fetchText(url: string): Promise<string> {
 
 async function startTargetServer(
   html: string,
-  corsHeaders?: (origin: string | undefined, pathname: string) => Record<string, string>,
-  options: { readonly rejectDocumentOrigin?: boolean } = {},
 ): Promise<TargetServer> {
   const server = createServer((request, response) => {
-    const origin = request.headers.origin;
     const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
-    if (options.rejectDocumentOrigin && pathname === '/' && typeof origin === 'string') {
-      response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
-      response.end('Origin not accepted for HTML');
-      return;
-    }
     response.writeHead(200, {
       'cache-control': 'no-store',
       'content-type': pathname.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8',
-      ...corsHeaders?.(typeof origin === 'string' ? origin : undefined, pathname),
     });
     response.end(pathname.endsWith('.js') ? 'export {};' : html);
   });
