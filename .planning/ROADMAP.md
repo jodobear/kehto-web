@@ -36,13 +36,13 @@ Close the archived Phase 105 `12/24` UI review debt across Paja and playground f
 3. A failed target displays a host-styled explanation, secondary diagnostics, keyboard retry, and clear return path instead of raw iframe `<pre>` output.
 4. Retry reuses the existing verified target loader and all protocol/conformance guards prove no NAP message, capability, routing, lifecycle, or package behavior changed.
 
-**Plans**: 7/8 plans executed
+**Plans**: 8/8 plans executed
 
 Plans:
 
 - [x] 107-06-PLAN.md
 - [x] 107-07-PLAN.md
-- [ ] 107-08-PLAN.md — Close three exact-head external-review recovery defects and obtain clean re-review.
+- [x] 107-08-PLAN.md — Close fourteen exact-head recovery findings and obtain clean exact-head re-review.
 
 **Wave 1**
 
@@ -88,7 +88,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 107. Readable Responsive Paja System | 7/7 | In Progress | - |
+| 107. Readable Responsive Paja System | 8/8 | Ready for verification | - |
 | 108. Recoverable Napplet States and Visual Proof | 0/TBD | Not started | - |
 
 ## Backlog
@@ -98,4 +98,4 @@ Plans:
 Investigate and fix the playground `decrypt-demo` remaining in `waiting for fixtures` / `[pending]`. Context: `.planning/backlog/999.1-fix-decrypt-demo-fixture-pending/999.1-CONTEXT.md`.
 
 ---
-*ROADMAP.md last updated: 2026-07-31 for v1.30 initialization.*
+*ROADMAP.md last updated: 2026-08-01 after Phase 107 plan execution and exact-head review.*
