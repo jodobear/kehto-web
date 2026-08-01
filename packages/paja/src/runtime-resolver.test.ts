@@ -245,6 +245,45 @@ describe('Paja runtime pointer resolver', () => {
     expect(closed).toBe(true);
   });
 
+  it('aborts a held relay subscription before artifact resolution', async () => {
+    const manifest = await buildManifest({ dTag: 'cancelled-host' });
+    const pointer = naddrEncode({
+      identifier: manifest.dTag,
+      pubkey: manifest.event.pubkey,
+      kind: PAJA_NAPPLET_MANIFEST_KIND,
+      relays: [RELAY],
+    });
+    let closeReason: string | undefined;
+    let fetchCalls = 0;
+    const pool: PajaPointerRelayPool = {
+      async querySync() {
+        throw new Error('querySync fallback should not run');
+      },
+      subscribeManyEose() {
+        return {
+          close(reason) {
+            closeReason = reason;
+          },
+        };
+      },
+    };
+    const controller = new AbortController();
+    const resolving = resolvePajaPointer(pointer, {
+      pool,
+      signal: controller.signal,
+      fetcher: async () => {
+        fetchCalls += 1;
+        throw new Error('artifact fetch must not start after host teardown');
+      },
+    });
+
+    controller.abort(new Error('host destroyed'));
+
+    await expect(resolving).rejects.toThrow('host destroyed');
+    expect(closeReason).toBe('Paja pointer resolution aborted');
+    expect(fetchCalls).toBe(0);
+  });
+
   it('distinguishes all-relays EOSE no-match from relay connection failure', async () => {
     const manifest = await buildManifest({ dTag: 'diagnostics' });
     const pointer = naddrEncode({

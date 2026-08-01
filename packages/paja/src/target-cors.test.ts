@@ -6,7 +6,7 @@ import {
   type PajaTargetCorsFetch,
 } from './target-cors.js';
 
-const TARGET = 'http://127.0.0.1:5173/';
+const TARGET = 'http://127.0.0.1:5173/entry.js';
 
 describe('classifyTargetCors', () => {
   it('accepts a wildcard allow-origin', () => {
@@ -33,9 +33,6 @@ describe('classifyTargetCors', () => {
     expect(classifyTargetCors(TARGET, '').status).toBe('blocked');
   });
 
-  // Vite's default server.cors allowlist echoes localhost origins but rejects
-  // the sandboxed frame's opaque `Origin: null`, which is the exact failure
-  // this diagnostic exists to catch.
   it('blocks an echoed localhost allow-origin', () => {
     const diagnostic = classifyTargetCors(TARGET, 'http://127.0.0.1:5198');
 
@@ -66,7 +63,7 @@ describe('probeTargetCors', () => {
     expect(diagnostic.status).toBe('allowed');
   });
 
-  it('reports an unreachable target instead of throwing', async () => {
+  it('reports an unreachable resource instead of throwing', async () => {
     const fetchImpl: PajaTargetCorsFetch = async () => {
       throw new Error('connect ECONNREFUSED');
     };
@@ -75,6 +72,6 @@ describe('probeTargetCors', () => {
 
     expect(diagnostic.status).toBe('unreachable');
     expect(diagnostic.detail).toContain('connect ECONNREFUSED');
-    expect(diagnostic.hint).toContain('--target-url');
+    expect(diagnostic.hint).toContain('target resource');
   });
 });

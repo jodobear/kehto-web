@@ -129,7 +129,7 @@ describe('@kehto/paja options', () => {
     expect(hostConfig.runtime).toMatchObject({
       host: 'static',
       port: 0,
-      readyTimeoutMs: 1,
+      readyTimeoutMs: 30_000,
     });
   });
 

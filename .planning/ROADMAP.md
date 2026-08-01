@@ -2,65 +2,100 @@
 
 ## Milestones
 
-- [x] **v1.0: NIP-5D Migration & Gap Analysis** - 5 phases, 7 plans, 17 requirements ([archive](milestones/v1.0-ROADMAP.md))
-- [x] **v1.1: NIP-5D Migration Implementation** - 4 phases, 8 plans, 16 requirements ([archive](milestones/v1.1-ROADMAP.md))
-- [x] **v1.2: NIP-5D Conformance & Full NUB Coverage** - 6 phases, 19 plans, 26 requirements, 449 tests ([archive](milestones/v1.2-ROADMAP.md) | [audit](milestones/v1.2-MILESTONE-AUDIT.md))
-- [x] **v1.3: Demo Functional & Playwright Parity** - 7 phases (16-22), 43 plans, 37 requirements, 47 E2E specs green ([archive](milestones/v1.3-ROADMAP.md) | [audit](milestones/v1.3-MILESTONE-AUDIT.md))
-- [x] **v1.4: Productionization & Upstream Unblock** - 6 phases (23-28), 17 plans, 20 requirements, 49 E2E specs green ([archive](milestones/v1.4-ROADMAP.md) | [audit](milestones/v1.4-MILESTONE-AUDIT.md))
-- [x] **v1.5: Demo Stability & UAT Coverage** - 3 phases (29-31), 7 plans, 7 requirements, 53 E2E specs green ([archive](milestones/v1.5-ROADMAP.md) | [audit](milestones/v1.5-MILESTONE-AUDIT.md))
-- [x] **v1.6: Downstream Unblock & Shell Service Surface** - 5 phases (32-36), 12 plans, 21 requirements, 54 E2E specs green ([archive](milestones/v1.6-ROADMAP.md) | [audit](milestones/v1.6-MILESTONE-AUDIT.md))
-- [x] **v1.7: NIP-5D Spec Adoption & New NUB Domains** - 5 phases (37-41), 17 plans, 41/41 requirements, 72 E2E specs green ([archive](milestones/v1.7-ROADMAP.md) | [audit](milestones/v1.7-MILESTONE-AUDIT.md))
-- [x] **v1.8: Upstream Alignment & NIP-44 Decrypt** - 5 phases (42-46), 9 plans, 27/27 requirements, 86 E2E specs green ([archive](milestones/v1.8-ROADMAP.md) | [audit](milestones/v1.8-MILESTONE-AUDIT.md))
-- [x] **v1.9: Napplet SDK Migration** - 3 phases (47-49), 3 plans, 12/12 requirements, 86 E2E specs green ([archive](milestones/v1.9-ROADMAP.md) | [audit](milestones/v1.9-MILESTONE-AUDIT.md))
-- [x] **v1.10: Compatibility Window Cleanup & Decrypt Demo Parity** - 3 phases (50-52), 3 plans, 10/10 requirements, 86 E2E specs green ([archive](milestones/v1.10-ROADMAP.md) | [audit](milestones/v1.10-MILESTONE-AUDIT.md))
-- [x] **v1.11: NIP-5A Gateway Artifact Parity** - 3 phases (53-55), 16/16 requirements, 551 unit tests, 87 E2E specs green ([archive](milestones/v1.11-ROADMAP.md) | [audit](milestones/v1.11-MILESTONE-AUDIT.md))
-- [x] **v1.12: NIP-5D Contract Conformance** - 4 phases (56-59), 34/34 requirements, 560 unit tests, 89 E2E specs green ([archive](milestones/v1.12-ROADMAP.md) | [requirements](milestones/v1.12-REQUIREMENTS.md) | [audit](milestones/v1.12-MILESTONE-AUDIT.md))
-- [x] **v1.13: Documentation Strategy & Monorepo Docs Site** - 5 phases (60-64), 28/28 requirements ([archive](milestones/v1.13-ROADMAP.md) | [requirements](milestones/v1.13-REQUIREMENTS.md) | [audit](milestones/v1.13-MILESTONE-AUDIT.md))
-- [x] **v1.14: GitHub Pages Web Portal** - 3 phases (65-67), 13/13 requirements ([archive](milestones/v1.14-ROADMAP.md) | [requirements](milestones/v1.14-REQUIREMENTS.md) | [audit](milestones/v1.14-MILESTONE-AUDIT.md))
-- [x] **v1.15: Address AI Slop** - 5 phases (68-72), 20/20 requirements ([archive](milestones/v1.15-ROADMAP.md) | [requirements](milestones/v1.15-REQUIREMENTS.md) | [audit](milestones/v1.15-MILESTONE-AUDIT.md))
-- [x] **v1.16: Structural Code Quality Refactor** - 4 phases (73-76), 18/18 requirements ([archive](milestones/v1.16-ROADMAP.md) | [requirements](milestones/v1.16-REQUIREMENTS.md) | [audit](milestones/v1.16-MILESTONE-AUDIT.md))
-- [x] **v1.17: Beautify the SPA Landing Page** - 3 phases (77-79), 15/15 requirements ([archive](milestones/v1.17-ROADMAP.md) | [requirements](milestones/v1.17-REQUIREMENTS.md) | [audit](milestones/v1.17-MILESTONE-AUDIT.md))
-- [x] **v1.18: Napplet Firewall** - 3 phases (80-82), 24 requirements, merged in PRs #25/#27
-- [x] **v1.19: NAP Ontology Alignment** - 1 phase (83), 8 requirements ([archive](milestones/v1.19-ROADMAP.md) | [requirements](milestones/v1.19-REQUIREMENTS.md))
-- [ ] **v1.20: NIP-5D Content-Addressed Runtime Resolution** - 2 phases (84-85), 19 requirements; phases complete, PRs #38/#39 open
-- [x] **v1.21: NIP-5D (#2303) + NAP-SHELL/INTENT Conformance** - 4 phases (86-89), 16 requirements
-- [x] **v1.22: Single-Window Development Runtime** - 5 phases (90-94), 21/21 requirements, PR #64 open
-- [ ] **v1.23: NAP-LINK Runtime Parity** - 1 phase (95), 6 requirements, PR #71 open
-- [ ] **v1.24: NAP-COMMON Runtime Parity** - 1 phase (96), 6 requirements, PR #72 open
-- [ ] **v1.25: NAP-LISTS Runtime Parity** - 1 phase (97), 6 requirements, PR #73 open
-- [ ] **v1.26: NAP-SERIAL Runtime Parity** - 1 phase (98), 6 requirements, PR #74 open
-- [ ] **v1.27: NAP-BLE Runtime Parity** - 1 phase (99), 6 requirements, PR #75 open
-- [x] **v1.28: NAP-WEBRTC Runtime Parity** - 1 phase (100), 6 requirements, PR #76 open
-- [x] **v1.29: Napplet Convention and Runtime Conformance** - 6 phases (101-106), 47 plans, 89 tasks, 54 requirements; current Napplet 0.31-compatible package line published and downstream-verified ([archive](milestones/v1.29-ROADMAP.md) | [requirements](milestones/v1.29-REQUIREMENTS.md))
+- [x] **v1.0-v1.17** — foundational runtime, NIP-5D migration, service/demo parity, docs, quality, and web portal milestones (see `.planning/MILESTONES.md`).
+- [x] **v1.18: Napplet Firewall** — phases 80-82.
+- [x] **v1.19: NAP Ontology Alignment** — phase 83.
+- [ ] **v1.20: NIP-5D Content-Addressed Runtime Resolution** — phases 84-85 complete on historical branches; PRs remain separately tracked.
+- [x] **v1.21: NIP-5D + NAP-SHELL/INTENT Conformance** — phases 86-89.
+- [x] **v1.22: Single-Window Development Runtime** — phases 90-94.
+- [ ] **v1.23-v1.27: NAP Runtime Parity Series** — phases 95-99 complete on historical branches; PR state remains separately tracked.
+- [x] **v1.28: NAP-WEBRTC Runtime Parity** — phase 100.
+- [x] **v1.29: Napplet Convention and Runtime Conformance** — phases 101-106; published and downstream verified.
+- [ ] **v1.30: Visual Recovery** — phases 107-108; active.
 
-## Current Position
+## Current Milestone: v1.30 Visual Recovery
 
-v1.29 shipped and archived on 2026-07-31. No active milestone. Start the next cycle with `/gsd-new-milestone`.
+Close the archived Phase 105 `12/24` UI review debt across Paja and playground feed/profile surfaces. Establish readable semantic styling, recoverable and accessible failure states, phone-specific Paja composition, and browser-backed regression proof without changing NAP behavior.
+
+## Phases
+
+- [ ] **Phase 107: Readable Responsive Paja System** - Establish scoped semantic tokens and make Paja readable, responsive, and recoverable on its existing host path.
+- [ ] **Phase 108: Recoverable Napplet States and Visual Proof** - Make feed/profile failures actionable and accessible, then prove the complete milestone across desktop, mobile, and repository gates.
+
+## Phase Details
+
+### Phase 107: Readable Responsive Paja System
+
+**Goal**: Paja users retain clear product/target context and usable controls across desktop, phone, and target-load failure states within one coherent visual system.
+**Depends on**: Nothing
+**Requirements**: VIS-01, VIS-02, VIS-03, PAJA-01, PAJA-02, PAJA-03, PAJA-04
+**Success Criteria** (what must be TRUE):
+
+1. Paja, feed, and profile expose one bounded semantic color/type/spacing vocabulary; routine operational text computes to at least 12px and scoped component rules no longer repeat raw palette values.
+2. At 1280×720, Paja retains its working console/runtime split; at 375×812, users still see product and target context, essential controls/status, and a useful active-runtime viewport without clipped footer or console content.
+3. A failed target displays a host-styled explanation, secondary diagnostics, keyboard retry, and clear return path instead of raw iframe `<pre>` output.
+4. Retry reuses the existing verified target loader and all protocol/conformance guards prove no NAP message, capability, routing, lifecycle, or package behavior changed.
+
+**Plans**: 8/8 plans executed
+
+Plans:
+
+- [x] 107-06-PLAN.md
+- [x] 107-07-PLAN.md
+- [x] 107-08-PLAN.md — Close fourteen exact-head recovery findings and obtain clean exact-head re-review.
+
+**Wave 1**
+
+- [x] 107-01-PLAN.md — Prove host-owned external target recovery through the existing verified loader.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 107-02-PLAN.md — Extend recovery to verified pointers/runtime tabs and complete tab/CI path coverage.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 107-03-PLAN.md — Implement and browser-prove the semantic responsive Paja composition.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 107-04-PLAN.md — Apply the semantic visual system to feed/profile without behavior drift.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 107-05-PLAN.md — Synchronize docs, add the Paja patch changeset, and run full protected-state gates.
+
+**UI hint**: yes
+
+### Phase 108: Recoverable Napplet States and Visual Proof
+
+**Goal**: Feed and profile users can understand and recover from failures, and maintainers have durable evidence that every v1.30 visual and accessibility outcome works on real host paths.
+**Depends on**: Phase 107
+**Requirements**: RECOV-01, RECOV-02, RECOV-03, A11Y-01, A11Y-02, PROOF-01, PROOF-02, PROOF-03
+**Success Criteria** (what must be TRUE):
+
+1. Profile users can distinguish denied, unavailable, no-metadata, relay, and resource failures and recover through a specific visible retry/reconnect action.
+2. Feed users can distinguish signed-out, denied, unavailable, and relay failures and recover through a specific visible retry/reconnect action.
+3. Recovery controls work by keyboard, retain visible focus, announce meaningful state changes without duplicate chatter, prevent concurrent duplicate attempts, and settle without reopening the iframe.
+4. Browser evidence at 1280×720 and 375×812 covers normal, failure, retry, and recovered Paja/feed/profile states and directly rechecks the Phase 105 typography, color, spacing, and composition findings.
+5. Unit/static/Playwright regressions plus build, type, unit, relevant E2E, conditional docs, AI-slop, conformance, and diff gates pass with no protocol drift.
+
+**Plans**: TBD
+**UI hint**: yes
+
+## Progress
+
+**Execution Order:** Phase 107 → Phase 108
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 107. Readable Responsive Paja System | 8/8 | Ready for verification | - |
+| 108. Recoverable Napplet States and Visual Proof | 0/TBD | Not started | - |
 
 ## Backlog
 
 ### Backlog 999.1: Fix decrypt-demo fixture delivery pending state
 
-**Goal:** Investigate and fix the playground `decrypt-demo` staying in `waiting for fixtures` / `[pending]` for NIP-04, NIP-44, NIP-17, and Class-2 probe rows.
-
-**Captured:** 2026-05-23 via `$gsd-capture --backlog`
-
-**Context:** `.planning/backlog/999.1-fix-decrypt-demo-fixture-pending/999.1-CONTEXT.md`
-
-**Observed symptom:** User screenshot shows the decrypt demo panel stuck with:
-
-- `waiting for fixtures`
-- `NIP-04 [pending]`
-- `NIP-44 [pending]`
-- `NIP-17 [pending]`
-- `Class-2 [pending]`
-
-**Acceptance direction:**
-
-- The playground decrypt demo receives fixtures reliably after boot.
-- NIP-04, NIP-44, NIP-17, and Class-2 rows leave `[pending]` and settle to the expected terminal state.
-- Regression coverage catches fixture-delivery stalls in the real playground path.
+Investigate and fix the playground `decrypt-demo` remaining in `waiting for fixtures` / `[pending]`. Context: `.planning/backlog/999.1-fix-decrypt-demo-fixture-pending/999.1-CONTEXT.md`.
 
 ---
-
-*ROADMAP.md last updated: 2026-07-31 after v1.29 archival.*
+*ROADMAP.md last updated: 2026-08-01 after Phase 107 plan execution and exact-head review.*

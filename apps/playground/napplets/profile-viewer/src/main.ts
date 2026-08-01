@@ -15,6 +15,7 @@ const REQUIRED_NAPS = ['inc', 'relay', 'resource', 'theme'] as const;
 const CAPABILITY_WAIT_MS = 5_000;
 const CAPABILITY_WAIT_INTERVAL_MS = 25;
 const PROFILE_LOAD_TIMEOUT_MS = 8_000;
+type ProfileStatusTone = 'neutral' | 'success' | 'danger';
 
 const statusEl = document.getElementById('profile-status')!;
 const pubkeyEl = document.getElementById('profile-pubkey')!;
@@ -47,14 +48,9 @@ function formatError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function setStatus(text: string, color: 'gray' | 'green' | 'red' = 'gray'): void {
+function setStatus(text: string, tone: ProfileStatusTone = 'neutral'): void {
   statusEl.textContent = text;
-  statusEl.style.color =
-    color === 'green'
-      ? 'var(--nap-theme-success, #39ff14)'
-      : color === 'red'
-        ? 'var(--nap-theme-danger, #ff3b3b)'
-        : 'var(--nap-theme-muted, #888)';
+  statusEl.dataset.tone = tone;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -172,7 +168,7 @@ function renderProfile(pubkey: string, profile: ProfileMetadata | null): void {
     bannerEl.style.display = 'none';
   }
 
-  setStatus(profile ? 'loaded' : 'not found', profile ? 'green' : 'gray');
+  setStatus(profile ? 'loaded' : 'not found', profile ? 'success' : 'neutral');
 }
 
 function clearProfileView(): void {
@@ -208,7 +204,7 @@ const profileLoader = createProfileLoadController<NostrEvent>({
   onStart(pubkey) {
     clearProfileView();
     pubkeyEl.textContent = pubkey;
-    setStatus('loading', 'gray');
+    setStatus('loading', 'neutral');
   },
   onEvent(pubkey, event) {
     renderProfile(pubkey, parseProfile(event));
@@ -248,12 +244,12 @@ async function init(): Promise<void> {
   subscribeToProfileDelivery();
   await waitForRequiredNaps();
   clearProfile();
-  setStatus('waiting', 'gray');
+  setStatus('waiting', 'neutral');
 }
 
 init().catch((err) => {
   if (statusEl.textContent === 'connecting...') {
-    setStatus(`denied: ${formatError(err, 'inc, relay, or resource unavailable')}`, 'red');
+    setStatus(`denied: ${formatError(err, 'inc, relay, or resource unavailable')}`, 'danger');
   }
 });
 

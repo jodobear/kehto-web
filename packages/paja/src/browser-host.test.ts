@@ -59,10 +59,12 @@ describe('@kehto/paja browser host runtime source guards', () => {
   });
 
   it('preserves resolved pointer identity before the runtime iframe executes', () => {
-    const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
     const tabsSource = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
 
-    expect(source).toContain('if (isCurrentGeneration()) runtime.currentWindowId = windowId;');
+    expect(runtimeSource).toContain('if (isCurrentAttempt()) {');
+    expect(runtimeSource).toContain('runtime.currentWindowId = windowId;');
+    expect(runtimeSource).toContain('armExternalFrameErrorHandler(state, context, generation, controller);');
     expect(tabsSource).toContain('`${config.window.id}:${tab.id}:${tab.generation}`');
     expect(tabsSource).toContain('if (state.activeTabId === tab.id) context.runtime.currentWindowId = windowId;');
   });
@@ -81,7 +83,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
     );
     expect(source).toContain("if (config.target.mode === 'runtime-pointer')");
     expect(source).toContain(
-      'frame.srcdoc = injectNappletNamespacePrelude(\n    injectBaseHref(html, config.target.url),',
+      'frame.srcdoc = injectNappletNamespacePrelude(\n    injectExternalTargetLifecycleObserver(\n      injectBaseHref(html, config.target.url),',
     );
     expect(source).not.toContain('bridge.runtime.sessionRegistry.register(');
   });
@@ -120,8 +122,28 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(devtoolsSource).toContain('originRegistry.getIdentity = (win: Window) =>');
   });
 
+  it('uses browser lifecycle events instead of terminal module graph crawling', () => {
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
+    const frameSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
+    const serverSource = readFileSync(new URL('./server.ts', import.meta.url), 'utf8');
+    const corsSource = readFileSync(new URL('./target-cors.ts', import.meta.url), 'utf8');
+
+    expect(frameSource).toContain("'paja.external.document.complete'");
+    expect(frameSource).toContain("'paja.external.module.error'");
+    expect(frameSource).toContain('injectExternalTargetLifecycleObserver(');
+    expect(frameSource).toContain('document.currentScript?.remove();');
+    expect(hostSource).toContain('data.token !== context.externalLifecycleToken');
+    expect(hostSource).toContain("data.type === 'paja.external.document.complete'");
+    expect(hostSource).toContain("data.type === 'paja.external.module.error'");
+    expect(runtimeSource).not.toContain('requireTargetCorsAllowed');
+    expect(serverSource).not.toContain('/__kehto/target-cors.json');
+    expect(corsSource).not.toContain('probeTargetModuleCors');
+  });
+
   it('keeps runtime pointers in closeable tabs with duplicate-load choices', () => {
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const pointerSource = readFileSync(new URL('./browser-runtime-pointer.ts', import.meta.url), 'utf8');
     const tabsSource = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
 
     expect(source).toContain('tabs: PajaRuntimeTab[];');
@@ -129,27 +151,38 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(tabsSource).toContain('function closeRuntimeTab(');
     expect(tabsSource).toContain('function showDuplicatePointerDialog()');
     expect(tabsSource).toContain("type PajaDuplicateChoice = 'load-again' | 'open-tab' | 'cancel';");
-    expect(source).toContain('state.tabs.find((tab) => tab.key === resolvedTargetKey(resolvedTarget));');
+    expect(pointerSource).toContain('state.tabs.find((tab) => tab.key === resolvedTargetKey(resolvedTarget));');
   });
 
   it('keeps pointer runtime tabs shareable and restored from local storage', () => {
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const pointerSource = readFileSync(new URL('./browser-runtime-pointer.ts', import.meta.url), 'utf8');
     const tabsSource = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
 
     expect(tabsSource).toContain("export const PAJA_RUNTIME_TABS_STORAGE_KEY = 'kehto:paja:runtime-tabs:v1';");
     expect(tabsSource).toContain('function renderShareButton(tab: PajaRuntimeTab): HTMLButtonElement');
     expect(tabsSource).toContain('createPajaShareUrl(tab.pointerValue)');
     expect(source).toContain('function persistRuntimeTabs(state: PajaBrowserState): void');
-    expect(source).toContain('function restorePersistedRuntimeTabs(');
+    expect(pointerSource).toContain('function restorePersistedRuntimeTabs(');
     expect(source).toContain('const persistedTabs = readPersistedRuntimeTabs(config);');
     expect(source).toContain('else if (persistedTabs) void restorePersistedRuntimeTabs(state, context, persistedTabs);');
   });
 
   it('keeps external target asset resolution anchored to the authored target URL', () => {
     const source = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
 
     expect(source).toContain('function injectBaseHref(html: string, targetUrl: string): string');
     expect(source).toContain('`<base href="${escapeAttribute(targetUrl)}">`');
+    expect(hostSource).toContain('signal?.aborted');
+    expect(runtimeSource.indexOf('context.externalAttemptTimeoutId = window.setTimeout('))
+      .toBeLessThan(runtimeSource.indexOf('context.refreshExternalConfig(controller.signal)'));
+    expect(runtimeSource.indexOf('context.refreshExternalConfig(controller.signal)'))
+      .toBeLessThan(runtimeSource.indexOf('return navigateFrame('));
+    expect(runtimeSource).toContain('context.config = attemptConfig;');
+    expect(runtimeSource).toContain('state.config = attemptConfig;');
+    expect(runtimeSource).toContain('context.setActiveTarget(null);');
   });
 
   it('keeps Paja wired to real relay, outbox, and identity bootstrap paths', () => {
@@ -174,7 +207,6 @@ describe('@kehto/paja browser host runtime source guards', () => {
   it('keeps the private social cache inside the established identity and outbox host boundary', () => {
     const adapterSource = readFileSync(new URL('./browser-adapter.ts', import.meta.url), 'utf8');
     const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
-    const diagnosticsSource = readFileSync(new URL('./browser-target-diagnostics.ts', import.meta.url), 'utf8');
 
     expect(adapterSource).toContain("import { createPajaSocialCache } from './browser-social-cache.js';");
     expect(adapterSource).toContain('const baseOutboxRouter = createOutboxRouter(backend, getSimulation, confirmRequest, signerProvider);');
@@ -193,9 +225,9 @@ describe('@kehto/paja browser host runtime source guards', () => {
     );
     expect(adapterSource).not.toContain('services.social');
     expect(adapterSource).not.toContain('paja.social');
-    expect(diagnosticsSource).toContain('export async function reportTargetCorsDiagnostic(state: PajaBrowserState): Promise<void>');
-    expect(hostSource).toContain("import { reportTargetCorsDiagnostic } from './browser-target-diagnostics.js';");
-    expect(hostSource).toContain('startFrameNavigation(state, context);\n    void reportTargetCorsDiagnostic(state);');
+    const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
+    expect(runtimeSource).not.toContain('requireTargetCorsAllowed');
+    expect(hostSource).not.toContain('void reportTargetCorsDiagnostic(state);');
   });
 
   it('uses the selected development signer identity before a fixed simulation identity', () => {
@@ -227,12 +259,121 @@ describe('@kehto/paja browser host runtime source guards', () => {
     const targetSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
 
     expect(runtimeSource).toContain('runtime.currentWindowId = null;');
-    expect(source).toContain('unregisterSingleFrameWindow(bridge, runtime, windowId);');
-    expect(source).toContain('const isCurrentGeneration = () => state.generation === generation;');
+    expect(runtimeSource).toContain('unregisterSingleFrameWindow(bridge, runtime, windowId);');
+    expect(runtimeSource).toContain('const isCurrentGeneration = () => state.generation === generation;');
     expect(source).toContain('const registeredWindowId = source ? originRegistry.getWindowId(source) ?? null : null;');
     expect(source).toContain('if (isSingleFrameMessage && (!sourceWindowId || sourceWindowId !== runtime.currentWindowId)) return;');
     expect(targetSource).toContain('isCurrent?: () => boolean');
     expect(targetSource).toContain('if (isCurrent && !isCurrent()) return null;');
+  });
+
+  it('owns one external deadline and abort controller from fetch through trusted ready', () => {
+    const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const targetSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
+
+    expect(runtimeSource).toContain('const controller = new AbortController();');
+    expect(runtimeSource).toContain('context.externalAttemptController = controller;');
+    expect(runtimeSource.indexOf('context.externalAttemptTimeoutId = window.setTimeout('))
+      .toBeLessThan(runtimeSource.indexOf('return navigateFrame('));
+    expect(runtimeSource).toContain('controller.signal,');
+    expect(runtimeSource).toContain('if (controller && !controller.signal.aborted) controller.abort(reason);');
+    expect(runtimeSource).toContain('context.externalAttemptController !== controller');
+    expect(runtimeSource).toContain('context.externalAttemptErrorDisposer = dispose;');
+    expect(runtimeSource).toContain('clearExternalFrameErrorHandler(context);');
+    expect(runtimeSource).toContain("frame.addEventListener('error', handleError, { once: true });");
+    expect(targetSource).toContain('signal?: AbortSignal');
+    expect(targetSource).toContain('const html = await fetchTargetHtml(signal);');
+    expect(hostSource).toContain('settleExternalNavigationIfReady(state, context);');
+    expect(runtimeSource).toContain('settleExternalNavigationReady(context);');
+    expect(hostSource).toContain('destroyExternalFrameNavigation(context);');
+  });
+
+  it('supersedes owned external attempts and bounds pre-tab pointer resolution', () => {
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const pointerSource = readFileSync(new URL('./browser-runtime-pointer.ts', import.meta.url), 'utf8');
+    const reload = hostSource.slice(
+      hostSource.indexOf('function reloadPajaTarget('),
+      hostSource.indexOf('function setRuntimeDomainEnabled('),
+    );
+    const pointerLoad = pointerSource.slice(
+      pointerSource.indexOf('async function loadRuntimePointer('),
+      pointerSource.indexOf('function destroyRuntimePointerWork('),
+    );
+
+    expect(reload).not.toContain('if (context.externalAttemptGeneration !== null) return;');
+    expect(reload.indexOf('cancelExternalFrameNavigation('))
+      .toBeLessThan(reload.indexOf('state.generation += 1;'));
+    expect(pointerLoad).toContain('const isOwnedAttempt = () => !context.destroyed');
+    expect(pointerLoad).toContain('window.setTimeout(() => {');
+    expect(pointerLoad).toContain('Pointer resolution timed out after ${attemptBudgetMs}ms.');
+    expect(pointerLoad).toContain('controller.abort(timeoutError);');
+    expect(pointerLoad).toContain('window.clearTimeout(timeoutId);');
+    expect(pointerLoad).toContain('if (!isOwnedAttempt()) return;');
+  });
+
+  it('retires failed external and pointer documents before exposing recovery', () => {
+    const frameSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
+    const externalSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
+    const tabsSource = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
+    const externalFailure = externalSource.slice(
+      externalSource.indexOf('function settleExternalNavigationFailure('),
+      externalSource.indexOf('function armExternalFrameErrorHandler('),
+    );
+    const tabFailure = tabsSource.slice(
+      tabsSource.indexOf('function handleRuntimeTabError('),
+      tabsSource.indexOf('function startRuntimeTabNavigation('),
+    );
+
+    expect(frameSource).toContain('export function resetPajaFrameDocument(frame: HTMLIFrameElement): void');
+    expect(frameSource).toContain('Paja inactive target');
+    expect(externalFailure).toContain('resetPajaFrameDocument(context.frame);');
+    expect(tabFailure).toContain('resetPajaFrameDocument(tab.frame);');
+  });
+
+  it('keeps BFCache runtime ownership and tears down every tab only on final pagehide', () => {
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const pagehide = hostSource.slice(
+      hostSource.indexOf("window.addEventListener('pagehide'"),
+      hostSource.indexOf('window.__KEHTO_PAJA__ = state;'),
+    );
+
+    expect(pagehide).toContain('if (event.persisted) return;');
+    expect(pagehide.indexOf('destroyRuntimePointerWork(context);'))
+      .toBeLessThan(pagehide.indexOf('destroyRuntimeTabHost(state, context);'));
+    expect(pagehide).toContain("if (config.target.mode === 'runtime-pointer') {");
+    expect(pagehide).toContain('destroyRuntimeTabHost(state, context);');
+    expect(pagehide).toContain('destroyExternalFrameNavigation(context);');
+    expect(pagehide).not.toContain('{ once: true }');
+  });
+
+  it('invalidates and aborts pointer resolution before any post-await host ownership', () => {
+    const pointerSource = readFileSync(new URL('./browser-runtime-pointer.ts', import.meta.url), 'utf8');
+    const intentSource = readFileSync(new URL('./browser-intent-host.ts', import.meta.url), 'utf8');
+    const resolverSource = readFileSync(new URL('./runtime-resolver.ts', import.meta.url), 'utf8');
+    const load = pointerSource.slice(
+      pointerSource.indexOf('async function loadRuntimePointer('),
+      pointerSource.indexOf('function destroyRuntimePointerWork('),
+    );
+    const destroy = pointerSource.slice(
+      pointerSource.indexOf('function destroyRuntimePointerWork('),
+      pointerSource.indexOf('async function restorePersistedRuntimeTabs('),
+    );
+
+    expect(load).toContain('pajaPointerResolverOptions(context, controller.signal)');
+    expect(load).toContain('const isOwnedAttempt = () => !context.destroyed');
+    expect(load).toContain('const isCurrentAttempt = () => isOwnedAttempt() && !controller.signal.aborted;');
+    expect(load.match(/if \(!isCurrentAttempt\(\)\) return;/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(load.indexOf('if (!isCurrentAttempt()) return;')).toBeLessThan(load.indexOf('runtime.catalog.install(resolvedTarget);'));
+    const addTabIndex = load.indexOf('addRuntimeTab(state, context');
+    expect(load.lastIndexOf('if (!isCurrentAttempt()) return;', addTabIndex)).toBeLessThan(addTabIndex);
+    expect(destroy).toContain('context.destroyed = true;');
+    expect(destroy).toContain('context.pointerAttemptGeneration = null;');
+    expect(destroy).toContain("controller.abort(new Error('Pointer resolution cancelled because the Paja host was destroyed.'));");
+    expect(intentSource).toContain('if (!state || !context || context.destroyed) return null;');
+    expect(intentSource).toContain('if (context.destroyed) return null;');
+    expect(resolverSource).toContain("subscription?.close('Paja pointer resolution aborted')");
+    expect(resolverSource).toContain('(options.fetcher ?? fetch)(url, { signal: options.signal })');
   });
 
   it('registers the trusted frame identity before resolver-built srcdoc can run', () => {
@@ -251,8 +392,15 @@ describe('@kehto/paja browser host runtime source guards', () => {
 
   it('uses verified pointer records to retain and source-bind post-acceptance intent delivery', () => {
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
-    const pointerLoad = source.slice(source.indexOf('async function loadRuntimePointer('), source.indexOf('async function restorePersistedRuntimeTabs('));
-    const messageHandler = source.slice(source.indexOf("window.addEventListener('message'"), source.indexOf("frame?.addEventListener('error'"));
+    const pointerSource = readFileSync(new URL('./browser-runtime-pointer.ts', import.meta.url), 'utf8');
+    const pointerLoad = pointerSource.slice(
+      pointerSource.indexOf('async function loadRuntimePointer('),
+      pointerSource.indexOf('async function restorePersistedRuntimeTabs('),
+    );
+    const messageHandler = source.slice(
+      source.indexOf("window.addEventListener('message'"),
+      source.indexOf('  installPajaControlListeners(state);'),
+    );
 
     expect(source).toContain("import { BrowserIntentController } from './browser-intent-controller.js';");
     expect(source).toContain("from './installed-napplet-catalog.js';");

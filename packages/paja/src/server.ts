@@ -10,7 +10,6 @@ import {
 } from './options.js';
 import { renderPajaHtml } from './host-page.js';
 import { resolvePajaRawOptions } from './config-file.js';
-import { probeTargetCors } from './target-cors.js';
 
 /** Options for starting the Paja local HTTP server. */
 export interface PajaServerOptions {
@@ -46,8 +45,17 @@ export async function startPajaServer(input: PajaServerOptions): Promise<PajaSer
   let html = renderPajaHtml(hostConfig);
   let configJson = JSON.stringify(hostConfig, null, 2);
   let currentOptions = options;
+  const activeTargetFetches = new Set<AbortController>();
+
+  const abortTargetFetches = (message: string): void => {
+    for (const controller of activeTargetFetches) {
+      controller.abort(new Error(message));
+    }
+    activeTargetFetches.clear();
+  };
 
   const setHostConfig = (nextOptions: PajaOptions): PajaHostConfig => {
+    abortTargetFetches('Target HTML fetch cancelled because the target changed.');
     currentOptions = nextOptions;
     hostConfig = createPajaHostConfig(currentOptions, createdAt);
     html = renderPajaHtml(hostConfig);
@@ -69,22 +77,17 @@ export async function startPajaServer(input: PajaServerOptions): Promise<PajaSer
     }
 
     if (requestUrl === '/__kehto/target.html') {
-      const targetHtml = await fetchTargetHtml(hostConfig.target.url);
+      const targetHtml = await fetchTargetHtml(
+        hostConfig.target.url,
+        hostConfig.runtime.readyTimeoutMs,
+        response,
+        activeTargetFetches,
+      );
       response.writeHead(200, {
         'cache-control': 'no-store',
         'content-type': 'text/html; charset=utf-8',
       });
       response.end(targetHtml);
-      return;
-    }
-
-    if (requestUrl === '/__kehto/target-cors.json') {
-      const diagnostic = await probeTargetCors(hostConfig.target.url);
-      response.writeHead(200, {
-        'cache-control': 'no-store',
-        'content-type': 'application/json; charset=utf-8',
-      });
-      response.end(JSON.stringify(diagnostic));
       return;
     }
 
@@ -119,7 +122,10 @@ export async function startPajaServer(input: PajaServerOptions): Promise<PajaSer
     updateTargetUrl(targetUrl) {
       return setHostConfig(withTargetUrl(currentOptions, targetUrl));
     },
-    close: () => close(server),
+    close: () => {
+      abortTargetFetches('Target HTML fetch cancelled because Paja is shutting down.');
+      return close(server);
+    },
   };
 }
 
@@ -127,16 +133,48 @@ function readBrowserHostScript(): string {
   return readFileSync(new URL('./browser-host.js', import.meta.url), 'utf8');
 }
 
-async function fetchTargetHtml(targetUrl: string): Promise<string> {
-  const response = await fetch(targetUrl, {
-    headers: {
-      accept: 'text/html, application/xhtml+xml;q=0.9, */*;q=0.8',
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Target ${targetUrl} returned ${response.status} ${response.statusText}`);
+async function fetchTargetHtml(
+  targetUrl: string,
+  timeoutMs: number,
+  clientResponse: HttpResponse,
+  activeFetches: Set<AbortController>,
+): Promise<string> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const handleClientClose = (): void => controller.abort(
+    new Error('Target HTML fetch cancelled because the proxy client disconnected.'),
+  );
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  activeFetches.add(controller);
+  clientResponse.once('close', handleClientClose);
+
+  try {
+    const response = await fetch(targetUrl, {
+      headers: {
+        accept: 'text/html, application/xhtml+xml;q=0.9, */*;q=0.8',
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Target ${targetUrl} returned ${response.status} ${response.statusText}`);
+    }
+    return await response.text();
+  } catch (error) {
+    if (timedOut) {
+      throw new Error(`Target HTML fetch timed out after ${timeoutMs}ms.`);
+    }
+    if (controller.signal.aborted && controller.signal.reason instanceof Error) {
+      throw controller.signal.reason;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    activeFetches.delete(controller);
+    clientResponse.off('close', handleClientClose);
   }
-  return response.text();
 }
 
 function listen(server: HttpServer, host: string, port: number): Promise<void> {
@@ -179,6 +217,8 @@ interface HttpServer {
 interface HttpResponse {
   writeHead(statusCode: number, headers: Record<string, string>): void;
   end(chunk: string): void;
+  once(event: 'close', callback: () => void): void;
+  off(event: 'close', callback: () => void): void;
 }
 
 function getBoundPort(server: HttpServer, fallback: number): number {

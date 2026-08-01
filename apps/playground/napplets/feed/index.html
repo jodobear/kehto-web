@@ -6,12 +6,38 @@
   <meta name="napplet-napp-type" content="demo-feed" />
   <title>Feed Napplet</title>
   <style>
+    :root {
+      --ui-color-background: var(--nap-theme-background, #101211);
+      --ui-color-surface: var(--nap-theme-surface-1, #181b19);
+      --ui-color-surface-raised: var(--nap-theme-surface-2, #20241f);
+      --ui-color-foreground: var(--nap-theme-text, #f4f0df);
+      --ui-color-muted: var(--nap-theme-muted, #a9ad9f);
+      --ui-color-border: var(--nap-theme-border, #626a60);
+      --ui-color-accent: var(--nap-theme-primary, #d8c36a);
+      --ui-color-danger: var(--nap-theme-danger, #f0a0a0);
+      --ui-color-danger-surface: color-mix(in srgb, var(--nap-theme-surface-1, #2b1e1e) 82%, var(--nap-theme-danger, #2b1e1e) 18%);
+      --ui-color-success: var(--nap-theme-success, #a9d38f);
+      --ui-space-xs: 4px;
+      --ui-space-sm: 8px;
+      --ui-space-md: 16px;
+      --ui-space-lg: 24px;
+      --ui-space-xl: 32px;
+      --ui-space-2xl: 48px;
+      --ui-space-3xl: 64px;
+      --ui-type-label: 12px;
+      --ui-type-body: 14px;
+      --ui-type-heading: 18px;
+      --ui-type-display: 24px;
+      --ui-type-weight-regular: 400;
+      --ui-type-weight-semibold: 600;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'JetBrains Mono', monospace;
-      background: var(--nap-theme-background, #f6f5ef);
-      color: var(--nap-theme-text, #1c1c1c);
-      font-size: 11px;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--ui-color-background);
+      color: var(--ui-color-foreground);
+      font-size: var(--ui-type-body);
+      font-weight: var(--ui-type-weight-regular);
       height: 100vh;
       overflow: hidden;
     }
@@ -19,36 +45,51 @@
       height: 100%;
       display: flex;
       flex-direction: column;
-      padding: 8px;
-      gap: 6px;
+      min-width: 0;
+      padding: var(--ui-space-sm);
+      gap: var(--ui-space-sm);
     }
     .feed-row {
       display: flex;
       align-items: center;
-      gap: 6px;
+      min-width: 0;
+      gap: var(--ui-space-xs);
     }
-    .feed-status {
-      color: var(--nap-theme-muted, #666);
-      font-size: 10px;
-      padding: 2px 0;
+    #feed-status {
+      font-size: var(--ui-type-label);
+      font-weight: var(--ui-type-weight-regular);
+      overflow-wrap: anywhere;
+      padding: var(--ui-space-xs) 0;
+    }
+    #feed-status[data-tone='neutral'] {
+      color: var(--ui-color-muted);
+    }
+    #feed-status[data-tone='success'] {
+      color: var(--ui-color-success);
+    }
+    #feed-status[data-tone='danger'] {
+      color: var(--ui-color-danger);
     }
     #feed-list {
       list-style: none;
       flex: 1;
+      min-width: 0;
       overflow-y: auto;
-      padding: 6px;
+      overflow-x: hidden;
+      padding: var(--ui-space-sm);
       border: 1px solid transparent;
-      background: transparent;
+      background: var(--ui-color-surface);
       margin: 0;
     }
     .feed-item {
       display: flex;
       align-items: flex-start;
-      gap: 6px;
-      padding: 4px 0;
-      border-bottom: 1px solid var(--nap-theme-border, #cfcabf);
-      color: var(--nap-theme-text, #2a2a2a);
-      line-height: 1.4;
+      min-width: 0;
+      gap: var(--ui-space-sm);
+      padding: var(--ui-space-xs) 0;
+      border-bottom: 1px solid var(--ui-color-border);
+      color: var(--ui-color-foreground);
+      line-height: 1.5;
     }
     .feed-item:last-child { border-bottom: none; }
     .feed-item-avatar {
@@ -58,11 +99,11 @@
       border-radius: 999px;
       overflow: hidden;
       border: 1px solid transparent;
-      background: transparent;
+      background: var(--ui-color-surface-raised);
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-top: 1px;
+      margin-top: 0;
     }
     .feed-item-avatar img {
       width: 100%;
@@ -71,8 +112,9 @@
       display: block;
     }
     .feed-item-avatar-fallback {
-      color: var(--nap-theme-muted, #666);
-      font-size: 9px;
+      color: var(--ui-color-muted);
+      font-size: var(--ui-type-label);
+      font-weight: var(--ui-type-weight-semibold);
       line-height: 1;
     }
     .feed-profile-button {
@@ -86,18 +128,18 @@
     }
     .feed-profile-button:hover,
     .feed-profile-button:focus-visible {
-      color: var(--nap-theme-text, #1a1a1a);
+      color: var(--ui-color-foreground);
       text-decoration: underline;
     }
     .feed-profile-avatar-button {
       flex: 0 0 20px;
-      margin-top: 1px;
+      margin-top: 0;
       text-decoration: none;
     }
     .feed-profile-avatar-button:hover,
     .feed-profile-avatar-button:focus-visible {
-      outline: 1px solid var(--nap-theme-primary, #7a7a7a);
-      outline-offset: 2px;
+      outline: 2px solid var(--ui-color-accent);
+      outline-offset: var(--ui-space-xs);
       border-radius: 999px;
     }
     .feed-profile-avatar-button .feed-item-avatar {
@@ -110,27 +152,31 @@
     .feed-item-meta {
       display: flex;
       align-items: baseline;
-      gap: 6px;
+      gap: var(--ui-space-sm);
       min-width: 0;
-      margin-bottom: 1px;
+      margin-bottom: var(--ui-space-xs);
     }
     .feed-item-author {
-      color: var(--nap-theme-text, #2a2a2a);
-      font-size: 10px;
-      font-weight: 600;
+      color: var(--ui-color-foreground);
+      font-size: var(--ui-type-label);
+      font-weight: var(--ui-type-weight-semibold);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       min-width: 0;
     }
     .feed-item-time {
-      color: var(--nap-theme-muted, #666);
-      font-size: 9px;
+      color: var(--ui-color-muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: var(--ui-type-label);
+      font-weight: var(--ui-type-weight-regular);
       flex: 0 0 auto;
     }
     .feed-item-content {
       display: block;
-      color: var(--nap-theme-text, #2a2a2a);
+      color: var(--ui-color-foreground);
+      font-size: var(--ui-type-body);
+      font-weight: var(--ui-type-weight-regular);
       overflow-wrap: anywhere;
     }
   </style>
@@ -138,7 +184,7 @@
 <body>
   <div id="app">
     <div class="feed-row">
-      <span id="feed-status">connecting...</span>
+      <span id="feed-status" data-tone="neutral">connecting...</span>
     </div>
     <ul id="feed-list"></ul>
   </div>

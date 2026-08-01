@@ -282,6 +282,7 @@ export function renderPajaDevtools(
 export function renderPajaMessageLog(state: PajaDevtoolsState): void {
   const container = document.getElementById('message-log');
   if (!container) return;
+  const clearButton = document.getElementById('clear-log');
   const filter = state.messageFilter.trim().toLowerCase();
   const rows = state.messageLog
     .filter((entry) => filter.length === 0 || `${entry.direction} ${entry.type} ${entry.detail} ${entry.preview}`.toLowerCase().includes(filter))
@@ -313,6 +314,9 @@ export function renderPajaMessageLog(state: PajaDevtoolsState): void {
     });
   container.replaceChildren(...rows);
   container.scrollTop = container.scrollHeight;
+  if (clearButton instanceof HTMLButtonElement) {
+    clearButton.disabled = state.messageLog.length === 0;
+  }
 }
 
 function renderInterfaceControls(state: PajaDevtoolsState): void {

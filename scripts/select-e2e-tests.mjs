@@ -81,6 +81,7 @@ const GROUPS = {
     'tests/e2e/shell-ui-state-surfaces.spec.ts',
   ],
   paja: [
+    'tests/e2e/paja-runtime-pointer.spec.ts',
     'tests/e2e/paja-single-window.spec.ts',
   ],
   relay: [

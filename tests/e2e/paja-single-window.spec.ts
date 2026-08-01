@@ -1,13 +1,22 @@
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { expect, test, type FrameLocator, type Page } from '@playwright/test';
+import { expect, test, type FrameLocator, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools/pure';
 import { startPajaServer, type PajaServer } from '../../packages/paja/dist/index.js';
 
 interface TargetServer {
   readonly url: string;
   readonly requestOrigins: string[];
+  readonly htmlRequestCount: number;
+  failNext(message: string, options?: { readonly hold?: boolean }): void;
+  setCorsAllowed(allowed: boolean): void;
+  setExternalModule(enabled: boolean): void;
+  setModuleCorsAllowed(allowed: boolean): void;
+  setModuleDependency(enabled: boolean): void;
+  setDependencyCorsAllowed(allowed: boolean): void;
+  setRejectDocumentOrigin(enabled: boolean): void;
+  releaseHeldFailure(): void;
   close(): Promise<void>;
 }
 
@@ -47,6 +56,621 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await runtimeServer.close();
   await targetServer.close();
+});
+
+test('recovers an external target through stable host error controls', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  const recoveryTarget = await startTargetServer();
+  const diagnostic = '<img data-paja-diagnostic="unsafe" src=x onerror=alert(1)>';
+  recoveryTarget.failNext(diagnostic, { hold: true });
+  const recoveryRuntime = await startPajaServer({
+    options: {
+      targetUrl: recoveryTarget.url,
+      port: 0,
+    },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(recoveryRuntime.url);
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(1);
+    await page.locator('#message-filter').focus();
+    recoveryTarget.releaseHeldFailure();
+
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface).toBeVisible();
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-message')).toHaveText(
+      'Check that the target is running and reachable, then retry.',
+    );
+    await expect(surface.locator('.paja-target-retry')).toHaveText('Retry target');
+    await expect(surface.locator('.paja-target-return')).toHaveText('Back to Paja controls');
+    await expect(surface.locator('.paja-target-details-summary')).toHaveText('Show technical details');
+    await expect(surface.locator('.paja-target-details')).not.toHaveAttribute('open', '');
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(diagnostic);
+    await expect(page.locator('[data-paja-diagnostic="unsafe"]')).toHaveCount(0);
+    await expect(page.locator('#lifecycle-status')).toHaveText("Target couldn't load");
+    expect(await page.locator('#napplet-frame').getAttribute('srcdoc')).toBeNull();
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('message-filter');
+    await attachViewportEvidence(page, testInfo, 'external-error');
+
+    await surface.locator('.paja-target-details-summary').click();
+    await expect(surface.locator('.paja-target-details-summary')).toHaveText('Hide technical details');
+    await surface.locator('.paja-target-details-summary').click();
+    await expect(surface.locator('.paja-target-details-summary')).toHaveText('Show technical details');
+
+    const retry = surface.locator('.paja-target-retry');
+    const retryNode = await retry.elementHandle();
+    const failedGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
+    const repeatDiagnostic = 'second failure <strong data-repeat-diagnostic="unsafe">still inert</strong>';
+    recoveryTarget.failNext(repeatDiagnostic, { hold: true });
+    await retry.focus();
+    await retry.press('Enter');
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(2);
+    await expect(surface).toHaveAttribute('aria-busy', 'true');
+    await expect(surface.locator('.paja-target-heading')).toHaveText('Retrying target…');
+    await expect(retry).toBeVisible();
+    await expect(retry).toBeDisabled();
+    await attachViewportEvidence(page, testInfo, 'external-retrying');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Space');
+    await retry.evaluate((button) => button.click());
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(2);
+    await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1))
+      .toBe(failedGeneration + 1);
+
+    recoveryTarget.releaseHeldFailure();
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(repeatDiagnostic);
+    await expect(page.locator('[data-repeat-diagnostic="unsafe"]')).toHaveCount(0);
+    await expect(retry).toBeEnabled();
+    await expect.poll(() => retry.evaluate((button) => button === document.activeElement)).toBe(true);
+    expect(await retry.evaluate((button, original) => button === original, retryNode)).toBe(true);
+
+    const repeatFailureGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
+    const repeatFailureRequests = recoveryTarget.htmlRequestCount;
+    await surface.locator('.paja-target-return').focus();
+    await surface.locator('.paja-target-return').press('Space');
+    await expect.poll(() => page.evaluate(() => document.activeElement?.matches(
+      '.console button:not(:disabled), .console input:not(:disabled), .console select:not(:disabled)',
+    ) ?? false)).toBe(true);
+    expect(recoveryTarget.htmlRequestCount).toBe(repeatFailureRequests);
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1))
+      .toBe(repeatFailureGeneration);
+
+    await retry.click();
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(3);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+    await expect(page.locator('iframe')).toHaveCount(1);
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('sandbox', 'allow-scripts');
+    await expect(page.locator('#napplet-frame')).not.toHaveAttribute('sandbox', /allow-same-origin/);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      generation: failedGeneration + 2,
+      status: 'ready',
+      iframeCount: 1,
+      initSent: true,
+    });
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('napplet-frame');
+    await attachViewportEvidence(page, testInfo, 'external-recovered');
+  } finally {
+    await recoveryRuntime.close();
+    await recoveryTarget.close();
+  }
+});
+
+test('settles a missing external shell.ready handshake into retryable recovery', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 100,
+    },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+  await page.addInitScript(() => {
+    const host = window as Window & { __pajaWithholdReady?: boolean };
+    host.__pajaWithholdReady = true;
+    window.addEventListener('message', (event) => {
+      const data = event.data as { type?: unknown } | null;
+      if (!host.__pajaWithholdReady || !data || data.type !== 'shell.ready') return;
+      event.stopImmediatePropagation();
+    }, true);
+  });
+  try {
+    await page.goto(runtime.url);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(
+      'Target readiness timed out after 100ms without shell.ready.',
+    );
+    await expect(surface.locator('.paja-target-retry')).toBeEnabled();
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'error',
+      initSent: false,
+    });
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('srcdoc', /Paja inactive target/);
+
+    await page.evaluate(() => {
+      (window as Window & { __pajaWithholdReady?: boolean }).__pajaWithholdReady = false;
+    });
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(() => target.htmlRequestCount).toBe(2);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('napplet-frame');
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'ready',
+      initSent: true,
+    });
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('settles a never-settling external target fetch and retries through the same loader', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 100,
+    },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+  let proxyRequestCount = 0;
+  let releaseHeldFetch = (): void => {};
+  const heldFetch = new Promise<void>((resolve) => {
+    releaseHeldFetch = resolve;
+  });
+  await page.route('**/__kehto/target.html', async (route) => {
+    proxyRequestCount += 1;
+    if (proxyRequestCount === 1) {
+      await heldFetch;
+      await route.continue().catch(() => {});
+      return;
+    }
+    await route.continue();
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect.poll(() => proxyRequestCount).toBe(1);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(
+      'Target readiness timed out after 100ms without shell.ready and document completion.',
+    );
+    await expect(surface.locator('.paja-target-retry')).toBeEnabled();
+    const failedGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'error',
+      iframeCount: 1,
+      initSent: false,
+    });
+
+    releaseHeldFetch();
+    await page.waitForTimeout(150);
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    expect(proxyRequestCount).toBe(1);
+    await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.error').length ?? -1)).toBe(1);
+
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(() => proxyRequestCount).toBe(2);
+    await expect.poll(() => target.htmlRequestCount).toBe(1);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+    await expect(page.locator('iframe')).toHaveCount(1);
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('sandbox', 'allow-scripts');
+    await expect(page.locator('#napplet-frame')).not.toHaveAttribute('sandbox', /allow-same-origin/);
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('napplet-frame');
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      generation: failedGeneration + 1,
+      status: 'ready',
+      iframeCount: 1,
+      initSent: true,
+    });
+  } finally {
+    releaseHeldFetch();
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('reload supersedes an in-flight external attempt and ignores its late settlement', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+  let proxyRequestCount = 0;
+  let releaseFirstFetch = (): void => {};
+  const firstFetch = new Promise<void>((resolve) => {
+    releaseFirstFetch = resolve;
+  });
+  await page.route('**/__kehto/target.html', async (route) => {
+    proxyRequestCount += 1;
+    if (proxyRequestCount === 1) {
+      await firstFetch;
+      await route.continue().catch(() => {});
+      return;
+    }
+    await route.continue();
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect.poll(() => proxyRequestCount).toBe(1);
+    const firstGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
+
+    await page.locator('#reload-target').click();
+    await expect.poll(() => proxyRequestCount).toBe(2);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      generation: firstGeneration + 1,
+      status: 'ready',
+      initSent: true,
+    });
+
+    releaseFirstFetch();
+    await page.waitForTimeout(150);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.error').length ?? -1)).toBe(0);
+  } finally {
+    releaseFirstFetch();
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('loads a self-contained target whose proxied HTML has no CORS header', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  target.setCorsAllowed(false);
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.cors.error').length ?? -1)).toBe(0);
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('keeps a CORS-blocked target module in recovery until retry can load it', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  target.setCorsAllowed(false);
+  target.setExternalModule(true);
+  target.setModuleCorsAllowed(false);
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(
+      'Target module failed to load in the sandboxed frame',
+    );
+    await expect(surface.locator('.paja-target-retry')).toBeEnabled();
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('srcdoc', /Paja inactive target/);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'error',
+      initSent: false,
+    });
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.error').length ?? -1)).toBe(1);
+
+    target.setModuleCorsAllowed(true);
+    await surface.locator('.paja-target-retry').click();
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('loads a target whose document rejects synthetic Origin headers', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  target.setExternalModule(true);
+  target.setRejectDocumentOrigin(true);
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('ignores inert module markup when deciding external target readiness', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: `${target.url}?inertModule=1`,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+    expect(target.requestOrigins).not.toContain('inert-module-requested');
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('loads browser-supported data module imports without terminal rejection', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: `${target.url}?dataModule=1`,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect.poll(() => page.frameLocator('#napplet-frame').locator('html').getAttribute('data-paja-data'))
+      .toBe('loaded');
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('ignores an authored forged completion before a real module failure', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  target.setExternalModule(true);
+  target.setModuleCorsAllowed(false);
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: `${target.url}?forgedLifecycle=1`,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(
+      'Target module failed to load in the sandboxed frame',
+    );
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'error',
+      initSent: false,
+    });
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('keeps a CORS-blocked module dependency in recovery until retry can load it', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  target.setExternalModule(true);
+  target.setModuleDependency(true);
+  target.setDependencyCorsAllowed(false);
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(
+      'Target module failed to load in the sandboxed frame',
+    );
+    await expect(surface.locator('.paja-target-retry')).toBeEnabled();
+
+    target.setDependencyCorsAllowed(true);
+    await surface.locator('.paja-target-retry').click();
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('ignores a stale iframe error while a newer Retry attempt is fetching', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+  await page.addInitScript(() => {
+    const host = window as Window & { __pajaWithholdReady?: boolean };
+    host.__pajaWithholdReady = true;
+    window.addEventListener('message', (event) => {
+      const data = event.data as { type?: unknown } | null;
+      if (!host.__pajaWithholdReady || !data || data.type !== 'shell.ready') return;
+      event.stopImmediatePropagation();
+    }, true);
+  });
+  let holdRetry = false;
+  let retryProxyRequests = 0;
+  let releaseRetry = (): void => {};
+  const retryGate = new Promise<void>((resolve) => {
+    releaseRetry = resolve;
+  });
+  await page.route('**/__kehto/target.html', async (route) => {
+    if (!holdRetry) {
+      await route.continue();
+      return;
+    }
+    retryProxyRequests += 1;
+    await retryGate;
+    await route.continue().catch(() => {});
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('srcdoc', /target-status/);
+    await page.locator('#napplet-frame').evaluate((frame) => frame.dispatchEvent(new Event('error')));
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.error').length ?? -1)).toBe(1);
+
+    await page.evaluate(() => {
+      (window as Window & { __pajaWithholdReady?: boolean }).__pajaWithholdReady = false;
+    });
+    holdRetry = true;
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(() => retryProxyRequests).toBe(1);
+    await expect(surface.locator('.paja-target-heading')).toHaveText('Retrying target…');
+    await page.locator('#napplet-frame').evaluate((frame) => frame.dispatchEvent(new Event('error')));
+    await page.waitForTimeout(100);
+    await expect(surface.locator('.paja-target-heading')).toHaveText('Retrying target…');
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.error').length ?? -1)).toBe(1);
+
+    releaseRetry();
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'ready',
+      initSent: true,
+    });
+  } finally {
+    releaseRetry();
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('refreshes target A to B before Retry base injection and readiness', async ({ page }) => {
+  test.setTimeout(30_000);
+  const targetA = await startTargetServer();
+  const targetB = await startTargetServer();
+  targetA.failNext('target A replaced', { hold: true });
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: targetA.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect.poll(() => targetA.htmlRequestCount).toBe(1);
+    runtime.updateTargetUrl(targetB.url);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(() => targetB.htmlRequestCount).toBe(1);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 2_000 });
+    await expect(page.locator('.target')).toHaveText(targetB.url);
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('data-target-url', targetB.url);
+    await expect(page.locator('#napplet-frame')).toHaveAttribute(
+      'srcdoc',
+      new RegExp(`<base href="${targetB.url.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')}">`),
+    );
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 2_000 },
+    );
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'ready',
+      initSent: true,
+    });
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.config.target.url)).toBe(targetB.url);
+  } finally {
+    targetA.releaseHeldFailure();
+    await runtime.close();
+    await targetA.close();
+    await targetB.close();
+  }
 });
 
 test('hosts one sandboxed target iframe and reinitializes it on reload', async ({ page }) => {
@@ -107,14 +731,15 @@ test('hosts one sandboxed target iframe and reinitializes it on reload', async (
   await expect(page.locator('#message-log .log-row')).not.toHaveCount(0);
   await expect(page.locator('#message-log .log-row').first()).toContainText('identity.getPublicKey');
   await page.locator('#message-filter').fill('');
-  await expect(page.locator('#lifecycle-status')).toHaveText('ready');
+  await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
   await expect(page.locator('#simulation-status')).toContainText('identity:anon relay:live:4 storage:local upload:memory:simulator theme:dark off:none');
 
   const firstLoadId = await targetFrame.locator('#load-id').textContent();
   expect(firstLoadId).toBeTruthy();
 
   const firstGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
-  await page.locator('#reload-target').click();
+  await page.locator('#reload-target').focus();
+  await page.locator('#reload-target').press('Enter');
 
   await expect(page.locator('iframe')).toHaveCount(1);
   await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation)).toBe(firstGeneration + 1);
@@ -170,6 +795,93 @@ test('hosts one sandboxed target iframe and reinitializes it on reload', async (
       mediaService: napplet?.shell?.services.includes('media'),
     };
   })).toEqual({ mediaReceiver: 'undefined', mediaSupported: false, mediaService: false });
+});
+
+test('keeps desktop, phone, and 200 percent effective-viewport geometry readable', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(runtimeServer.url);
+  await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+
+  const desktop = await measurePajaLayout(page);
+  expect(desktop.document.scrollWidth, JSON.stringify(desktop)).toBe(desktop.document.clientWidth);
+  expect(desktop.header.height, JSON.stringify(desktop)).toBe(48);
+  expect(desktop.console.width, JSON.stringify(desktop)).toBe(360);
+  expect(desktop.stage.width, JSON.stringify(desktop)).toBeGreaterThan(800);
+  expect(desktop.footer.height, JSON.stringify(desktop)).toBeGreaterThanOrEqual(32);
+  expect(Math.min(...desktop.actionHeights), JSON.stringify(desktop)).toBeGreaterThanOrEqual(32);
+  expect(desktop.fontSizes.every((size) => size >= 12), JSON.stringify(desktop)).toBe(true);
+  expect(desktop.fontSizes.every((size) => [12, 14, 18, 24].includes(size)), JSON.stringify(desktop)).toBe(true);
+  await expectVisibleFocusRing(page.locator('#reload-target'));
+  await attachPajaScreenshot(page, testInfo, 'external-normal-desktop');
+
+  await page.locator('#clear-log').click();
+  await expect(page.locator('#message-log .log-row')).toHaveCount(0);
+  await expect(page.locator('#clear-log')).toBeDisabled();
+  expect(await page.locator('#message-log').evaluate((log) => getComputedStyle(log, '::before').content))
+    .toBe('"No messages yet. Runtime traffic appears here."');
+  const targetFrame = page.frameLocator('#napplet-frame');
+  await sendFixtureMessage(targetFrame, { type: 'test.one', value: 'one' });
+  await expect(page.locator('#message-log .log-row')).toHaveCount(1);
+  await expect(page.locator('#clear-log')).toBeEnabled();
+  await sendFixtureMessage(targetFrame, {
+    type: 'test.two.error',
+    error: '<strong data-log-unsafe>two</strong>',
+  });
+  await expect(page.locator('#message-log .log-row')).toHaveCount(2);
+  await expect(page.locator('[data-log-unsafe]')).toHaveCount(0);
+  await expect(page.locator('#message-log .log-row').last()).toContainText('<strong data-log-unsafe>two</strong>');
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  const phone = await measurePajaLayout(page);
+  expect(phone.document.scrollWidth, JSON.stringify(phone)).toBe(phone.document.clientWidth);
+  expect(phone.console.height, JSON.stringify(phone)).toBe(224);
+  expect(phone.console.overflowY, JSON.stringify(phone)).toBe('auto');
+  expect(phone.console.scrollHeight, JSON.stringify(phone)).toBeGreaterThan(phone.console.clientHeight);
+  expect(phone.stage.height, JSON.stringify(phone)).toBeGreaterThanOrEqual(320);
+  expect(phone.footer.columnCount, JSON.stringify(phone)).toBe(2);
+  expect(phone.footer.bottom, JSON.stringify(phone)).toBeLessThanOrEqual(phone.document.scrollHeight);
+  expect(Math.min(...phone.actionHeights), JSON.stringify(phone)).toBeGreaterThanOrEqual(48);
+  expect(phone.fontSizes.every((size) => size >= 12), JSON.stringify(phone)).toBe(true);
+  await expectVisibleFocusRing(page.locator('#simulation-theme'));
+  await attachPajaScreenshot(page, testInfo, 'external-normal-phone');
+
+  await page.setViewportSize({ width: 640, height: 360 });
+  const reflow = await measurePajaLayout(page);
+  expect(reflow.document.scrollWidth, JSON.stringify(reflow)).toBe(reflow.document.clientWidth);
+  expect(reflow.document.scrollHeight, JSON.stringify(reflow)).toBeGreaterThan(reflow.document.clientHeight);
+  expect(reflow.footer.bottom, JSON.stringify(reflow)).toBeLessThanOrEqual(reflow.document.scrollHeight);
+  expect(reflow.fontSizes.every((size) => size >= 12), JSON.stringify(reflow)).toBe(true);
+  await attachPajaScreenshot(page, testInfo, 'external-200-percent-reflow');
+});
+
+test('keeps a 160-character target accessible and bounded on phone', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  const longTarget = `${targetServer.url}?target=${'x'.repeat(160)}`;
+  const longRuntime = await startPajaServer({
+    options: { targetUrl: longTarget, port: 0 },
+    now: new Date('2026-07-31T00:00:00.000Z'),
+  });
+  try {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(longRuntime.url);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    const normalizedTarget = await page.locator('.target').textContent();
+    expect(normalizedTarget?.length).toBeGreaterThanOrEqual(160);
+    await expect(page.locator('.target')).toHaveAttribute('title', normalizedTarget ?? '');
+    await expect(page.locator('.target')).toHaveAttribute('aria-label', normalizedTarget ?? '');
+    const targetMetrics = await page.locator('.target').evaluate((target) => ({
+      height: target.getBoundingClientRect().height,
+      lineHeight: parseFloat(getComputedStyle(target).lineHeight),
+      documentWidth: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(targetMetrics.height, JSON.stringify(targetMetrics)).toBeLessThanOrEqual(targetMetrics.lineHeight * 2);
+    expect(targetMetrics.documentScrollWidth, JSON.stringify(targetMetrics)).toBe(targetMetrics.documentWidth);
+    await attachPajaScreenshot(page, testInfo, 'external-long-target-phone');
+  } finally {
+    await longRuntime.close();
+  }
 });
 
 test('applies simulation config and compact theme adjustment', async ({ page }) => {
@@ -328,7 +1040,8 @@ test('routes standard identity follows and OUTBOX profile queries without a targ
 
   try {
     await page.goto(socialRuntime.url);
-    await expect.poll(() => targetServer.requestOrigins.includes('null')).toBe(true);
+    await expect.poll(() => targetServer.requestOrigins.includes('')).toBe(true);
+    expect(targetServer.requestOrigins).not.toContain('null');
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().status)).toBe('ready');
     await page.evaluate((pubkey) => {
       const host = window as Window & { nostr?: unknown };
@@ -580,9 +1293,126 @@ test('keeps canonical INC protected through the real shim assignment in an opaqu
   }
 });
 
+async function measurePajaLayout(page: Page) {
+  return page.evaluate(() => {
+    const rect = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`Missing layout element: ${selector}`);
+      const bounds = element.getBoundingClientRect();
+      return {
+        top: bounds.top,
+        right: bounds.right,
+        bottom: bounds.bottom,
+        left: bounds.left,
+        width: bounds.width,
+        height: bounds.height,
+      };
+    };
+    const consoleElement = document.querySelector<HTMLElement>('.console');
+    const footerElement = document.querySelector<HTMLElement>('footer.bottom');
+    if (!consoleElement || !footerElement) throw new Error('Missing Paja console or footer');
+    const visible = (element: Element) => element.getClientRects().length > 0;
+    const fontSizes = [
+      '.brand',
+      '.target',
+      '#lifecycle-status',
+      '.section-title',
+      '.console button',
+      '.console input',
+      '.signer',
+      '.log-row',
+      'footer.bottom',
+    ].flatMap((selector) => [...document.querySelectorAll<HTMLElement>(selector)])
+      .filter(visible)
+      .map((element) => parseFloat(getComputedStyle(element).fontSize));
+    const actionHeights = [...document.querySelectorAll<HTMLElement>('button, input, select, summary')]
+      .filter(visible)
+      .map((element) => element.getBoundingClientRect().height);
+    const footerStyle = getComputedStyle(footerElement);
+    const footerColumns = footerStyle.gridTemplateColumns === 'none'
+      ? []
+      : footerStyle.gridTemplateColumns.split(/\s+/).filter(Boolean);
+    return {
+      document: {
+        clientWidth: document.documentElement.clientWidth,
+        clientHeight: document.documentElement.clientHeight,
+        scrollWidth: document.documentElement.scrollWidth,
+        scrollHeight: document.documentElement.scrollHeight,
+      },
+      header: rect('header.top'),
+      console: {
+        ...rect('.console'),
+        clientHeight: consoleElement.clientHeight,
+        scrollHeight: consoleElement.scrollHeight,
+        overflowY: getComputedStyle(consoleElement).overflowY,
+      },
+      stage: rect('#napplet-stage'),
+      footer: {
+        ...rect('footer.bottom'),
+        columnCount: footerColumns.length,
+      },
+      actionHeights,
+      fontSizes,
+    };
+  });
+}
+
+async function expectVisibleFocusRing(locator: Locator): Promise<void> {
+  await locator.scrollIntoViewIfNeeded();
+  await locator.focus();
+  const focus = await locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const bounds = element.getBoundingClientRect();
+    return {
+      outlineWidth: style.outlineWidth,
+      outlineOffset: style.outlineOffset,
+      top: bounds.top,
+      bottom: bounds.bottom,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  expect(focus.outlineWidth, JSON.stringify(focus)).toBe('2px');
+  expect(focus.outlineOffset, JSON.stringify(focus)).toBe('4px');
+  expect(focus.bottom, JSON.stringify(focus)).toBeGreaterThan(0);
+  expect(focus.top, JSON.stringify(focus)).toBeLessThan(focus.viewportHeight);
+}
+
+async function attachPajaScreenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await testInfo.attach(name, {
+    body: await page.screenshot({ animations: 'disabled', fullPage: true }),
+    contentType: 'image/png',
+  });
+}
+
+async function attachViewportEvidence(
+  page: Page,
+  testInfo: TestInfo,
+  state: string,
+): Promise<void> {
+  for (const viewport of [
+    { name: 'desktop', width: 1280, height: 720 },
+    { name: 'phone', width: 375, height: 812 },
+  ] as const) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await attachPajaScreenshot(page, testInfo, `${state}-${viewport.name}`);
+  }
+}
+
 async function startTargetServer(): Promise<TargetServer> {
   let loadCount = 0;
+  let htmlRequestCount = 0;
   const requestOrigins: string[] = [];
+  const failures: Array<{
+    readonly message: string;
+    readonly hold: boolean;
+  }> = [];
+  let corsAllowed = true;
+  let externalModule = false;
+  let moduleCorsAllowed = true;
+  let moduleDependency = false;
+  let dependencyCorsAllowed = true;
+  let rejectDocumentOrigin = false;
+  let releaseHeldFailure: (() => void) | null = null;
   const server = createServer((request, response) => {
     requestOrigins.push(typeof request.headers.origin === 'string' ? request.headers.origin : '');
     const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -594,15 +1424,67 @@ async function startTargetServer(): Promise<TargetServer> {
       response.end(shimPrelude);
       return;
     }
+    if (requestUrl.pathname === '/entry.js') {
+      response.writeHead(200, {
+        ...(moduleCorsAllowed ? { 'access-control-allow-origin': '*' } : {}),
+        'cache-control': 'no-store',
+        'content-type': 'text/javascript; charset=utf-8',
+      });
+      response.end(`${moduleDependency ? "import './chunk.js';" : ''}\ndocument.documentElement.dataset.pajaModule = 'loaded';`);
+      return;
+    }
+    if (requestUrl.pathname === '/chunk.js') {
+      response.writeHead(200, {
+        ...(dependencyCorsAllowed ? { 'access-control-allow-origin': '*' } : {}),
+        'cache-control': 'no-store',
+        'content-type': 'text/javascript; charset=utf-8',
+      });
+      response.end("document.documentElement.dataset.pajaChunk = 'loaded';");
+      return;
+    }
+    if (requestUrl.pathname === '/inert-module.js') {
+      requestOrigins.push('inert-module-requested');
+      response.writeHead(200, {
+        'cache-control': 'no-store',
+        'content-type': 'text/javascript; charset=utf-8',
+      });
+      response.end("document.documentElement.dataset.inertModule = 'executed';");
+      return;
+    }
     if (requestUrl.pathname !== '/') {
       response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       response.end('Not found');
       return;
     }
 
+    if (typeof request.headers.origin !== 'string') {
+      htmlRequestCount += 1;
+      const failure = failures.shift();
+      if (failure) {
+        const respond = () => {
+          (response as typeof response & { statusMessage: string }).statusMessage = failure.message;
+          response.writeHead(503, {
+            'access-control-allow-origin': '*',
+            'cache-control': 'no-store',
+            'content-type': 'text/plain; charset=utf-8',
+          });
+          response.end(failure.message);
+        };
+        if (failure.hold) releaseHeldFailure = respond;
+        else respond();
+        return;
+      }
+    }
+
+    if (rejectDocumentOrigin && typeof request.headers.origin === 'string') {
+      response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+      response.end('Origin not accepted for HTML');
+      return;
+    }
+
     loadCount += 1;
     response.writeHead(200, {
-      'access-control-allow-origin': '*',
+      ...(corsAllowed ? { 'access-control-allow-origin': '*' } : {}),
       'cache-control': 'no-store',
       'content-type': 'text/html; charset=utf-8',
     });
@@ -611,6 +1493,10 @@ async function startTargetServer(): Promise<TargetServer> {
       shellReady: requestUrl.searchParams.get('shellReady') !== '0',
       manualTraffic: requestUrl.searchParams.get('manualTraffic') === '1',
       incProbe: requestUrl.searchParams.get('incProbe') === '1',
+      externalModule,
+      inertModule: requestUrl.searchParams.get('inertModule') === '1',
+      dataModule: requestUrl.searchParams.get('dataModule') === '1',
+      forgedLifecycle: requestUrl.searchParams.get('forgedLifecycle') === '1',
     }));
   });
 
@@ -630,7 +1516,42 @@ async function startTargetServer(): Promise<TargetServer> {
   return {
     url: `http://127.0.0.1:${address.port}/`,
     requestOrigins,
+    get htmlRequestCount() {
+      return htmlRequestCount;
+    },
+    failNext(message, options) {
+      failures.push({
+        message,
+        hold: options?.hold === true,
+      });
+    },
+    setCorsAllowed(allowed) {
+      corsAllowed = allowed;
+    },
+    setExternalModule(enabled) {
+      externalModule = enabled;
+    },
+    setModuleCorsAllowed(allowed) {
+      moduleCorsAllowed = allowed;
+    },
+    setModuleDependency(enabled) {
+      moduleDependency = enabled;
+    },
+    setDependencyCorsAllowed(allowed) {
+      dependencyCorsAllowed = allowed;
+    },
+    setRejectDocumentOrigin(enabled) {
+      rejectDocumentOrigin = enabled;
+    },
+    releaseHeldFailure() {
+      const release = releaseHeldFailure;
+      releaseHeldFailure = null;
+      release?.();
+    },
     close: () => new Promise((resolve, reject) => {
+      const release = releaseHeldFailure;
+      releaseHeldFailure = null;
+      release?.();
       server.close((error) => {
         if (error) {
           reject(error);
@@ -650,7 +1571,16 @@ function readRequiredDomains(url: URL): string[] {
 
 function renderTargetHtml(
   loadCount: number,
-  options: { requiredDomains: readonly string[]; shellReady: boolean; manualTraffic: boolean; incProbe: boolean },
+  options: {
+    requiredDomains: readonly string[];
+    shellReady: boolean;
+    manualTraffic: boolean;
+    incProbe: boolean;
+    externalModule: boolean;
+    inertModule: boolean;
+    dataModule: boolean;
+    forgedLifecycle: boolean;
+  },
 ): string {
   const requiredDomainsJson = JSON.stringify(options.requiredDomains);
   const shellReadyJson = JSON.stringify(options.shellReady);
@@ -661,6 +1591,10 @@ function renderTargetHtml(
   <head>
     <meta charset="utf-8">
     <title>Kehto Paja fixture</title>
+    ${options.forgedLifecycle ? '<script>window.parent.postMessage({ type: "paja.external.document.complete", token: "forged" }, "*");</script>' : ''}
+    ${options.externalModule ? '<script type="module" src="/entry.js"></script>' : ''}
+    ${options.inertModule ? '<!-- <script type="module" src="/inert-module.js"></script> --><template><script type="module" src="/inert-module.js"></script></template>' : ''}
+    ${options.dataModule ? '<script type="module">import "data:text/javascript,document.documentElement.dataset.pajaData=%27loaded%27";</script>' : ''}
   </head>
   <body>
     <div id="target-status">booting</div>

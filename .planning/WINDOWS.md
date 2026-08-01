@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 20
+open_count: 21
 waived_count: 0
-fixed_count: 7
-total_count: 27
-last_updated: 2026-07-27T11:14:53.368Z
+fixed_count: 8
+total_count: 29
+last_updated: 2026-07-31T06:29:37.703Z
 ---
 
 # Broken Windows Ledger
@@ -42,6 +42,8 @@ last_updated: 2026-07-27T11:14:53.368Z
 | 25 | 105 | deviation | tests/e2e/paja-single-window.spec.ts |  | Canonical INC reload assertion fails after target replacement; deferred outside Plan 105-07 pointer lifecycle scope. | fixed |  | 2026-07-27T10:18:12.404Z | 2026-07-27T10:25:54.201Z |
 | 26 | 105 | deviation | tests/unit/sdk-migration-guard.test.ts |  | Excluded generated dependency directories from classified active-source evidence. | open |  | 2026-07-27T11:14:53.294Z |  |
 | 27 | 105 | deviation | tests/unit/sdk-migration-guard.test.ts |  | Made guard classification assertions test declarations rather than their own literals. | open |  | 2026-07-27T11:14:53.368Z |  |
+| 28 | 107 | unrun-verify | tests/e2e/paja-single-window.spec.ts | 536 | Exact dual-Paja verification remains blocked by the inherited upload-domain assertion; all Task 107-02 pointer recovery and accessibility flows pass. | open |  | 2026-07-31T05:26:28.956Z |  |
+| 29 | 107 | deviation | .planning/STATE.md |  | GSD state handlers wrote stale Plan 107-03 activity, zero percent, unknown phase labels, and malformed roadmap spacing; Plan 107-04 closeout normalized the generated fields. | fixed |  | 2026-07-31T06:29:04.484Z | 2026-07-31T06:29:37.703Z |
 
 ````json
 [
@@ -368,6 +370,30 @@ last_updated: 2026-07-27T11:14:53.368Z
     "reason": "",
     "recorded_at": "2026-07-27T11:14:53.368Z",
     "resolved_at": null
+  },
+  {
+    "id": 28,
+    "kind": "unrun-verify",
+    "phase": "107",
+    "file": "tests/e2e/paja-single-window.spec.ts",
+    "line": 536,
+    "description": "Exact dual-Paja verification remains blocked by the inherited upload-domain assertion; all Task 107-02 pointer recovery and accessibility flows pass.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-07-31T05:26:28.956Z",
+    "resolved_at": null
+  },
+  {
+    "id": 29,
+    "kind": "deviation",
+    "phase": "107",
+    "file": ".planning/STATE.md",
+    "line": null,
+    "description": "GSD state handlers wrote stale Plan 107-03 activity, zero percent, unknown phase labels, and malformed roadmap spacing; Plan 107-04 closeout normalized the generated fields.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-07-31T06:29:04.484Z",
+    "resolved_at": "2026-07-31T06:29:37.703Z"
   }
 ]
 ````

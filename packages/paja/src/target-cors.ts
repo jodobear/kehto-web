@@ -3,12 +3,9 @@
  *
  * Paja loads the napplet target into a `srcdoc` iframe sandboxed without
  * `allow-same-origin`, so the napplet document has an opaque origin and sends
- * `Origin: null` on every subresource fetch. `<script type="module">` is always
- * fetched in CORS mode, so a dev server that does not allow the `null` origin
- * blocks the napplet's entry module and the iframe renders blank.
- *
- * These helpers probe the target with an explicit `Origin: null` request so
- * Paja can report the cause instead of leaving an empty frame behind.
+ * `Origin: null` on cross-origin module requests. These public helpers let
+ * callers probe one known resource. Paja readiness itself follows actual
+ * sandbox-browser loading instead of attempting to crawl module source.
  */
 
 /** Whether the target dev server will serve the sandboxed frame's subresources. */
@@ -86,17 +83,19 @@ export type PajaTargetCorsFetch = (
 const defaultTargetCorsFetch: PajaTargetCorsFetch = (input, init) => fetch(input, init);
 
 /**
- * Probe a target dev server for opaque-origin CORS support.
+ * Probe one target resource for opaque-origin CORS support.
  *
- * Sends `Origin: null` explicitly — a browser cannot forge that header, but the
- * Paja server can, which is why the probe runs server-side.
+ * Sends `Origin: null` explicitly. This low-level helper is useful when a
+ * caller already knows which resource needs testing. Paja host readiness does
+ * not use it because browser fetch, redirect, credential, and import semantics
+ * must remain browser-authoritative.
  *
- * @param targetUrl - Absolute target URL served by the napplet dev server.
+ * @param targetUrl - Absolute target resource URL.
  * @param fetchImpl - Fetch implementation; defaults to the global `fetch`.
- * @returns Diagnostic describing whether the sandboxed frame can load assets.
+ * @returns Diagnostic describing whether the sandboxed frame can load the resource.
  * @example
  * ```ts
- * const diagnostic = await probeTargetCors('http://127.0.0.1:5173/');
+ * const diagnostic = await probeTargetCors('http://127.0.0.1:5173/entry.js');
  * if (diagnostic.status === 'blocked') console.warn(diagnostic.hint);
  * ```
  */
@@ -109,7 +108,7 @@ export async function probeTargetCors(
       method: 'GET',
       headers: {
         origin: 'null',
-        accept: 'text/html, application/xhtml+xml;q=0.9, */*;q=0.8',
+        accept: 'text/javascript, application/javascript, */*;q=0.8',
       },
     });
     return classifyTargetCors(targetUrl, response.headers.get('access-control-allow-origin'));
@@ -119,7 +118,7 @@ export async function probeTargetCors(
       targetUrl,
       allowOrigin: null,
       detail: `Target CORS probe failed: ${error instanceof Error ? error.message : String(error)}`,
-      hint: 'Confirm the napplet dev server is running and --target-url points at it.',
+      hint: 'Confirm the target resource is reachable and served by the napplet dev server.',
     };
   }
 }

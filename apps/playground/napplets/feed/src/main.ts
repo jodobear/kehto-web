@@ -15,6 +15,7 @@ import { createFeedProfileMediaController } from './profile-media.js';
 const REQUIRED_NAPS = ['identity', 'intent', 'relay', 'resource', 'theme'] as const;
 const CAPABILITY_WAIT_MS = 5_000;
 const CAPABILITY_WAIT_INTERVAL_MS = 25;
+type FeedStatusTone = 'neutral' | 'success' | 'danger';
 
 const statusEl = document.getElementById('feed-status')!;
 const listEl = document.getElementById('feed-list')!;
@@ -27,14 +28,9 @@ function formatError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function setStatus(text: string, color: 'gray' | 'green' | 'red' = 'gray'): void {
+function setStatus(text: string, tone: FeedStatusTone = 'neutral'): void {
   statusEl.textContent = text;
-  statusEl.style.color =
-    color === 'green'
-      ? 'var(--nap-theme-success, #39ff14)'
-      : color === 'red'
-        ? 'var(--nap-theme-danger, #ff3b3b)'
-        : 'var(--nap-theme-muted, #888)';
+  statusEl.dataset.tone = tone;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -207,9 +203,9 @@ function renderState(): void {
   listEl.replaceChildren();
   for (const event of store.state.timeline) renderEvent(event);
   if (store.state.loading) {
-    setStatus('loading', 'gray');
+    setStatus('loading', 'neutral');
   } else if (store.state.loaded) {
-    setStatus(`loaded (${store.state.eventCount})`, 'green');
+    setStatus(`loaded (${store.state.eventCount})`, 'success');
   }
 }
 
@@ -218,15 +214,15 @@ const identityController = createFeedIdentityEventController({
   subscribeToChanges: identityOnChanged,
   onLoggedOut: () => {
     store.clear();
-    setStatus('not logged in', 'red');
+    setStatus('not logged in', 'danger');
   },
   onPubkey: (pubkey) => {
     store.init(pubkey);
-    setStatus('subscribed', 'green');
+    setStatus('subscribed', 'success');
   },
   onError: (err) => {
     const reason = formatError(err, 'denied: identity:read or relay:read');
-    setStatus(`denied: ${reason}`, 'red');
+    setStatus(`denied: ${reason}`, 'danger');
   },
 });
 
@@ -242,7 +238,7 @@ async function init(): Promise<void> {
 init().catch(() => {
   // If status hasn't been set by the inner catch, set unavailable.
   if (statusEl.textContent === 'connecting...') {
-    setStatus('unavailable', 'red');
+    setStatus('unavailable', 'danger');
   }
 });
 

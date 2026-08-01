@@ -1,83 +1,52 @@
 import {
-  buildShellCapabilities,
-  createShellBridge,
-  originRegistry,
-  type Capability,
-  type ShellBridge,
-  type ShellCapabilities,
+  buildShellCapabilities, createShellBridge, originRegistry,
+  type Capability, type ShellBridge, type ShellCapabilities,
 } from '@kehto/shell';
 
+import { createDevTheme, createPajaAdapter, PAJA_DEV_SIGNER_PUBKEY } from './browser-adapter.js';
+import { confirmPajaRequest, createHostSignerController, hasNip07Signer } from './browser-host-signer.js';
 import {
-  createDevTheme,
-  createPajaAdapter,
-  PAJA_DEV_SIGNER_PUBKEY,
-} from './browser-adapter.js';
-import {
-  confirmPajaRequest,
-  createHostSignerController,
-  hasNip07Signer,
-} from './browser-host-signer.js';
-import { unregisterSingleFrameWindow } from './browser-host-runtime.js';
+  cancelExternalFrameNavigation, destroyExternalFrameNavigation, failCurrentExternalNavigation,
+  settleExternalNavigationIfReady,
+  startExternalFrameNavigation, unregisterSingleFrameWindow,
+} from './browser-host-runtime.js';
 import { BrowserIntentController } from './browser-intent-controller.js';
 import {
-  clearRuntimeTabGeneration,
-  createPajaIntentTargetOptions,
-  markRuntimeTabReady,
-  pajaPointerResolverOptions,
+  clearRuntimeTabGeneration, createPajaIntentTargetOptions, markRuntimeTabReady,
   subscribePajaIntentCatalogChanges,
 } from './browser-intent-host.js';
 import { InstalledNappletCatalog } from './installed-napplet-catalog.js';
 import { createPajaThemeBroadcastLink } from './theme-broadcast.js';
+import { type PajaSignerState } from './browser-signers.js';
 import {
-  type PajaSignerState,
-} from './browser-signers.js';
-import {
-  activateRuntimeTab,
-  addRuntimeTab,
-  closeRuntimeTab,
-  getActiveTab,
-  PAJA_RUNTIME_TABS_STORAGE_KEY,
-  parseRuntimeTabsSnapshot,
-  reloadActiveRuntimeTab,
-  renderRuntimeTabs,
-  resolvedTargetKey,
-  setEmptyStageVisible,
-  showDuplicatePointerDialog,
-  snapshotRuntimeTabs,
-  type PajaRuntimeTabsSnapshot,
-  type PajaRuntimeTab,
-  type PajaRuntimeTabContext,
-  type PajaRuntimeTabRuntime,
+  activateRuntimeTab, closeRuntimeTab, destroyRuntimeTabHost,
+  PAJA_RUNTIME_TABS_STORAGE_KEY, parseRuntimeTabsSnapshot, reloadActiveRuntimeTab,
+  projectActiveRuntimeTabLifecycle, renderRuntimeTabs,
+  setEmptyStageVisible, settleRuntimeTabReady,
+  snapshotRuntimeTabs, type PajaRuntimeTabsSnapshot, type PajaRuntimeTab,
+  type PajaRuntimeTabContext, type PajaRuntimeTabRuntime,
 } from './browser-runtime-tabs.js';
+import {
+  destroyRuntimePointerWork,
+  loadRuntimePointer,
+  restorePersistedRuntimeTabs,
+} from './browser-runtime-pointer.js';
 import type { BrowserIntentGeneration } from './browser-intent-controller.js';
 import {
-  appendPajaMessageLog,
-  createPajaPostMessageProxy,
-  installPajaOriginRegistryProxy,
-  renderPajaDevtools,
-  renderPajaMessageLog,
-  type PajaMessageLogEntry,
+  appendPajaMessageLog, createPajaPostMessageProxy, installPajaOriginRegistryProxy,
+  renderPajaDevtools, renderPajaMessageLog, type PajaMessageLogEntry,
 } from './browser-devtools.js';
 import type { PajaHostConfig } from './options.js';
+import { getTargetIdentity, navigateFrame } from './browser-target-frame.js';
+import { createPajaTargetSurface, type PajaTargetSurface } from './browser-target-surface.js';
+import type { PajaResolvedPointer } from './runtime-resolver.js';
 import {
-  getTargetIdentity,
-  navigateFrame,
-  renderTargetErrorHtml,
-} from './browser-target-frame.js';
-import {
-  resolvePajaPointer,
-  type PajaResolvedPointer,
-} from './runtime-resolver.js';
-import { reportTargetCorsDiagnostic } from './browser-target-diagnostics.js';
-import {
-  PAJA_SIMULATION_DOMAINS,
-  summarizePajaSimulation,
-  type PajaSimulation,
-  type PajaCapabilityDomain,
+  PAJA_SIMULATION_DOMAINS, summarizePajaSimulation,
+  type PajaSimulation, type PajaCapabilityDomain,
 } from './simulation.js';
 
 export interface PajaBrowserState {
-  readonly config: PajaHostConfig;
+  config: PajaHostConfig;
   readonly capabilities: ShellCapabilities;
   services: string[];
   simulation: PajaSimulation;
@@ -157,6 +126,24 @@ export interface PajaBrowserStateContext extends PajaRuntimeTabContext {
   signerController: PajaSignerController;
   capabilities: ShellCapabilities;
   runtime: PajaHostRuntimeState;
+  targetSurface: PajaTargetSurface | null;
+  externalAttemptGeneration: number | null;
+  externalAttemptTimeoutId: number | null;
+  externalAttemptController: AbortController | null;
+  externalAttemptErrorDisposer: (() => void) | null;
+  externalLifecycleToken: string | null;
+  externalShellReady: boolean;
+  externalDocumentComplete: boolean;
+  externalFocusFrameOnReady: boolean;
+  refreshExternalConfig(signal: AbortSignal): Promise<PajaHostConfig>;
+  pointerTargetSurface: PajaTargetSurface | null;
+  pointerAttemptGeneration: number | null;
+  pointerAttemptController: AbortController | null;
+  pointerRequestGeneration: number;
+  pointerFocusFrameOnReady: boolean;
+  destroyed: boolean;
+  persistRuntimeTabs(state: PajaBrowserState): void;
+  setPointerAttemptBusy(busy: boolean): void;
 }
 
 function readConfig(): PajaHostConfig {
@@ -167,25 +154,33 @@ function readConfig(): PajaHostConfig {
   return JSON.parse(script.textContent) as PajaHostConfig;
 }
 
-async function readLatestConfig(fallback: PajaHostConfig): Promise<PajaHostConfig> {
+async function readLatestConfig(fallback: PajaHostConfig, signal?: AbortSignal): Promise<PajaHostConfig> {
   try {
-    const response = await fetch(new URL('./__kehto/config.json', window.location.href), { cache: 'no-store' });
+    const response = await fetch(new URL('./__kehto/config.json', window.location.href), {
+      cache: 'no-store',
+      signal,
+    });
     if (!response.ok) return fallback;
     return await response.json() as PajaHostConfig;
   } catch (error) {
+    if (signal?.aborted) throw signal.reason ?? error;
     console.warn('[paja] config refresh failed; using embedded config', error);
     return fallback;
   }
 }
 
-function setTargetUrlDisplay(config: PajaHostConfig, frame?: HTMLIFrameElement | null): void {
-  const label = getTargetLabel(config);
+function setTargetDisplay(label: string, frame?: HTMLIFrameElement | null): void {
   const targetEl = document.querySelector('.target');
   if (targetEl) {
     targetEl.textContent = label;
     targetEl.setAttribute('title', label);
+    targetEl.setAttribute('aria-label', label);
   }
   if (frame) frame.dataset.targetUrl = label;
+}
+
+function setTargetUrlDisplay(config: PajaHostConfig, frame?: HTMLIFrameElement | null): void {
+  setTargetDisplay(getTargetLabel(config), frame);
 }
 
 function getTargetLabel(config: PajaHostConfig): string {
@@ -236,8 +231,15 @@ function persistRuntimeTabs(state: PajaBrowserState): void {
 
 function setStatus(state: PajaBrowserState, status: PajaBrowserState['status']): void {
   state.status = status;
+}
+
+function setLifecycleStatus(message: string): void {
   const statusEl = document.getElementById('lifecycle-status');
-  if (statusEl) statusEl.textContent = status;
+  if (!statusEl || statusEl.textContent === message) return;
+  statusEl.setAttribute('role', 'status');
+  statusEl.setAttribute('aria-live', 'polite');
+  statusEl.setAttribute('aria-atomic', 'true');
+  statusEl.textContent = message;
 }
 
 function setSimulationStatus(state: PajaBrowserState): void {
@@ -252,6 +254,11 @@ function setPointerStatus(state: PajaBrowserState, message: string): void {
   state.pointerStatus = message;
   const statusEl = document.getElementById('runtime-pointer-status');
   if (statusEl) statusEl.textContent = message;
+}
+
+function setPointerAttemptBusy(busy: boolean): void {
+  const submit = document.getElementById('runtime-pointer-load');
+  if (submit instanceof HTMLButtonElement) submit.disabled = busy;
 }
 
 function getStage(): HTMLElement {
@@ -270,44 +277,6 @@ function getFrame(): HTMLIFrameElement {
   frame.sandbox.add('allow-scripts');
   frame.sandbox.remove('allow-same-origin');
   return frame;
-}
-
-function startFrameNavigation(
-  state: PajaBrowserState,
-  context: PajaBrowserStateContext,
-): void {
-  const { config, frame, bridge, adapter, runtime } = context;
-  if (!frame) return;
-  const generation = state.generation;
-  const isCurrentGeneration = () => state.generation === generation;
-  void navigateFrame(
-    frame,
-    config,
-    generation,
-    adapter,
-    state.resolvedTarget,
-    undefined,
-    isCurrentGeneration,
-    (windowId) => {
-      if (isCurrentGeneration()) runtime.currentWindowId = windowId;
-    },
-  ).then((windowId) => {
-    if (!isCurrentGeneration()) {
-      unregisterSingleFrameWindow(bridge, runtime, windowId);
-      return;
-    }
-    runtime.currentWindowId = windowId;
-  }).catch((error) => {
-    if (!isCurrentGeneration()) return;
-    frame.removeAttribute('src');
-    frame.srcdoc = renderTargetErrorHtml(error);
-    setStatus(state, 'error');
-    appendPajaMessageLog(state, 'paja', {
-      type: 'paja.target.error',
-      error: error instanceof Error ? error.message : String(error),
-    });
-    console.error(error);
-  });
 }
 
 function installPajaControlListeners(state: PajaBrowserState): void {
@@ -348,12 +317,16 @@ function reloadPajaTarget(state: PajaBrowserState, context: PajaBrowserStateCont
     reloadActiveRuntimeTab(state, context);
     return;
   }
+  cancelExternalFrameNavigation(
+    context,
+    new Error('Target navigation cancelled before reload.'),
+  );
   if (runtime.currentWindowId) {
     unregisterSingleFrameWindow(bridge, runtime, runtime.currentWindowId);
   }
   state.generation += 1;
   setStatus(state, 'reloading');
-  startFrameNavigation(state, context);
+  startExternalFrameNavigation(state, context);
 }
 
 function setRuntimeDomainEnabled(
@@ -382,75 +355,6 @@ function setRuntimeDomainEnabled(
   setSimulationStatus(state);
   appendPajaMessageLog(state, 'paja', { type: `paja.interface.${enabled ? 'enabled' : 'disabled'}`, domain });
   state.reload();
-}
-
-async function loadRuntimePointer(
-  state: PajaBrowserState,
-  context: PajaBrowserStateContext,
-  value: string,
-  options: { readonly skipDuplicatePrompt?: boolean; readonly persist?: boolean } = {},
-): Promise<void> {
-  const { config, runtime } = context;
-  if (config.target.mode !== 'runtime-pointer') return;
-  const pointer = value.trim();
-  const input = document.getElementById('runtime-pointer-input');
-  if (input instanceof HTMLInputElement) input.value = pointer;
-  state.pointerValue = pointer;
-  if (!pointer) {
-    setPointerStatus(state, 'idle');
-    return;
-  }
-  setPointerStatus(state, 'resolving');
-  setStatus(state, 'booting');
-  appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.resolve', pointer });
-  try {
-    const resolvedTarget = await resolvePajaPointer(pointer, pajaPointerResolverOptions(context));
-    runtime.catalog.install(resolvedTarget);
-    const pointerStatus = `${resolvedTarget.dTag}:${resolvedTarget.aggregateHash.slice(0, 12)}`;
-    setPointerStatus(state, pointerStatus);
-    appendPajaMessageLog(state, 'paja', {
-      type: 'paja.pointer.resolved',
-      dTag: resolvedTarget.dTag,
-      aggregateHash: resolvedTarget.aggregateHash,
-    });
-    const duplicate = options.skipDuplicatePrompt ? undefined : state.tabs.find((tab) => tab.key === resolvedTargetKey(resolvedTarget));
-    if (duplicate) {
-      const choice = await showDuplicatePointerDialog();
-      if (choice === 'cancel') {
-        setStatus(state, getActiveTab(state)?.status ?? 'ready');
-        setPointerStatus(state, `already running: ${duplicate.title}`);
-        appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.duplicate.cancelled', tabId: duplicate.id });
-        return;
-      }
-      if (choice === 'open-tab') {
-        activateRuntimeTab(state, context, duplicate.id);
-        if (options.persist !== false) persistRuntimeTabs(state);
-        appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.duplicate.opened', tabId: duplicate.id });
-        return;
-      }
-    }
-    addRuntimeTab(state, context, pointer, resolvedTarget);
-    if (options.persist !== false) persistRuntimeTabs(state);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    state.resolvedTarget = null;
-    setPointerStatus(state, message);
-    setStatus(state, 'error');
-    appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.error', error: message });
-  }
-}
-
-async function restorePersistedRuntimeTabs(
-  state: PajaBrowserState,
-  context: PajaBrowserStateContext,
-  snapshot: PajaRuntimeTabsSnapshot,
-): Promise<void> {
-  for (const pointer of snapshot.pointers) {
-    await loadRuntimePointer(state, context, pointer, { skipDuplicatePrompt: true, persist: false });
-  }
-  const activeTab = state.tabs[snapshot.activeIndex] ?? state.tabs[0];
-  if (activeTab) activateRuntimeTab(state, context, activeTab.id);
-  persistRuntimeTabs(state);
 }
 
 function snapshotPajaBrowserState(state: PajaBrowserState, runtime: PajaHostRuntimeState): ReturnType<PajaBrowserState['getState']> {
@@ -550,6 +454,81 @@ function createPajaBrowserState(context: PajaBrowserStateContext): PajaBrowserSt
   };
 }
 
+function installPajaMessageListener(
+  state: PajaBrowserState,
+  context: PajaBrowserStateContext,
+): void {
+  const { bridge, frame, runtime } = context;
+  window.addEventListener('message', (event) => {
+    const source = event.source as Window | null;
+    const sourceTab = source ? state.tabs.find((tab) => tab.frame.contentWindow === source) ?? null : null;
+    const isSingleFrameMessage = frame ? event.source === frame.contentWindow : false;
+    if (!sourceTab && !isSingleFrameMessage) return;
+    const registeredWindowId = source ? originRegistry.getWindowId(source) ?? null : null;
+    const sourceWindowId = sourceTab?.windowId ?? registeredWindowId ?? undefined;
+    if (sourceTab && (!source || !sourceWindowId || registeredWindowId !== sourceWindowId)) return;
+    if (isSingleFrameMessage && (!sourceWindowId || sourceWindowId !== runtime.currentWindowId)) return;
+    const data = event.data as { type?: unknown; source?: unknown; token?: unknown } | null;
+    if (isSingleFrameMessage && data && typeof data === 'object') {
+      if (data.type === 'paja.external.document.complete') {
+        if (data.token !== context.externalLifecycleToken) return;
+        context.externalDocumentComplete = true;
+        settleExternalNavigationIfReady(state, context);
+        return;
+      }
+      if (data.type === 'paja.external.module.error') {
+        if (data.token !== context.externalLifecycleToken) return;
+        const moduleSource = typeof data.source === 'string' && data.source
+          ? ` (${data.source})`
+          : '';
+        failCurrentExternalNavigation(
+          state,
+          context,
+          new Error(
+            `Target module failed to load in the sandboxed frame${moduleSource}. `
+            + 'Check module URLs, redirects, credentials, and CORS for opaque Origin: null.',
+          ),
+        );
+        return;
+      }
+    }
+    appendPajaMessageLog(state, 'napplet->shell', event.data, sourceWindowId);
+    const proxiedSource = createPajaPostMessageProxy(event.source as Window, state, sourceWindowId);
+    const syntheticEvent = new Proxy(event, {
+      get(target, prop) {
+        if (prop === 'source') return proxiedSource;
+        const val = Reflect.get(target, prop, target) as unknown;
+        return typeof val === 'function' ? (val as Function).bind(target) : val;
+      },
+    }) as MessageEvent;
+    bridge.handleMessage(syntheticEvent);
+    if (data && typeof data === 'object' && data.type === 'shell.ready') {
+      if (sourceTab) {
+        if (source && !markRuntimeTabReady(
+          state,
+          context,
+          sourceTab,
+          source,
+          registeredWindowId,
+          { setReadyStatus: (current) => setStatus(current, 'ready') },
+        )) return;
+        settleRuntimeTabReady(sourceTab);
+        const isActiveTab = state.activeTabId === sourceTab.id;
+        sourceTab.targetSurface.showReady({
+          focusFrame: sourceTab.focusFrameOnReady && isActiveTab,
+        });
+        projectActiveRuntimeTabLifecycle(state, context);
+        sourceTab.focusFrameOnReady = false;
+        sourceTab.frame.hidden = !isActiveTab;
+      } else {
+        if (sourceWindowId) runtime.readyWindowIds.add(sourceWindowId);
+        context.externalShellReady = true;
+        settleExternalNavigationIfReady(state, context);
+      }
+    }
+  });
+}
+
 async function installPajaHost(): Promise<void> {
   const config = await readLatestConfig(readConfig());
   const stage = getStage();
@@ -595,61 +574,66 @@ async function installPajaHost(): Promise<void> {
     signerController,
     capabilities,
     runtime,
+    targetSurface: null, externalAttemptGeneration: null, externalAttemptTimeoutId: null,
+    externalAttemptController: null, externalAttemptErrorDisposer: null, externalLifecycleToken: null,
+    externalShellReady: false, externalDocumentComplete: false, externalFocusFrameOnReady: false,
+    refreshExternalConfig: (signal) => readLatestConfig(context.config, signal),
+    pointerTargetSurface: null, pointerAttemptGeneration: null, pointerAttemptController: null,
+    pointerRequestGeneration: 0, pointerFocusFrameOnReady: false, destroyed: false,
+    persistRuntimeTabs,
+    setPointerAttemptBusy,
     navigateFrame,
-    renderTargetErrorHtml,
     onTabDestroyed: (tab) => clearRuntimeTabGeneration(tab, runtime),
     setPointerStatus: (state, message) => setPointerStatus(state as PajaBrowserState, message),
     setStatus: (state, status) => setStatus(state as PajaBrowserState, status),
+    setLifecycleStatus,
+    focusPointerControl,
+    setActiveTarget: (tab) => setTargetDisplay(tab?.pointerValue ?? getTargetLabel(context.config), tab?.frame ?? frame),
   };
   contextRef = context;
   const state = createPajaBrowserState(context);
   stateRef = state;
+  if (frame) {
+    context.targetSurface = createPajaTargetSurface({
+      host: stage,
+      frame,
+      returnLabel: 'Back to Paja controls',
+      onRetry: () => {
+        context.externalFocusFrameOnReady = true;
+        state.reload();
+      },
+      onReturn: focusFirstEnabledPajaControl,
+      onLifecycleStatus: setLifecycleStatus,
+    });
+  } else {
+    context.pointerTargetSurface = createPajaTargetSurface({
+      host: stage,
+      frame: document.createElement('iframe'),
+      returnLabel: 'Back to target controls',
+      onRetry: () => {
+        context.pointerFocusFrameOnReady = true;
+        void state.loadPointer(state.pointerValue);
+      },
+      onReturn: focusPointerControl,
+      onLifecycleStatus: setLifecycleStatus,
+    });
+  }
 
   const stopIntentCatalogChanges = subscribePajaIntentCatalogChanges(state, context);
-  window.addEventListener('pagehide', stopIntentCatalogChanges, { once: true });
-
-  window.__KEHTO_PAJA__ = state;
-
-  window.addEventListener('message', (event) => {
-    const source = event.source as Window | null;
-    const sourceTab = source ? state.tabs.find((tab) => tab.frame.contentWindow === source) ?? null : null;
-    const isSingleFrameMessage = frame ? event.source === frame.contentWindow : false;
-    if (!sourceTab && !isSingleFrameMessage) return;
-    const registeredWindowId = source ? originRegistry.getWindowId(source) ?? null : null;
-    const sourceWindowId = sourceTab?.windowId ?? registeredWindowId ?? undefined;
-    if (sourceTab && (!source || !sourceWindowId || registeredWindowId !== sourceWindowId)) return;
-    if (isSingleFrameMessage && (!sourceWindowId || sourceWindowId !== runtime.currentWindowId)) return;
-    appendPajaMessageLog(state, 'napplet->shell', event.data, sourceWindowId);
-    const proxiedSource = createPajaPostMessageProxy(event.source as Window, state, sourceWindowId);
-    const syntheticEvent = new Proxy(event, {
-      get(target, prop) {
-        if (prop === 'source') return proxiedSource;
-        const val = Reflect.get(target, prop, target) as unknown;
-        return typeof val === 'function' ? (val as Function).bind(target) : val;
-      },
-    }) as MessageEvent;
-    bridge.handleMessage(syntheticEvent);
-    const data = event.data as { type?: unknown } | null;
-    if (data && typeof data === 'object' && data.type === 'shell.ready') {
-      if (sourceTab) {
-        if (source && !markRuntimeTabReady(
-          state,
-          context,
-          sourceTab,
-          source,
-          registeredWindowId,
-          { setReadyStatus: (current) => setStatus(current, 'ready') },
-        )) return;
-      } else {
-        if (sourceWindowId) runtime.readyWindowIds.add(sourceWindowId);
-        setStatus(state, 'ready');
-      }
+  window.addEventListener('pagehide', (event) => {
+    if (event.persisted) return;
+    stopIntentCatalogChanges();
+    if (config.target.mode === 'runtime-pointer') {
+      destroyRuntimePointerWork(context);
+      destroyRuntimeTabHost(state, context);
+    } else {
+      context.destroyed = true;
+      destroyExternalFrameNavigation(context);
     }
   });
 
-  frame?.addEventListener('error', () => {
-    setStatus(state, 'error');
-  });
+  window.__KEHTO_PAJA__ = state;
+  installPajaMessageListener(state, context);
 
   installPajaControlListeners(state);
 
@@ -664,14 +648,24 @@ async function installPajaHost(): Promise<void> {
     else if (persistedTabs) void restorePersistedRuntimeTabs(state, context, persistedTabs);
     else {
       setStatus(state, 'ready');
+      setLifecycleStatus('No runtime loaded');
       setEmptyStageVisible(true);
       renderRuntimeTabs(state);
     }
   } else {
-    startFrameNavigation(state, context);
-    void reportTargetCorsDiagnostic(state);
+    startExternalFrameNavigation(state, context);
   }
   if (hasNip07Signer()) void state.connectNip07();
+}
+
+function focusFirstEnabledPajaControl(): void {
+  document.querySelector<HTMLElement>(
+    '.console button:not(:disabled), .console input:not(:disabled), .console select:not(:disabled)',
+  )?.focus();
+}
+
+function focusPointerControl(): void {
+  document.getElementById('runtime-pointer-input')?.focus();
 }
 
 if (typeof document !== 'undefined') {

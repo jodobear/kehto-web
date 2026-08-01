@@ -7,10 +7,20 @@ import {
   type PajaDevtoolsState,
 } from './browser-devtools.js';
 import type { PajaHostConfig } from './options.js';
+import { resetPajaFrameDocument } from './browser-target-frame.js';
+import {
+  createPajaTargetSurface,
+  type PajaTargetSurface,
+} from './browser-target-surface.js';
 import type { PajaResolvedPointer } from './runtime-resolver.js';
 import type { PajaSimulation } from './simulation.js';
 
 type PajaRuntimeStatus = 'booting' | 'ready' | 'reloading' | 'error';
+
+export interface PajaRuntimeTabReadinessDeadline {
+  readonly generation: number;
+  cancel(): void;
+}
 
 export const PAJA_RUNTIME_TABS_STORAGE_KEY = 'kehto:paja:runtime-tabs:v1';
 
@@ -33,6 +43,11 @@ export interface PajaRuntimeTab {
   pointerStatus: string;
   resolvedTarget: PajaResolvedPointer;
   frame: HTMLIFrameElement;
+  surfaceHost: HTMLElement;
+  targetSurface: PajaTargetSurface;
+  focusFrameOnReady: boolean;
+  frameErrorHandler: (() => void) | null;
+  readinessDeadline: PajaRuntimeTabReadinessDeadline | null;
   generation: number;
   windowId: string | null;
   status: PajaRuntimeStatus;
@@ -72,9 +87,11 @@ export interface PajaRuntimeTabContext {
     isCurrent?: () => boolean,
     onRegistered?: (windowId: string | null) => void,
   ): Promise<string | null>;
-  renderTargetErrorHtml(error: unknown): string;
   setPointerStatus(state: PajaRuntimeTabState, message: string): void;
   setStatus(state: PajaRuntimeTabState, status: PajaRuntimeStatus): void;
+  setLifecycleStatus(message: string): void;
+  focusPointerControl(): void;
+  setActiveTarget(tab: PajaRuntimeTab | null): void;
   /** Clear host-owned retained-delivery state before session and frame teardown. */
   onTabDestroyed?(tab: PajaRuntimeTab): void;
 }
@@ -93,6 +110,31 @@ export function resolvedTargetKey(target: PajaResolvedPointer): string {
 /** Return the opaque identity of one live runtime-tab generation. */
 export function runtimeTabGenerationId(tab: Pick<PajaRuntimeTab, 'id' | 'generation'>): string {
   return `${tab.id}:${tab.generation}`;
+}
+
+export function createRuntimeTabReadinessDeadline(
+  timeoutMs: number,
+  generation: number,
+  onTimeout: (generation: number) => void,
+): PajaRuntimeTabReadinessDeadline {
+  let active = true;
+  const timeoutId = globalThis.setTimeout(() => {
+    if (!active) return;
+    active = false;
+    onTimeout(generation);
+  }, Math.max(0, timeoutMs));
+  return {
+    generation,
+    cancel() {
+      if (!active) return;
+      active = false;
+      globalThis.clearTimeout(timeoutId);
+    },
+  };
+}
+
+export function settleRuntimeTabReady(tab: PajaRuntimeTab): void {
+  clearRuntimeTabReadinessDeadline(tab);
 }
 
 export function getActiveTab(state: PajaRuntimeTabState): PajaRuntimeTab | null {
@@ -163,6 +205,10 @@ export function renderRuntimeTabs(state: PajaRuntimeTabState): void {
   const tabsEl = document.getElementById('napplet-tabs');
   if (!(tabsEl instanceof HTMLElement)) return;
   tabsEl.replaceChildren(...state.tabs.map((tab) => renderTab(state, tab)));
+  const activeTrigger = state.activeTabId
+    ? document.getElementById(runtimeTabTriggerId(state.activeTabId))
+    : null;
+  if (activeTrigger instanceof HTMLButtonElement) revealRuntimeTabTrigger(activeTrigger);
 }
 
 export function activateRuntimeTab(
@@ -182,8 +228,14 @@ export function activateRuntimeTab(
   if (input instanceof HTMLInputElement) input.value = tab.pointerValue;
   context.setPointerStatus(state, tab.pointerStatus);
   context.setStatus(state, tab.status);
+  projectRuntimeTabLifecycle(tab, state, context, tab.generation);
+  context.setActiveTarget(tab);
   setEmptyStageVisible(false);
-  for (const entry of state.tabs) entry.frame.hidden = entry.id !== tab.id;
+  for (const entry of state.tabs) {
+    const active = entry.id === tab.id;
+    entry.surfaceHost.hidden = !active;
+    entry.frame.hidden = !active || entry.targetSurface.phase !== 'ready';
+  }
   renderRuntimeTabs(state);
   renderPajaDevtools(state, { bridge: context.bridge, devSignerPubkey: PAJA_DEV_SIGNER_PUBKEY });
 }
@@ -213,8 +265,19 @@ export function closeRuntimeTab(
   state.pointerStatus = 'idle';
   context.setPointerStatus(state, 'idle');
   context.setStatus(state, 'ready');
+  context.setLifecycleStatus('No runtime loaded');
   setEmptyStageVisible(true);
   renderRuntimeTabs(state);
+  context.setActiveTarget(null);
+}
+
+/** Release every runtime-tab session owned by one host page. */
+export function destroyRuntimeTabHost(
+  state: PajaRuntimeTabState,
+  context: PajaRuntimeTabContext,
+): void {
+  for (const tab of state.tabs) destroyRuntimeTabSession(tab, context);
+  context.runtime.currentWindowId = null;
 }
 
 export function addRuntimeTab(
@@ -224,20 +287,44 @@ export function addRuntimeTab(
   resolvedTarget: PajaResolvedPointer,
 ): PajaRuntimeTab {
   state.generation += 1;
-  const tab: PajaRuntimeTab = {
-    id: `tab-${state.generation}`,
-    title: resolvedTargetTitle(resolvedTarget),
+  const id = `tab-${state.generation}`;
+  const title = resolvedTargetTitle(resolvedTarget);
+  let tab!: PajaRuntimeTab;
+  const frame = createRuntimeTabFrame(id, title, pointerValue);
+  const surfaceHost = document.createElement('section');
+  surfaceHost.id = runtimeTabPanelId(id);
+  surfaceHost.className = 'tab-panel';
+  surfaceHost.setAttribute('role', 'tabpanel');
+  surfaceHost.setAttribute('aria-labelledby', runtimeTabTriggerId(id));
+  surfaceHost.dataset.tabId = id;
+  surfaceHost.hidden = true;
+  surfaceHost.append(frame);
+  const targetSurface = createPajaTargetSurface({
+    host: surfaceHost,
+    frame,
+    returnLabel: 'Back to target controls',
+    onRetry: () => reloadActiveRuntimeTab(state, context, { focusFrameOnReady: true }),
+    onReturn: context.focusPointerControl,
+    onLifecycleStatus: () => {},
+  });
+  tab = {
+    id,
+    title,
     key: resolvedTargetKey(resolvedTarget),
     pointerValue,
     pointerStatus: `${resolvedTarget.dTag}:${resolvedTarget.aggregateHash.slice(0, 12)}`,
     resolvedTarget,
-    frame: document.createElement('iframe'),
+    frame,
+    surfaceHost,
+    targetSurface,
+    focusFrameOnReady: false,
+    frameErrorHandler: null,
+    readinessDeadline: null,
     generation: state.generation,
     windowId: null,
     status: 'booting',
   };
-  tab.frame = createRuntimeTabFrame(tab, state, context);
-  context.stage.append(tab.frame);
+  context.stage.append(tab.surfaceHost);
   state.tabs.push(tab);
   activateRuntimeTab(state, context, tab.id);
   startRuntimeTabNavigation(tab, state, context);
@@ -247,15 +334,15 @@ export function addRuntimeTab(
 export function reloadActiveRuntimeTab(
   state: PajaRuntimeTabState,
   context: PajaRuntimeTabContext,
+  options: { readonly focusFrameOnReady?: boolean } = {},
 ): void {
   const tab = getActiveTab(state);
   if (!tab) return;
-  destroyRuntimeTab(tab, context);
+  destroyRuntimeTabSession(tab, context);
   tab.generation = ++state.generation;
   tab.windowId = null;
   tab.status = 'reloading';
-  tab.frame = createRuntimeTabFrame(tab, state, context);
-  context.stage.append(tab.frame);
+  tab.focusFrameOnReady = options.focusFrameOnReady === true;
   activateRuntimeTab(state, context, tab.id);
   startRuntimeTabNavigation(tab, state, context);
 }
@@ -299,26 +386,73 @@ export function showDuplicatePointerDialog(): Promise<PajaDuplicateChoice> {
 }
 
 function renderTab(state: PajaRuntimeTabState, tab: PajaRuntimeTab): HTMLElement {
-  const tabButton = document.createElement('div');
-  tabButton.className = 'tab';
-  tabButton.dataset.tabId = tab.id;
-  tabButton.dataset.active = String(tab.id === state.activeTabId);
-  tabButton.setAttribute('role', 'tab');
-  tabButton.setAttribute('aria-selected', String(tab.id === state.activeTabId));
-  tabButton.tabIndex = 0;
-  tabButton.title = tab.pointerValue;
-  tabButton.addEventListener('click', () => state.activateTab(tab.id));
-  tabButton.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
+  const active = tab.id === state.activeTabId;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tab';
+  wrapper.dataset.tabId = tab.id;
+  wrapper.dataset.active = String(active);
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'tab-trigger';
+  trigger.id = runtimeTabTriggerId(tab);
+  trigger.setAttribute('role', 'tab');
+  trigger.setAttribute('aria-selected', String(active));
+  trigger.setAttribute('aria-controls', runtimeTabPanelId(tab));
+  trigger.setAttribute('aria-label', tab.title);
+  trigger.tabIndex = active ? 0 : -1;
+  trigger.title = tab.title;
+  trigger.addEventListener('click', () => activateAndFocusRuntimeTab(state, tab.id));
+  trigger.addEventListener('keydown', (event) => {
+    let nextTabId: string | null = null;
+    const index = state.tabs.findIndex((entry) => entry.id === tab.id);
+    if (index < 0) return;
+    switch (event.key) {
+      case 'ArrowLeft':
+        nextTabId = state.tabs[(index - 1 + state.tabs.length) % state.tabs.length]?.id ?? null;
+        break;
+      case 'ArrowRight':
+        nextTabId = state.tabs[(index + 1) % state.tabs.length]?.id ?? null;
+        break;
+      case 'Home':
+        nextTabId = state.tabs[0]?.id ?? null;
+        break;
+      case 'End':
+        nextTabId = state.tabs.at(-1)?.id ?? null;
+        break;
+      default:
+        return;
+    }
     event.preventDefault();
-    state.activateTab(tab.id);
+    if (nextTabId) activateAndFocusRuntimeTab(state, nextTabId);
   });
 
   const label = document.createElement('span');
   label.className = 'tab-label';
   label.textContent = tab.title;
-  tabButton.append(label, renderShareButton(tab), renderCloseButton(state, tab));
-  return tabButton;
+  trigger.append(label);
+  wrapper.append(trigger, renderShareButton(tab), renderCloseButton(state, tab));
+  return wrapper;
+}
+
+function activateAndFocusRuntimeTab(state: PajaRuntimeTabState, tabId: string): void {
+  state.activateTab(tabId);
+  const trigger = document.getElementById(runtimeTabTriggerId(tabId));
+  if (!(trigger instanceof HTMLButtonElement)) return;
+  trigger.focus({ preventScroll: true });
+  revealRuntimeTabTrigger(trigger);
+}
+
+function revealRuntimeTabTrigger(trigger: HTMLButtonElement): void {
+  const tabsEl = document.getElementById('napplet-tabs');
+  if (!(tabsEl instanceof HTMLElement)) return;
+  const stripRect = tabsEl.getBoundingClientRect();
+  const triggerRect = trigger.getBoundingClientRect();
+  let nextScrollLeft = tabsEl.scrollLeft;
+  if (triggerRect.left < stripRect.left) nextScrollLeft -= Math.ceil(stripRect.left - triggerRect.left);
+  if (triggerRect.right > stripRect.right) nextScrollLeft += Math.ceil(triggerRect.right - stripRect.right);
+  nextScrollLeft = Math.max(0, Math.min(nextScrollLeft, tabsEl.scrollWidth - tabsEl.clientWidth));
+  tabsEl.scrollTo({ left: nextScrollLeft, behavior: 'auto' });
 }
 
 function renderShareButton(tab: PajaRuntimeTab): HTMLButtonElement {
@@ -326,17 +460,11 @@ function renderShareButton(tab: PajaRuntimeTab): HTMLButtonElement {
   share.type = 'button';
   share.className = 'tab-share';
   share.setAttribute('aria-label', `Copy share link for ${tab.title}`);
-  share.title = 'Copy share link';
+  share.title = `Copy share link for ${tab.title}`;
   share.textContent = '↗';
   share.addEventListener('click', (event) => {
     event.stopPropagation();
-    void shareRuntimeTab(tab, share).catch((error) => console.error(error));
-  });
-  share.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    event.stopPropagation();
-    void shareRuntimeTab(tab, share).catch((error) => console.error(error));
+    void shareRuntimeTab(tab).catch((error) => console.error(error));
   });
   return share;
 }
@@ -346,21 +474,19 @@ function renderCloseButton(state: PajaRuntimeTabState, tab: PajaRuntimeTab): HTM
   close.type = 'button';
   close.className = 'tab-close';
   close.setAttribute('aria-label', `Close ${tab.title}`);
+  close.title = `Close ${tab.title}`;
   close.textContent = 'x';
   close.addEventListener('click', (event) => {
     event.stopPropagation();
     state.closeTab(tab.id);
-  });
-  close.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    event.stopPropagation();
-    state.closeTab(tab.id);
+    const activeTabId = state.activeTabId;
+    if (activeTabId) activateAndFocusRuntimeTab(state, activeTabId);
+    else document.getElementById('runtime-pointer-input')?.focus();
   });
   return close;
 }
 
-async function shareRuntimeTab(tab: PajaRuntimeTab, button: HTMLButtonElement): Promise<void> {
+async function shareRuntimeTab(tab: PajaRuntimeTab): Promise<void> {
   const shareUrl = createPajaShareUrl(tab.pointerValue);
   const clipboard = navigator.clipboard;
   if (!clipboard) {
@@ -373,10 +499,18 @@ async function shareRuntimeTab(tab: PajaRuntimeTab, button: HTMLButtonElement): 
     window.prompt('Copy Paja share link', shareUrl);
     return;
   }
-  button.title = 'Share link copied';
-  window.setTimeout(() => {
-    button.title = 'Copy share link';
-  }, 1200);
+}
+
+function runtimeTabTriggerId(tab: string | Pick<PajaRuntimeTab, 'id'>): string {
+  return `paja-runtime-tab-${typeof tab === 'string' ? tab : tab.id}`;
+}
+
+function runtimeTabPanelId(tab: string | Pick<PajaRuntimeTab, 'id'>): string {
+  return `napplet-frame-${typeof tab === 'string' ? tab : tab.id}`;
+}
+
+function runtimeTabFrameId(tab: string | Pick<PajaRuntimeTab, 'id'>): string {
+  return `${runtimeTabPanelId(tab)}-content`;
 }
 
 function getPointerParamName(pointer: string): 'naddr' | 'nevent' | 'pointer' {
@@ -394,37 +528,76 @@ function resolvedTargetTitle(target: PajaResolvedPointer): string {
 }
 
 function destroyRuntimeTab(tab: PajaRuntimeTab, context: PajaRuntimeTabContext): void {
-  context.onTabDestroyed?.(tab);
-  if (tab.windowId) {
-    context.bridge.runtime.destroyWindow(tab.windowId);
-    context.bridge.runtime.sessionRegistry.unregister(tab.windowId);
-    originRegistry.unregister(tab.windowId);
-    context.runtime.readyWindowIds.delete(tab.windowId);
-    if (context.runtime.currentWindowId === tab.windowId) context.runtime.currentWindowId = null;
-  }
+  destroyRuntimeTabSession(tab, context);
+  tab.targetSurface?.destroy();
+  tab.surfaceHost?.remove();
   tab.frame.remove();
 }
 
+function destroyRuntimeTabSession(tab: PajaRuntimeTab, context: PajaRuntimeTabContext): void {
+  clearRuntimeTabReadinessDeadline(tab);
+  clearRuntimeTabFrameErrorHandler(tab);
+  tab.focusFrameOnReady = false;
+  context.onTabDestroyed?.(tab);
+  const windowId = tab.windowId;
+  if (windowId) {
+    context.bridge.runtime.destroyWindow(windowId);
+    context.bridge.runtime.sessionRegistry.unregister(windowId);
+    originRegistry.unregister(windowId);
+    context.runtime.readyWindowIds.delete(windowId);
+    if (context.runtime.currentWindowId === windowId) context.runtime.currentWindowId = null;
+  }
+  tab.windowId = null;
+}
+
+function clearRuntimeTabReadinessDeadline(tab: PajaRuntimeTab): void {
+  tab.readinessDeadline?.cancel();
+  tab.readinessDeadline = null;
+}
+
+function clearRuntimeTabFrameErrorHandler(tab: PajaRuntimeTab): void {
+  if (tab.frameErrorHandler) tab.frame.removeEventListener('error', tab.frameErrorHandler);
+  tab.frameErrorHandler = null;
+}
+
 function createRuntimeTabFrame(
+  id: string,
+  title: string,
+  pointerValue: string,
+): HTMLIFrameElement {
+  const frame = document.createElement('iframe');
+  frame.id = runtimeTabFrameId(id);
+  frame.className = 'tab-frame';
+  frame.title = `Napplet runtime target: ${title}`;
+  frame.sandbox.add('allow-scripts');
+  frame.sandbox.remove('allow-same-origin');
+  frame.dataset.tabId = id;
+  frame.dataset.targetUrl = pointerValue;
+  frame.hidden = true;
+  return frame;
+}
+
+function handleRuntimeTabError(
   tab: PajaRuntimeTab,
   state: PajaRuntimeTabState,
   context: PajaRuntimeTabContext,
-): HTMLIFrameElement {
-  const frame = document.createElement('iframe');
-  frame.id = `napplet-frame-${tab.id}`;
-  frame.className = 'tab-panel';
-  frame.title = `Napplet runtime target: ${tab.title}`;
-  frame.sandbox.add('allow-scripts');
-  frame.sandbox.remove('allow-same-origin');
-  frame.dataset.tabId = tab.id;
-  frame.dataset.targetUrl = tab.pointerValue;
-  frame.hidden = true;
-  frame.addEventListener('error', () => {
-    tab.status = 'error';
-    if (state.activeTabId === tab.id) context.setStatus(state, 'error');
-    renderRuntimeTabs(state);
-  });
-  return frame;
+  error: unknown,
+  generation: number,
+): void {
+  if (tab.generation !== generation || tab.status === 'error') return;
+  const failedWindowId = tab.windowId;
+  const focusRetry = tab.focusFrameOnReady && state.activeTabId === tab.id;
+  destroyRuntimeTabSession(tab, context);
+  resetPajaFrameDocument(tab.frame);
+  tab.status = 'error';
+  tab.targetSurface.showError(error, { focusRetry });
+  if (state.activeTabId === tab.id) context.setStatus(state, 'error');
+  projectRuntimeTabLifecycle(tab, state, context, generation);
+  appendPajaMessageLog(state, 'paja', {
+    type: 'paja.target.error',
+    error: error instanceof Error ? error.message : String(error),
+  }, failedWindowId ?? undefined);
+  renderRuntimeTabs(state);
 }
 
 function startRuntimeTabNavigation(
@@ -433,9 +606,32 @@ function startRuntimeTabNavigation(
   context: PajaRuntimeTabContext,
 ): void {
   const generation = tab.generation;
-  tab.status = 'booting';
-  context.setStatus(state, 'booting');
+  const navigationKind = tab.status === 'reloading' ? 'retry' : 'initial';
+  tab.status = navigationKind === 'retry' ? 'reloading' : 'booting';
+  clearRuntimeTabReadinessDeadline(tab);
+  clearRuntimeTabFrameErrorHandler(tab);
+  const handleFrameError = () => {
+    handleRuntimeTabError(tab, state, context, new Error('Target frame failed to load.'), generation);
+  };
+  tab.frameErrorHandler = handleFrameError;
+  tab.frame.addEventListener('error', handleFrameError, { once: true });
+  tab.targetSurface.showLoading(navigationKind);
+  if (state.activeTabId === tab.id) context.setStatus(state, tab.status);
+  projectRuntimeTabLifecycle(tab, state, context, generation);
   renderRuntimeTabs(state);
+  tab.readinessDeadline = createRuntimeTabReadinessDeadline(
+    context.config.runtime.readyTimeoutMs,
+    generation,
+    (expiredGeneration) => handleRuntimeTabError(
+      tab,
+      state,
+      context,
+      new Error(`Target did not become ready within ${context.config.runtime.readyTimeoutMs}ms.`),
+      expiredGeneration,
+    ),
+  );
+  const isCurrentGeneration = () => tab.generation === generation
+    && (tab.status === 'booting' || tab.status === 'reloading');
   void context.navigateFrame(
     tab.frame,
     context.config,
@@ -443,29 +639,49 @@ function startRuntimeTabNavigation(
     context.adapter,
     tab.resolvedTarget,
     runtimeTabWindowId(context.config, tab),
-    () => tab.generation === generation,
+    isCurrentGeneration,
     (windowId) => {
-      if (tab.generation !== generation) return;
+      if (!isCurrentGeneration()) return;
       tab.windowId = windowId;
       if (state.activeTabId === tab.id) context.runtime.currentWindowId = windowId;
     },
   ).then((windowId) => {
-    if (tab.generation !== generation) return;
+    if (!isCurrentGeneration()) return;
     tab.windowId = windowId;
     if (state.activeTabId === tab.id) context.runtime.currentWindowId = windowId;
   }).catch((error) => {
-    if (tab.generation !== generation) return;
-    tab.frame.removeAttribute('src');
-    tab.frame.srcdoc = context.renderTargetErrorHtml(error);
-    tab.status = 'error';
-    if (state.activeTabId === tab.id) context.setStatus(state, 'error');
-    appendPajaMessageLog(state, 'paja', {
-      type: 'paja.target.error',
-      error: error instanceof Error ? error.message : String(error),
-    }, tab.windowId ?? undefined);
-    renderRuntimeTabs(state);
+    if (!isCurrentGeneration()) return;
+    handleRuntimeTabError(tab, state, context, error, generation);
     console.error(error);
   });
+}
+
+export function projectActiveRuntimeTabLifecycle(
+  state: PajaRuntimeTabState,
+  context: PajaRuntimeTabContext,
+): void {
+  const tab = getActiveTab(state);
+  if (!tab) {
+    context.setLifecycleStatus('No runtime loaded');
+    return;
+  }
+  projectRuntimeTabLifecycle(tab, state, context, tab.generation);
+}
+
+function projectRuntimeTabLifecycle(
+  tab: PajaRuntimeTab,
+  state: PajaRuntimeTabState,
+  context: PajaRuntimeTabContext,
+  generation: number,
+): void {
+  if (state.activeTabId !== tab.id || tab.generation !== generation) return;
+  const message: Record<PajaRuntimeStatus, string> = {
+    booting: 'Loading target…',
+    reloading: 'Retrying target…',
+    ready: 'Target ready',
+    error: "Target couldn't load",
+  };
+  context.setLifecycleStatus(message[tab.status]);
 }
 
 function runtimeTabWindowId(config: PajaHostConfig, tab: PajaRuntimeTab): string {

@@ -6,6 +6,19 @@
 
 Provide a modular, framework-agnostic runtime for hosting napplet applications — so any Nostr client can embed sandboxed mini-apps by integrating @kehto/shell.
 
+## Current Milestone: v1.30 Visual Recovery
+
+**Goal:** Close the archived Phase 105 visual and experience debt across Paja and the playground feed/profile surfaces without changing NAP behavior.
+
+**Target features:**
+- **Readable semantic system:** shared color, typography, and spacing roles across the scoped host and napplet surfaces, with routine operational text at 12px or larger.
+- **Phone-specific Paja composition:** preserve product and target context, keep controls and status usable, and prevent footer or console clipping at narrow widths.
+- **Recoverable failures:** replace passive or raw denial, unavailable, not-found, and target-load states with clear guidance, keyboard-accessible retry/reconnect actions, and secondary diagnostics.
+- **Accessible state communication:** announce meaningful state changes and preserve logical focus behavior across failure and retry flows.
+- **Regression proof:** desktop/mobile/accessibility browser evidence plus full build, type, unit, docs, relevant Playwright, AI-slop, and protocol-no-drift gates.
+
+**Key context:** `.planning/milestones/v1.29-phases/105-published-convention-adoption-and-host-flows/105-UI-REVIEW.md` is the authoritative baseline (`12/24`). Project-level ecosystem research is intentionally skipped because this milestone is bounded repair work. UI implementation must wait for a validated UI-SPEC.
+
 ## Latest Milestone: v1.29 Napplet Convention and Runtime Conformance (shipped 2026-07-31)
 
 **Goal:** Conform Kehto to `napplet/naps@6461e4b`: remove numbered cross-napplet negotiation, adopt `napplet:<archetype>/<intent>[...?params]` conventions, and close every active contract gap in NAP-SHELL, NAP-INTENT, NAP-INC, NAP-IDENTITY, and NAP-THEME.
@@ -66,8 +79,8 @@ This repo was extracted from the [@napplet monorepo](https://github.com/sandwich
 
 ## Current State
 
-**Status:** All six v1.29 phases are complete and the current package line is
-published. Corrective source PR #220 supplied the missing Changeset and merged
+**Status:** v1.30 Visual Recovery is being initialized from the published v1.29
+baseline. Corrective source PR #220 supplied the missing Changeset and merged
 as `9390eca7d294375e8330730c411ed5aef74a7a61`; generated Version Packages PR
 #221 merged as exact release source
 `b61b8cf5e4e40859b0fba6c6e690dc9726f03431`. Exact-source CI, Pages, and
@@ -77,8 +90,9 @@ versions to npm and JSR.
 The upstream specification and active-surface audits, canonical Napplet 0.31
 package adoption, real Paja/playground flows, focused and full regression
 gates, exact-SHA CI, changeset accounting, public-registry verification, and
-clean downstream Paja 0.10.0 installation are complete. The Phase 105 visual
-audit remains explicit non-passing post-merge debt and is not visual sign-off.
+clean downstream Paja 0.10.0 installation are complete. v1.30 owns the Phase
+105 visual audit debt; protocol behavior and v1.31's runtime-conformance-suite
+scope remain outside this milestone.
 
 ## Previous Milestone: v1.20 NIP-5D Content-Addressed Runtime Resolution
 
@@ -248,7 +262,7 @@ v1.6 unblocked hyprgate v2.0 by closing 6 of 8 Kehto Migration gap-analysis issu
 - **Decrypt-demo fixture pending repair** — Backlog 999.1 remains valid and intentionally separate from the static publication route milestone.
 - **Lint task surface** — `pnpm lint` succeeds but turbo currently reports no configured package lint tasks; type-check, unit tests, E2E, and static guards carry verification.
 - **Stricter structural scanner policy** — v1.16 removed the current-threshold warnings. Lowering `maxFunctionLoc` toward 80 and `maxFileLoc` toward 400 remains future policy work.
-- **Paja/playground visual follow-up** — Phase 105's desktop/mobile audit scored 12/24. Recoverability, type scale, semantic tokens/spacing, and mobile composition remain non-passing post-merge debt owned by Kehto maintainers; Phase 106 provides protocol/runtime conformance, not visual sign-off.
+- **Paja/playground visual follow-up** — Phase 105's desktop/mobile audit scored 12/24. v1.30 now owns recoverability, type scale, semantic tokens/spacing, and mobile Paja composition; the broader playground topology-canvas redesign remains future work.
 
 ## Key Decisions
 
@@ -299,6 +313,9 @@ v1.6 unblocked hyprgate v2.0 by closing 6 of 8 Kehto Migration gap-analysis issu
 | 42 | The Phase 105 12/24 UI audit remains non-passing post-merge debt | The audit is acknowledged and owned by Kehto maintainers, but Phase 106 closes protocol/runtime conformance only and must not imply visual approval. | 2026-07-27 |
 | 43 | v1.29 registry publication is a separate terminal proof after PR readiness | Release completion requires exact-main CI and Pages, successful npm/JSR workflow steps, direct registry metadata for all seven versions, and a clean downstream install/import/build; Release #30350331202 and the recorded consumer smoke provide that proof. | 2026-07-28 |
 | 44 | Phase 106 publication must remain compatible with the current Napplet `latest` line | PR #211 had no package changeset and the former Kehto release accepted only Napplet 0.29. Corrective PR #220 added explicit eight-package release intent and canonical 0.31 adoption; Version Packages PR #221 plus Release #30389303760 published and downstream-verified the current line. | 2026-07-28 |
+| 45 | v1.30 is visual and accessibility recovery only | Closing the Phase 105 12/24 audit must not add, remove, reshape, or reinterpret NAP messages, capabilities, routing, lifecycle behavior, or package versions. | 2026-07-31 |
+| 46 | A validated UI-SPEC gates v1.30 implementation | Mobile hierarchy, recovery interactions, semantic token roles, and visual proof need one explicit design contract before code changes begin. | 2026-07-31 |
+| 47 | v1.31 follows with the issue #187 runtime conformance suite | The suite has higher long-term leverage but requires a separate live-authority refresh and a larger engine, CLI, and browser scope. | 2026-07-31 |
 
 ## Evolution
 
@@ -318,4 +335,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-31 after v1.29 archival — the current package line is available on npm and JSR; the 12/24 UI audit remains explicit non-passing debt.*
+*Last updated: 2026-07-31 for v1.30 Visual Recovery initialization.*

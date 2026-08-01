@@ -95,62 +95,51 @@ describe('@kehto/paja server', () => {
     }
   });
 
-  it('reports a target that blocks the sandboxed frame null origin', async () => {
-    // Mirrors Vite's default server.cors: echo localhost origins, reject `null`.
-    const target = await startTargetServer(
-      '<!doctype html><html><body>target</body></html>',
-      (origin): Record<string, string> =>
-        origin && origin !== 'null' ? { 'access-control-allow-origin': origin } : {},
-    );
-    const server = await startPajaServer({ options: { targetUrl: target.url, port: 0 } });
-
-    try {
-      const diagnostic = JSON.parse(await fetchText(`${server.url}__kehto/target-cors.json`)) as {
-        status: string;
-        allowOrigin: string | null;
-        hint: string | null;
-      };
-
-      expect(diagnostic.status).toBe('blocked');
-      expect(diagnostic.allowOrigin).toBeNull();
-      expect(diagnostic.hint).toContain('allow-same-origin');
-    } finally {
-      await server.close();
-      await target.close();
-    }
-  });
-
-  it('reports a target that allows the sandboxed frame null origin', async () => {
-    const target = await startTargetServer('<!doctype html><html><body>target</body></html>', () => ({
-      'access-control-allow-origin': '*',
-    }));
-    const server = await startPajaServer({ options: { targetUrl: target.url, port: 0 } });
-
-    try {
-      const diagnostic = JSON.parse(await fetchText(`${server.url}__kehto/target-cors.json`)) as {
-        status: string;
-        hint: string | null;
-      };
-
-      expect(diagnostic.status).toBe('allowed');
-      expect(diagnostic.hint).toBeNull();
-    } finally {
-      await server.close();
-      await target.close();
-    }
-  });
-
-  it('reports an unreachable target without failing the endpoint', async () => {
+  it('bounds a target HTML fetch that never finishes', async () => {
+    const target = await startHeldTargetServer();
     const server = await startPajaServer({
-      options: { targetUrl: 'http://127.0.0.1:1/', port: 0 },
+      options: {
+        targetUrl: target.url,
+        port: 0,
+        readyTimeoutMs: 75,
+      },
+    });
+    const controller = new AbortController();
+
+    try {
+      const startedAt = Date.now();
+      const result = await Promise.race([
+        fetch(`${server.url}__kehto/target.html`, { signal: controller.signal })
+          .then(async (response) => ({
+            kind: 'response' as const,
+            status: response.status,
+            text: await response.text(),
+          })),
+        new Promise<{ kind: 'still-pending' }>((resolve) => {
+          setTimeout(() => resolve({ kind: 'still-pending' }), 500);
+        }),
+      ]);
+
+      expect(result).toMatchObject({ kind: 'response', status: 502 });
+      if (result.kind === 'response') {
+        expect(result.text).toContain('Target HTML fetch timed out after 75ms.');
+      }
+      expect(Date.now() - startedAt).toBeLessThan(500);
+    } finally {
+      controller.abort();
+      await server.close();
+      await target.close();
+    }
+  });
+
+  it('keeps module loading browser-authoritative instead of exposing a crawler endpoint', async () => {
+    const server = await startPajaServer({
+      options: { targetUrl: 'http://127.0.0.1:5173/', port: 0 },
     });
 
     try {
-      const diagnostic = JSON.parse(await fetchText(`${server.url}__kehto/target-cors.json`)) as {
-        status: string;
-      };
-
-      expect(diagnostic.status).toBe('unreachable');
+      const response = await fetch(`${server.url}__kehto/target-cors.json`);
+      expect(response.status).toBe(404);
     } finally {
       await server.close();
     }
@@ -172,16 +161,14 @@ async function fetchText(url: string): Promise<string> {
 
 async function startTargetServer(
   html: string,
-  corsHeaders?: (origin: string | undefined) => Record<string, string>,
 ): Promise<TargetServer> {
   const server = createServer((request, response) => {
-    const origin = request.headers.origin;
+    const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
     response.writeHead(200, {
       'cache-control': 'no-store',
-      'content-type': 'text/html; charset=utf-8',
-      ...corsHeaders?.(typeof origin === 'string' ? origin : undefined),
+      'content-type': pathname.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8',
     });
-    response.end(html);
+    response.end(pathname.endsWith('.js') ? 'export {};' : html);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -207,6 +194,43 @@ async function startTargetServer(
         }
         resolve();
       });
+    }),
+  };
+}
+
+async function startHeldTargetServer(): Promise<TargetServer> {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, {
+      'cache-control': 'no-store',
+      'content-type': 'text/html; charset=utf-8',
+    });
+    response.write('<!doctype html><html><body>held target');
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+
+  const address = server.address();
+  if (typeof address !== 'object' || address === null) {
+    throw new Error('Held target server did not bind to a TCP port.');
+  }
+
+  return {
+    url: `http://127.0.0.1:${address.port}/`,
+    close: () => new Promise((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+      server.closeAllConnections?.();
     }),
   };
 }
