@@ -4,6 +4,7 @@ import {
 } from '@kehto/shell';
 
 import { appendPajaMessageLog } from './browser-devtools.js';
+import { requireTargetCorsAllowed } from './browser-target-diagnostics.js';
 import type {
   PajaBrowserState,
   PajaBrowserStateContext,
@@ -66,16 +67,19 @@ export function startExternalFrameNavigation(
     context.config = attemptConfig;
     state.config = attemptConfig;
     context.setActiveTarget(null);
-    return navigateFrame(
-      frame, attemptConfig, generation, adapter, state.resolvedTarget, undefined, isCurrentAttempt,
-      (windowId) => {
-        if (isCurrentAttempt()) {
-          runtime.currentWindowId = windowId;
-          armExternalFrameErrorHandler(state, context, generation, controller);
-        }
-      },
-      controller.signal,
-    );
+    return requireTargetCorsAllowed(state, controller.signal).then(() => {
+      if (!isCurrentAttempt()) return null;
+      return navigateFrame(
+        frame, attemptConfig, generation, adapter, state.resolvedTarget, undefined, isCurrentAttempt,
+        (windowId) => {
+          if (isCurrentAttempt()) {
+            runtime.currentWindowId = windowId;
+            armExternalFrameErrorHandler(state, context, generation, controller);
+          }
+        },
+        controller.signal,
+      );
+    });
   }).then((windowId) => {
     if (!isCurrentAttempt()) {
       unregisterSingleFrameWindow(bridge, runtime, windowId);

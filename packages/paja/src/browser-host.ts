@@ -39,7 +39,6 @@ import type { PajaHostConfig } from './options.js';
 import { getTargetIdentity, navigateFrame } from './browser-target-frame.js';
 import { createPajaTargetSurface, type PajaTargetSurface } from './browser-target-surface.js';
 import type { PajaResolvedPointer } from './runtime-resolver.js';
-import { reportTargetCorsDiagnostic } from './browser-target-diagnostics.js';
 import {
   PAJA_SIMULATION_DOMAINS, summarizePajaSimulation,
   type PajaSimulation, type PajaCapabilityDomain,
@@ -314,7 +313,6 @@ function reloadPajaTarget(state: PajaBrowserState, context: PajaBrowserStateCont
     reloadActiveRuntimeTab(state, context);
     return;
   }
-  if (context.externalAttemptGeneration !== null) return;
   cancelExternalFrameNavigation(
     context,
     new Error('Target navigation cancelled before reload.'),
@@ -631,7 +629,6 @@ async function installPajaHost(): Promise<void> {
     }
   } else {
     startExternalFrameNavigation(state, context);
-    void reportTargetCorsDiagnostic(state);
   }
   if (hasNip07Signer()) void state.connectNip07();
 }
