@@ -200,6 +200,28 @@ describe('@kehto/paja server', () => {
     }
   });
 
+  it('scans a target whose document rejects synthetic Origin headers', async () => {
+    const target = await startTargetServer(
+      '<!doctype html><html><head><script type="module" src="/entry.js"></script></head></html>',
+      () => ({ 'access-control-allow-origin': '*' }),
+      { rejectDocumentOrigin: true },
+    );
+    const server = await startPajaServer({ options: { targetUrl: target.url, port: 0 } });
+
+    try {
+      const diagnostic = JSON.parse(await fetchText(`${server.url}__kehto/target-cors.json`)) as {
+        status: string;
+        hint: string | null;
+      };
+
+      expect(diagnostic.status).toBe('allowed');
+      expect(diagnostic.hint).toBeNull();
+    } finally {
+      await server.close();
+      await target.close();
+    }
+  });
+
   it('reports an unreachable target without failing the endpoint', async () => {
     const server = await startPajaServer({
       options: { targetUrl: 'http://127.0.0.1:1/', port: 0 },
@@ -233,10 +255,16 @@ async function fetchText(url: string): Promise<string> {
 async function startTargetServer(
   html: string,
   corsHeaders?: (origin: string | undefined, pathname: string) => Record<string, string>,
+  options: { readonly rejectDocumentOrigin?: boolean } = {},
 ): Promise<TargetServer> {
   const server = createServer((request, response) => {
     const origin = request.headers.origin;
     const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+    if (options.rejectDocumentOrigin && pathname === '/' && typeof origin === 'string') {
+      response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+      response.end('Origin not accepted for HTML');
+      return;
+    }
     response.writeHead(200, {
       'cache-control': 'no-store',
       'content-type': pathname.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8',

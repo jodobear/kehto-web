@@ -104,4 +104,58 @@ describe('probeTargetModuleCors', () => {
     expect(diagnostic.status).toBe('blocked');
     expect(diagnostic.targetUrl).toBe(`${TARGET}entry.js`);
   });
+
+  it('fetches the document without Origin and reserves the null origin for modules', async () => {
+    const seen: Array<{ url: string; origin: string | undefined }> = [];
+    const diagnostic = await probeTargetModuleCors(TARGET, 500, async (url, init) => {
+      seen.push({ url, origin: init.headers.origin });
+      return {
+        headers: { get: () => '*' },
+        text: async () => url === TARGET
+          ? '<script type="module" src="/entry.js"></script>'
+          : 'export {};',
+      };
+    });
+
+    expect(diagnostic.status).toBe('allowed');
+    expect(seen).toEqual([
+      { url: TARGET, origin: undefined },
+      { url: `${TARGET}entry.js`, origin: 'null' },
+    ]);
+  });
+
+  it('probes imports declared by inline modules', async () => {
+    const diagnostic = await probeTargetModuleCors(TARGET, 500, async (url) => ({
+      headers: { get: () => url.endsWith('/inline-entry.js') ? null : '*' },
+      text: async () => url === TARGET
+        ? '<script type="module">import "./inline-entry.js";</script>'
+        : 'export {};',
+    }));
+
+    expect(diagnostic).toMatchObject({
+      status: 'blocked',
+      targetUrl: `${TARGET}inline-entry.js`,
+    });
+  });
+
+  it('traverses allowed module roots to a blocked dependency', async () => {
+    const seen: string[] = [];
+    const diagnostic = await probeTargetModuleCors(TARGET, 500, async (url) => {
+      seen.push(url);
+      return {
+        headers: { get: () => url.endsWith('/chunk.js') ? null : '*' },
+        text: async () => {
+          if (url === TARGET) return '<script type="module" src="/entry.js"></script>';
+          if (url.endsWith('/entry.js')) return 'export { value } from "./chunk.js";';
+          return 'export const value = 1;';
+        },
+      };
+    });
+
+    expect(diagnostic).toMatchObject({
+      status: 'blocked',
+      targetUrl: `${TARGET}chunk.js`,
+    });
+    expect(seen).toEqual([TARGET, `${TARGET}entry.js`, `${TARGET}chunk.js`]);
+  });
 });

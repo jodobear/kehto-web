@@ -13,6 +13,9 @@ interface TargetServer {
   setCorsAllowed(allowed: boolean): void;
   setExternalModule(enabled: boolean): void;
   setModuleCorsAllowed(allowed: boolean): void;
+  setModuleDependency(enabled: boolean): void;
+  setDependencyCorsAllowed(allowed: boolean): void;
+  setRejectDocumentOrigin(enabled: boolean): void;
   releaseHeldFailure(): void;
   close(): Promise<void>;
 }
@@ -396,6 +399,70 @@ test('keeps a CORS-blocked target module in recovery until retry can load it', a
       .filter((entry) => entry.type === 'paja.target.cors.error').length ?? -1)).toBe(1);
 
     target.setModuleCorsAllowed(true);
+    await surface.locator('.paja-target-retry').click();
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('loads a target whose document rejects synthetic Origin headers', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  target.setExternalModule(true);
+  target.setRejectDocumentOrigin(true);
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('keeps a CORS-blocked module dependency in recovery until retry can load it', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  target.setExternalModule(true);
+  target.setModuleDependency(true);
+  target.setDependencyCorsAllowed(false);
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(
+      'Target sent no access-control-allow-origin for an Origin: null request.',
+    );
+    await expect(surface.locator('.paja-target-retry')).toBeEnabled();
+
+    target.setDependencyCorsAllowed(true);
     await surface.locator('.paja-target-retry').click();
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
     await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
@@ -1258,6 +1325,9 @@ async function startTargetServer(): Promise<TargetServer> {
   let corsAllowed = true;
   let externalModule = false;
   let moduleCorsAllowed = true;
+  let moduleDependency = false;
+  let dependencyCorsAllowed = true;
+  let rejectDocumentOrigin = false;
   let releaseHeldFailure: (() => void) | null = null;
   const server = createServer((request, response) => {
     requestOrigins.push(typeof request.headers.origin === 'string' ? request.headers.origin : '');
@@ -1276,7 +1346,16 @@ async function startTargetServer(): Promise<TargetServer> {
         'cache-control': 'no-store',
         'content-type': 'text/javascript; charset=utf-8',
       });
-      response.end("document.documentElement.dataset.pajaModule = 'loaded';");
+      response.end(`${moduleDependency ? "import './chunk.js';" : ''}\ndocument.documentElement.dataset.pajaModule = 'loaded';`);
+      return;
+    }
+    if (requestUrl.pathname === '/chunk.js') {
+      response.writeHead(200, {
+        ...(dependencyCorsAllowed ? { 'access-control-allow-origin': '*' } : {}),
+        'cache-control': 'no-store',
+        'content-type': 'text/javascript; charset=utf-8',
+      });
+      response.end("document.documentElement.dataset.pajaChunk = 'loaded';");
       return;
     }
     if (requestUrl.pathname !== '/') {
@@ -1302,6 +1381,12 @@ async function startTargetServer(): Promise<TargetServer> {
         else respond();
         return;
       }
+    }
+
+    if (rejectDocumentOrigin && typeof request.headers.origin === 'string') {
+      response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+      response.end('Origin not accepted for HTML');
+      return;
     }
 
     loadCount += 1;
@@ -1349,6 +1434,15 @@ async function startTargetServer(): Promise<TargetServer> {
     },
     setModuleCorsAllowed(allowed) {
       moduleCorsAllowed = allowed;
+    },
+    setModuleDependency(enabled) {
+      moduleDependency = enabled;
+    },
+    setDependencyCorsAllowed(allowed) {
+      dependencyCorsAllowed = allowed;
+    },
+    setRejectDocumentOrigin(enabled) {
+      rejectDocumentOrigin = enabled;
     },
     releaseHeldFailure() {
       const release = releaseHeldFailure;
