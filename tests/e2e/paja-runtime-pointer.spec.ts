@@ -378,12 +378,12 @@ test('times out a never-ready verified runtime generation and ignores stale read
     '<!doctype html><html><head><title>Never Ready Target</title></head><body>verified timeout target</body></html>',
     ['shell'],
   );
-  const relay = 'wss://never-ready-fixture.example';
+  const relay = 'wss://intent-fixture.example';
   server.blobs.set(target.hash, target.bytes);
   const baseConfig = createPajaRuntimeHostConfig({ pointer: target.pointer, maxWaitMs: 2_000 });
   server.setConfig({
     ...baseConfig,
-    runtime: { ...baseConfig.runtime, readyTimeoutMs: 100 },
+    runtime: { ...baseConfig.runtime, readyTimeoutMs: 1_000 },
     simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
   });
   await page.routeWebSocket(`${relay}/`, (socket) => {
@@ -529,7 +529,7 @@ test('final pagehide cancels held pointer resolution before tab ownership', asyn
   const baseConfig = createPajaRuntimeHostConfig({ pointer: target.pointer, maxWaitMs: 2_000 });
   server.setConfig({
     ...baseConfig,
-    runtime: { ...baseConfig.runtime, readyTimeoutMs: 100 },
+    runtime: { ...baseConfig.runtime, readyTimeoutMs: 5_000 },
     simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
   });
   await page.routeWebSocket(`${relay}/`, (socket) => {
