@@ -48,10 +48,16 @@ export async function loadRuntimePointer(
   const controller = new AbortController();
   context.pointerAttemptGeneration = attemptGeneration;
   context.pointerAttemptController = controller;
-  const isCurrentAttempt = () => !context.destroyed
+  const isOwnedAttempt = () => !context.destroyed
     && context.pointerAttemptGeneration === attemptGeneration
-    && context.pointerAttemptController === controller
-    && !controller.signal.aborted;
+    && context.pointerAttemptController === controller;
+  const isCurrentAttempt = () => isOwnedAttempt() && !controller.signal.aborted;
+  const attemptBudgetMs = config.runtime.readyTimeoutMs;
+  const timeoutId = window.setTimeout(() => {
+    if (!isOwnedAttempt() || controller.signal.aborted) return;
+    const timeoutError = new Error(`Pointer resolution timed out after ${attemptBudgetMs}ms.`);
+    controller.abort(timeoutError);
+  }, attemptBudgetMs);
   const focusRetry = context.pointerFocusFrameOnReady;
   context.setPointerAttemptBusy(true);
   context.pointerTargetSurface?.showLoading(focusRetry ? 'retry' : 'initial');
@@ -103,16 +109,18 @@ export async function loadRuntimePointer(
     context.pointerTargetSurface?.hide();
     if (options.persist !== false) context.persistRuntimeTabs(state);
   } catch (error) {
-    if (!isCurrentAttempt()) return;
-    const message = error instanceof Error ? error.message : String(error);
+    if (!isOwnedAttempt()) return;
+    const failure = controller.signal.aborted ? controller.signal.reason ?? error : error;
+    const message = failure instanceof Error ? failure.message : String(failure);
     state.resolvedTarget = getActiveTab(state)?.resolvedTarget ?? null;
     context.setPointerStatus(state, message);
     context.setStatus(state, getActiveTab(state)?.status ?? 'error');
-    context.pointerTargetSurface?.showError(error, { focusRetry });
+    context.pointerTargetSurface?.showError(failure, { focusRetry });
     setEmptyStageVisible(state.tabs.length === 0 ? false : !getActiveTab(state));
     appendPajaMessageLog(state, 'paja', { type: 'paja.pointer.error', error: message });
   } finally {
-    if (isCurrentAttempt()) {
+    window.clearTimeout(timeoutId);
+    if (isOwnedAttempt()) {
       context.pointerAttemptGeneration = null;
       context.pointerAttemptController = null;
       context.pointerFocusFrameOnReady = false;

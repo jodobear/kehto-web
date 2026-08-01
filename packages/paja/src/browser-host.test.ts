@@ -326,7 +326,8 @@ describe('@kehto/paja browser host runtime source guards', () => {
     );
 
     expect(load).toContain('pajaPointerResolverOptions(context, controller.signal)');
-    expect(load).toContain('const isCurrentAttempt = () => !context.destroyed');
+    expect(load).toContain('const isOwnedAttempt = () => !context.destroyed');
+    expect(load).toContain('const isCurrentAttempt = () => isOwnedAttempt() && !controller.signal.aborted;');
     expect(load.match(/if \(!isCurrentAttempt\(\)\) return;/g)?.length).toBeGreaterThanOrEqual(4);
     expect(load.indexOf('if (!isCurrentAttempt()) return;')).toBeLessThan(load.indexOf('runtime.catalog.install(resolvedTarget);'));
     const addTabIndex = load.indexOf('addRuntimeTab(state, context');

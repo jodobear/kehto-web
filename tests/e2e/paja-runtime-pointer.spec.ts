@@ -310,7 +310,7 @@ test('times out hanging Blossom pointer resolution and retries through the same 
     '<!doctype html><html><head><title>Pointer Timeout Target</title></head><body>verified retry target</body></html>',
     ['shell'],
   );
-  const relay = 'wss://pointer-timeout-fixture.example';
+  const relay = 'wss://intent-fixture.example';
   let blossomRequests = 0;
   let releaseFirstBlossom = (): void => {};
   const firstBlossom = new Promise<void>((resolve) => {
@@ -320,7 +320,7 @@ test('times out hanging Blossom pointer resolution and retries through the same 
   const baseConfig = createPajaRuntimeHostConfig({ pointer: target.pointer, maxWaitMs: 2_000 });
   server.setConfig({
     ...baseConfig,
-    runtime: { ...baseConfig.runtime, readyTimeoutMs: 100 },
+    runtime: { ...baseConfig.runtime, readyTimeoutMs: 1_000 },
     simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
   });
   await page.routeWebSocket(`${relay}/`, (socket) => {
@@ -347,7 +347,7 @@ test('times out hanging Blossom pointer resolution and retries through the same 
     const surface = page.locator('.paja-target-surface:visible');
     await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
     await expect(surface.locator('.paja-target-diagnostic')).toContainText(
-      'Pointer resolution timed out after 100ms.',
+      'Pointer resolution timed out after 1000ms.',
     );
     await expect(surface.locator('.paja-target-retry')).toBeEnabled();
     await expect(page.locator('#runtime-pointer-load')).toBeEnabled();
