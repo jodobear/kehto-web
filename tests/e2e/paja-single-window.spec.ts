@@ -73,7 +73,7 @@ test('recovers an external target through stable host error controls', async ({ 
 
   try {
     await page.goto(recoveryRuntime.url);
-    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(1);
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(2);
     await page.locator('#message-filter').focus();
     recoveryTarget.releaseHeldFailure();
 
@@ -106,7 +106,7 @@ test('recovers an external target through stable host error controls', async ({ 
     recoveryTarget.failNext(repeatDiagnostic, { hold: true });
     await retry.focus();
     await retry.press('Enter');
-    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(2);
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(4);
     await expect(surface).toHaveAttribute('aria-busy', 'true');
     await expect(surface.locator('.paja-target-heading')).toHaveText('Retrying target…');
     await expect(retry).toBeVisible();
@@ -115,7 +115,7 @@ test('recovers an external target through stable host error controls', async ({ 
     await page.keyboard.press('Enter');
     await page.keyboard.press('Space');
     await retry.evaluate((button) => button.click());
-    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(2);
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(4);
     await expect.poll(() => page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1))
       .toBe(failedGeneration + 1);
 
@@ -139,7 +139,7 @@ test('recovers an external target through stable host error controls', async ({ 
       .toBe(repeatFailureGeneration);
 
     await retry.click();
-    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(3);
+    await expect.poll(() => recoveryTarget.htmlRequestCount).toBe(6);
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
     await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
       'shell-init received',
@@ -200,7 +200,7 @@ test('settles a missing external shell.ready handshake into retryable recovery',
       (window as Window & { __pajaWithholdReady?: boolean }).__pajaWithholdReady = false;
     });
     await surface.locator('.paja-target-retry').click();
-    await expect.poll(() => target.htmlRequestCount).toBe(2);
+    await expect.poll(() => target.htmlRequestCount).toBe(4);
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
     await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('napplet-frame');
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
@@ -264,7 +264,7 @@ test('settles a never-settling external target fetch and retries through the sam
 
     await surface.locator('.paja-target-retry').click();
     await expect.poll(() => proxyRequestCount).toBe(2);
-    await expect.poll(() => target.htmlRequestCount).toBe(1);
+    await expect.poll(() => target.htmlRequestCount).toBe(3);
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
     await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
       'shell-init received',
@@ -562,13 +562,13 @@ test('refreshes target A to B before Retry base injection and readiness', async 
 
   try {
     await page.goto(runtime.url);
-    await expect.poll(() => targetA.htmlRequestCount).toBe(1);
+    await expect.poll(() => targetA.htmlRequestCount).toBe(2);
     runtime.updateTargetUrl(targetB.url);
     const surface = page.locator('.paja-target-surface');
     await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
 
     await surface.locator('.paja-target-retry').click();
-    await expect.poll(() => targetB.htmlRequestCount).toBe(1);
+    await expect.poll(() => targetB.htmlRequestCount).toBe(2);
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 2_000 });
     await expect(page.locator('.target')).toHaveText(targetB.url);
     await expect(page.locator('#napplet-frame')).toHaveAttribute('data-target-url', targetB.url);
@@ -960,7 +960,8 @@ test('routes standard identity follows and OUTBOX profile queries without a targ
 
   try {
     await page.goto(socialRuntime.url);
-    await expect.poll(() => targetServer.requestOrigins.includes('null')).toBe(true);
+    await expect.poll(() => targetServer.requestOrigins.includes('')).toBe(true);
+    expect(targetServer.requestOrigins).not.toContain('null');
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().status)).toBe('ready');
     await page.evaluate((pubkey) => {
       const host = window as Window & { nostr?: unknown };
@@ -1321,7 +1322,11 @@ async function startTargetServer(): Promise<TargetServer> {
   let loadCount = 0;
   let htmlRequestCount = 0;
   const requestOrigins: string[] = [];
-  const failures: Array<{ readonly message: string; readonly hold: boolean }> = [];
+  const failures: Array<{
+    readonly message: string;
+    readonly hold: boolean;
+    remainingDocumentScans: number;
+  }> = [];
   let corsAllowed = true;
   let externalModule = false;
   let moduleCorsAllowed = true;
@@ -1366,7 +1371,11 @@ async function startTargetServer(): Promise<TargetServer> {
 
     if (typeof request.headers.origin !== 'string') {
       htmlRequestCount += 1;
-      const failure = failures.shift();
+      const pendingFailure = failures[0];
+      const failure = pendingFailure?.remainingDocumentScans === 0 ? failures.shift() : undefined;
+      if (pendingFailure && pendingFailure.remainingDocumentScans > 0) {
+        pendingFailure.remainingDocumentScans -= 1;
+      }
       if (failure) {
         const respond = () => {
           (response as typeof response & { statusMessage: string }).statusMessage = failure.message;
@@ -1424,7 +1433,11 @@ async function startTargetServer(): Promise<TargetServer> {
       return htmlRequestCount;
     },
     failNext(message, options) {
-      failures.push({ message, hold: options?.hold === true });
+      failures.push({
+        message,
+        hold: options?.hold === true,
+        remainingDocumentScans: 1,
+      });
     },
     setCorsAllowed(allowed) {
       corsAllowed = allowed;

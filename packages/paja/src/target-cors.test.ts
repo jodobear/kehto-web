@@ -91,7 +91,7 @@ describe('probeTargetModuleCors', () => {
       };
     });
 
-    expect(seen).toEqual([{ url: TARGET, origin: 'null' }]);
+    expect(seen).toEqual([{ url: TARGET, origin: undefined }]);
     expect(diagnostic).toMatchObject({ status: 'allowed', targetUrl: TARGET, allowOrigin: null });
   });
 
@@ -157,5 +157,37 @@ describe('probeTargetModuleCors', () => {
       targetUrl: `${TARGET}chunk.js`,
     });
     expect(seen).toEqual([TARGET, `${TARGET}entry.js`, `${TARGET}chunk.js`]);
+  });
+
+  it('resolves import maps and literal dynamic imports while deduplicating cycles', async () => {
+    const seen: string[] = [];
+    const diagnostic = await probeTargetModuleCors(TARGET, 500, async (url) => {
+      seen.push(url);
+      return {
+        headers: { get: () => url.endsWith('/lazy.js') ? null : '*' },
+        text: async () => {
+          if (url === TARGET) {
+            return '<script type="importmap">{"imports":{"app":"/entry.js"}}</script>'
+              + '<script type="module">import "app";</script>';
+          }
+          if (url.endsWith('/entry.js')) {
+            return 'export * from "./cycle.js"; void import("./lazy.js");';
+          }
+          if (url.endsWith('/cycle.js')) return 'export * from "./entry.js";';
+          return 'export default 1;';
+        },
+      };
+    });
+
+    expect(diagnostic).toMatchObject({
+      status: 'blocked',
+      targetUrl: `${TARGET}lazy.js`,
+    });
+    expect(seen).toEqual([
+      TARGET,
+      `${TARGET}entry.js`,
+      `${TARGET}cycle.js`,
+      `${TARGET}lazy.js`,
+    ]);
   });
 });

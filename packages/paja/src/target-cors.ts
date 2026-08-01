@@ -11,6 +11,8 @@
  * Paja can report the cause instead of leaving an empty frame behind.
  */
 
+import { init as initModuleLexer, parse as parseModule } from 'es-module-lexer';
+
 /** Whether the target dev server will serve the sandboxed frame's subresources. */
 export type PajaTargetCorsStatus = 'allowed' | 'blocked' | 'unreachable';
 
@@ -172,7 +174,6 @@ export async function probeTargetModuleCors(
     const documentResponse = await fetchImpl(targetUrl, {
       method: 'GET',
       headers: {
-        origin: 'null',
         accept: 'text/html, application/xhtml+xml;q=0.9, */*;q=0.8',
       },
       signal: controller.signal,
@@ -180,8 +181,14 @@ export async function probeTargetModuleCors(
     if (documentResponse.ok === false) {
       throw new Error(`Target document request failed with HTTP ${documentResponse.status ?? 'unknown'}.`);
     }
-    const moduleUrls = readExternalModuleUrls(await documentResponse.text(), targetUrl);
-    if (moduleUrls.length === 0) {
+    const targetHtml = await documentResponse.text();
+    const documentModules = readDocumentModules(targetHtml, targetUrl);
+    await initModuleLexer;
+    const moduleQueue = documentModules.external.map((url) => ({ url, parseImports: true }));
+    for (const source of documentModules.inline) {
+      moduleQueue.push(...readImportedModules(source, targetUrl, documentModules.importMap));
+    }
+    if (moduleQueue.length === 0) {
       return {
         status: 'allowed',
         targetUrl,
@@ -192,8 +199,12 @@ export async function probeTargetModuleCors(
     }
 
     const allowOrigins: string[] = [];
-    for (const moduleUrl of moduleUrls) {
-      const moduleResponse = await fetchImpl(moduleUrl, {
+    const visitedModules = new Set<string>();
+    for (let index = 0; index < moduleQueue.length; index += 1) {
+      const moduleResource = moduleQueue[index]!;
+      if (visitedModules.has(moduleResource.url)) continue;
+      visitedModules.add(moduleResource.url);
+      const moduleResponse = await fetchImpl(moduleResource.url, {
         method: 'GET',
         headers: {
           origin: 'null',
@@ -203,15 +214,23 @@ export async function probeTargetModuleCors(
       });
       if (moduleResponse.ok === false) {
         throw new Error(
-          `Target module ${moduleUrl} request failed with HTTP ${moduleResponse.status ?? 'unknown'}.`,
+          `Target module ${moduleResource.url} request failed with HTTP ${moduleResponse.status ?? 'unknown'}.`,
         );
       }
       const diagnostic = classifyTargetCors(
-        moduleUrl,
+        moduleResource.url,
         moduleResponse.headers.get('access-control-allow-origin'),
       );
       if (diagnostic.status !== 'allowed') return diagnostic;
       if (diagnostic.allowOrigin) allowOrigins.push(diagnostic.allowOrigin);
+      const source = await moduleResponse.text();
+      if (moduleResource.parseImports) {
+        moduleQueue.push(...readImportedModules(
+          source,
+          moduleResource.url,
+          documentModules.importMap,
+        ));
+      }
     }
 
     const distinctAllowOrigins = [...new Set(allowOrigins)];
@@ -219,7 +238,7 @@ export async function probeTargetModuleCors(
       status: 'allowed',
       targetUrl,
       allowOrigin: distinctAllowOrigins.length === 1 ? distinctAllowOrigins[0]! : null,
-      detail: `All ${moduleUrls.length} external module script${moduleUrls.length === 1 ? '' : 's'} allow the sandboxed frame's null origin.`,
+      detail: `All ${visitedModules.size} statically resolvable module resource${visitedModules.size === 1 ? '' : 's'} allow the sandboxed frame's null origin.`,
       hint: null,
     };
   } catch (error) {
@@ -238,20 +257,141 @@ export async function probeTargetModuleCors(
   }
 }
 
-function readExternalModuleUrls(html: string, targetUrl: string): string[] {
-  const urls = new Set<string>();
-  for (const tag of html.match(/<script\b[^>]*>/gi) ?? []) {
-    if (readHtmlAttribute(tag, 'type')?.trim().toLowerCase() !== 'module') continue;
-    const source = readHtmlAttribute(tag, 'src');
-    if (!source) continue;
-    try {
-      const url = new URL(source.replaceAll('&amp;', '&'), targetUrl);
-      if (url.protocol === 'http:' || url.protocol === 'https:') urls.add(url.href);
-    } catch {
-      // The browser will reject malformed URLs; they are not valid probe targets.
+interface PajaDocumentModules {
+  readonly external: string[];
+  readonly inline: string[];
+  readonly importMap: PajaImportMap;
+}
+
+interface PajaImportMap {
+  readonly imports: Readonly<Record<string, string | null>>;
+  readonly scopes: Readonly<Record<string, Readonly<Record<string, string | null>>>>;
+}
+
+interface PajaModuleResource {
+  readonly url: string;
+  readonly parseImports: boolean;
+}
+
+const EMPTY_IMPORT_MAP: PajaImportMap = Object.freeze({
+  imports: Object.freeze({}),
+  scopes: Object.freeze({}),
+});
+
+function readDocumentModules(html: string, targetUrl: string): PajaDocumentModules {
+  const external = new Set<string>();
+  const inline: string[] = [];
+  let importMap = EMPTY_IMPORT_MAP;
+  for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)) {
+    const attributes = match[1] ?? '';
+    const body = match[2] ?? '';
+    const type = readHtmlAttribute(attributes, 'type')?.trim().toLowerCase();
+    if (type === 'importmap') {
+      importMap = mergeImportMap(importMap, body, targetUrl);
+      continue;
     }
+    if (type !== 'module') continue;
+    const source = readHtmlAttribute(attributes, 'src');
+    if (!source) {
+      inline.push(body);
+      continue;
+    }
+    const url = resolveHttpUrl(source.replaceAll('&amp;', '&'), targetUrl);
+    if (url) external.add(url);
   }
-  return [...urls];
+  return { external: [...external], inline, importMap };
+}
+
+function readImportedModules(
+  source: string,
+  importerUrl: string,
+  importMap: PajaImportMap,
+): PajaModuleResource[] {
+  const [imports] = parseModule(source, importerUrl);
+  const modules: PajaModuleResource[] = [];
+  for (const imported of imports) {
+    if (!imported.n) continue;
+    const url = resolveModuleSpecifier(imported.n, importerUrl, importMap);
+    if (!url) {
+      throw new Error(`Target module ${importerUrl} has unresolved import "${imported.n}".`);
+    }
+    const resourceType = imported.at?.find(([name]) => name === 'type')?.[1];
+    modules.push({ url, parseImports: resourceType !== 'json' && resourceType !== 'css' });
+  }
+  return modules;
+}
+
+function mergeImportMap(current: PajaImportMap, source: string, targetUrl: string): PajaImportMap {
+  const parsed = JSON.parse(source) as {
+    imports?: Record<string, string | null>;
+    scopes?: Record<string, Record<string, string | null>>;
+  };
+  const imports = { ...current.imports };
+  for (const [specifier, address] of Object.entries(parsed.imports ?? {})) {
+    imports[specifier] = resolveImportMapAddress(address, targetUrl);
+  }
+  const scopes: Record<string, Record<string, string | null>> = {};
+  for (const [scope, mappings] of Object.entries(current.scopes)) scopes[scope] = { ...mappings };
+  for (const [scope, mappings] of Object.entries(parsed.scopes ?? {})) {
+    const scopeUrl = resolveHttpUrl(scope, targetUrl);
+    if (!scopeUrl) continue;
+    const resolved = { ...scopes[scopeUrl] };
+    for (const [specifier, address] of Object.entries(mappings)) {
+      resolved[specifier] = resolveImportMapAddress(address, targetUrl);
+    }
+    scopes[scopeUrl] = resolved;
+  }
+  return { imports, scopes };
+}
+
+function resolveImportMapAddress(address: string | null, targetUrl: string): string | null {
+  return address === null ? null : resolveHttpUrl(address, targetUrl);
+}
+
+function resolveModuleSpecifier(
+  specifier: string,
+  importerUrl: string,
+  importMap: PajaImportMap,
+): string | null {
+  const scope = Object.keys(importMap.scopes)
+    .filter((prefix) => importerUrl.startsWith(prefix))
+    .sort((left, right) => right.length - left.length)[0];
+  const scoped = scope ? resolveImportMapMatch(specifier, importMap.scopes[scope]!) : undefined;
+  if (scoped !== undefined) return scoped;
+  const mapped = resolveImportMapMatch(specifier, importMap.imports);
+  if (mapped !== undefined) return mapped;
+  return isUrlLikeModuleSpecifier(specifier) ? resolveHttpUrl(specifier, importerUrl) : null;
+}
+
+function isUrlLikeModuleSpecifier(specifier: string): boolean {
+  return specifier.startsWith('/')
+    || specifier.startsWith('./')
+    || specifier.startsWith('../')
+    || /^[a-z][a-z\d+.-]*:/i.test(specifier);
+}
+
+function resolveImportMapMatch(
+  specifier: string,
+  mappings: Readonly<Record<string, string | null>>,
+): string | null | undefined {
+  if (Object.hasOwn(mappings, specifier)) return mappings[specifier];
+  const prefix = Object.keys(mappings)
+    .filter((key) => key.endsWith('/') && specifier.startsWith(key))
+    .sort((left, right) => right.length - left.length)[0];
+  if (!prefix) return undefined;
+  const address = mappings[prefix];
+  return address === null || address === undefined
+    ? address
+    : `${address}${specifier.slice(prefix.length)}`;
+}
+
+function resolveHttpUrl(value: string, baseUrl: string): string | null {
+  try {
+    const url = new URL(value, baseUrl);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
 }
 
 function readHtmlAttribute(tag: string, name: string): string | undefined {
