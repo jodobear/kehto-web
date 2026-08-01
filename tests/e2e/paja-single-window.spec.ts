@@ -10,6 +10,7 @@ interface TargetServer {
   readonly requestOrigins: string[];
   readonly htmlRequestCount: number;
   failNext(message: string, options?: { readonly hold?: boolean }): void;
+  setCorsAllowed(allowed: boolean): void;
   releaseHeldFailure(): void;
   close(): Promise<void>;
 }
@@ -275,6 +276,101 @@ test('settles a never-settling external target fetch and retries through the sam
     });
   } finally {
     releaseHeldFetch();
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('reload supersedes an in-flight external attempt and ignores its late settlement', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+  let proxyRequestCount = 0;
+  let releaseFirstFetch = (): void => {};
+  const firstFetch = new Promise<void>((resolve) => {
+    releaseFirstFetch = resolve;
+  });
+  await page.route('**/__kehto/target.html', async (route) => {
+    proxyRequestCount += 1;
+    if (proxyRequestCount === 1) {
+      await firstFetch;
+      await route.continue().catch(() => {});
+      return;
+    }
+    await route.continue();
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect.poll(() => proxyRequestCount).toBe(1);
+    const firstGeneration = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().generation ?? -1);
+
+    await page.locator('#reload-target').click();
+    await expect.poll(() => proxyRequestCount).toBe(2);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      generation: firstGeneration + 1,
+      status: 'ready',
+      initSent: true,
+    });
+
+    releaseFirstFetch();
+    await page.waitForTimeout(150);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready');
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.error').length ?? -1)).toBe(0);
+  } finally {
+    releaseFirstFetch();
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('keeps a CORS-blocked target in recovery until retry can load its modules', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  target.setCorsAllowed(false);
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    const surface = page.locator('.paja-target-surface');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(
+      'Target sent no access-control-allow-origin for an Origin: null request.',
+    );
+    await expect(surface.locator('.paja-target-retry')).toBeEnabled();
+    expect(target.htmlRequestCount).toBe(0);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
+      status: 'error',
+      initSent: false,
+    });
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.cors.error').length ?? -1)).toBe(1);
+
+    target.setCorsAllowed(true);
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(() => target.htmlRequestCount).toBe(1);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+  } finally {
     await runtime.close();
     await target.close();
   }
@@ -1127,6 +1223,7 @@ async function startTargetServer(): Promise<TargetServer> {
   let htmlRequestCount = 0;
   const requestOrigins: string[] = [];
   const failures: Array<{ readonly message: string; readonly hold: boolean }> = [];
+  let corsAllowed = true;
   let releaseHeldFailure: (() => void) | null = null;
   const server = createServer((request, response) => {
     requestOrigins.push(typeof request.headers.origin === 'string' ? request.headers.origin : '');
@@ -1166,7 +1263,7 @@ async function startTargetServer(): Promise<TargetServer> {
 
     loadCount += 1;
     response.writeHead(200, {
-      'access-control-allow-origin': '*',
+      ...(corsAllowed ? { 'access-control-allow-origin': '*' } : {}),
       'cache-control': 'no-store',
       'content-type': 'text/html; charset=utf-8',
     });
@@ -1199,6 +1296,9 @@ async function startTargetServer(): Promise<TargetServer> {
     },
     failNext(message, options) {
       failures.push({ message, hold: options?.hold === true });
+    },
+    setCorsAllowed(allowed) {
+      corsAllowed = allowed;
     },
     releaseHeldFailure() {
       const release = releaseHeldFailure;

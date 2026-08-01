@@ -301,6 +301,74 @@ test('recovers resolver and active-frame failures without duplicating verified t
   }
 });
 
+test('times out hanging Blossom pointer resolution and retries through the same verified loader', async ({ page }) => {
+  test.setTimeout(30_000);
+  const server = await startPointerServer();
+  const target = createPointerFixture(
+    server.url,
+    'pointer-resolution-timeout',
+    '<!doctype html><html><head><title>Pointer Timeout Target</title></head><body>verified retry target</body></html>',
+    ['shell'],
+  );
+  const relay = 'wss://pointer-timeout-fixture.example';
+  let blossomRequests = 0;
+  let releaseFirstBlossom = (): void => {};
+  const firstBlossom = new Promise<void>((resolve) => {
+    releaseFirstBlossom = resolve;
+  });
+  server.blobs.set(target.hash, target.bytes);
+  const baseConfig = createPajaRuntimeHostConfig({ pointer: target.pointer, maxWaitMs: 2_000 });
+  server.setConfig({
+    ...baseConfig,
+    runtime: { ...baseConfig.runtime, readyTimeoutMs: 100 },
+    simulation: normalizePajaSimulation({ relay: { mode: 'live', urls: [relay] } }),
+  });
+  await page.routeWebSocket(`${relay}/`, (socket) => {
+    socket.onMessage((message) => {
+      const request = JSON.parse(String(message)) as unknown[];
+      if (request[0] !== 'REQ' || typeof request[1] !== 'string') return;
+      socket.send(JSON.stringify(['EVENT', request[1], target.event]));
+      socket.send(JSON.stringify(['EOSE', request[1]]));
+    });
+  });
+  await page.route(`**/blossom/${target.hash}`, async (route) => {
+    blossomRequests += 1;
+    if (blossomRequests === 1) {
+      await firstBlossom;
+      await route.continue().catch(() => {});
+      return;
+    }
+    await route.continue();
+  });
+
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => blossomRequests).toBe(1);
+    const surface = page.locator('.paja-target-surface:visible');
+    await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
+    await expect(surface.locator('.paja-target-diagnostic')).toContainText(
+      'Pointer resolution timed out after 100ms.',
+    );
+    await expect(surface.locator('.paja-target-retry')).toBeEnabled();
+    await expect(page.locator('#runtime-pointer-load')).toBeEnabled();
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs.length)).toBe(0);
+
+    releaseFirstBlossom();
+    await surface.locator('.paja-target-retry').click();
+    await expect.poll(() => blossomRequests).toBe(2);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().tabs[0]?.status))
+      .toBe('ready');
+    const recovered = await page.evaluate(() => window.__KEHTO_PAJA__?.getState());
+    expect(recovered?.tabs).toHaveLength(1);
+    expect(recovered?.iframeCount).toBe(1);
+    expect(recovered?.initSent).toBe(true);
+    expect(recovered?.messageLog.filter((entry) => entry.type === 'paja.pointer.error')).toHaveLength(1);
+  } finally {
+    releaseFirstBlossom();
+    await server.close();
+  }
+});
+
 test('times out a never-ready verified runtime generation and ignores stale readiness before retry', async ({ page }) => {
   test.setTimeout(30_000);
   const server = await startPointerServer();

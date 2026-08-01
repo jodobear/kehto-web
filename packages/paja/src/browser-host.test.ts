@@ -207,9 +207,12 @@ describe('@kehto/paja browser host runtime source guards', () => {
     );
     expect(adapterSource).not.toContain('services.social');
     expect(adapterSource).not.toContain('paja.social');
-    expect(diagnosticsSource).toContain('export async function reportTargetCorsDiagnostic(state: PajaBrowserState): Promise<void>');
-    expect(hostSource).toContain("import { reportTargetCorsDiagnostic } from './browser-target-diagnostics.js';");
-    expect(hostSource).toContain('startExternalFrameNavigation(state, context);\n    void reportTargetCorsDiagnostic(state);');
+    const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
+    expect(diagnosticsSource).toContain('export async function requireTargetCorsAllowed(');
+    expect(runtimeSource).toContain("import { requireTargetCorsAllowed } from './browser-target-diagnostics.js';");
+    expect(runtimeSource.indexOf('return requireTargetCorsAllowed(state, controller.signal)'))
+      .toBeLessThan(runtimeSource.indexOf('return navigateFrame('));
+    expect(hostSource).not.toContain('void reportTargetCorsDiagnostic(state);');
   });
 
   it('uses the selected development signer identity before a fixed simulation identity', () => {
@@ -268,6 +271,29 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(targetSource).toContain('const html = await fetchTargetHtml(signal);');
     expect(hostSource).toContain('settleExternalNavigationReady(context);');
     expect(hostSource).toContain('destroyExternalFrameNavigation(context);');
+  });
+
+  it('supersedes owned external attempts and bounds pre-tab pointer resolution', () => {
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const pointerSource = readFileSync(new URL('./browser-runtime-pointer.ts', import.meta.url), 'utf8');
+    const reload = hostSource.slice(
+      hostSource.indexOf('function reloadPajaTarget('),
+      hostSource.indexOf('function setRuntimeDomainEnabled('),
+    );
+    const pointerLoad = pointerSource.slice(
+      pointerSource.indexOf('async function loadRuntimePointer('),
+      pointerSource.indexOf('function destroyRuntimePointerWork('),
+    );
+
+    expect(reload).not.toContain('if (context.externalAttemptGeneration !== null) return;');
+    expect(reload.indexOf('cancelExternalFrameNavigation('))
+      .toBeLessThan(reload.indexOf('state.generation += 1;'));
+    expect(pointerLoad).toContain('const isOwnedAttempt = () => !context.destroyed');
+    expect(pointerLoad).toContain('window.setTimeout(() => {');
+    expect(pointerLoad).toContain('Pointer resolution timed out after ${attemptBudgetMs}ms.');
+    expect(pointerLoad).toContain('controller.abort(timeoutError);');
+    expect(pointerLoad).toContain('window.clearTimeout(timeoutId);');
+    expect(pointerLoad).toContain('if (!isOwnedAttempt()) return;');
   });
 
   it('keeps BFCache runtime ownership and tears down every tab only on final pagehide', () => {
