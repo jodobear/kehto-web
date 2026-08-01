@@ -3,6 +3,7 @@ import {
   PAJA_TARGET_CORS_HINT,
   classifyTargetCors,
   probeTargetCors,
+  probeTargetModuleCors,
   type PajaTargetCorsFetch,
 } from './target-cors.js';
 
@@ -76,5 +77,31 @@ describe('probeTargetCors', () => {
     expect(diagnostic.status).toBe('unreachable');
     expect(diagnostic.detail).toContain('connect ECONNREFUSED');
     expect(diagnostic.hint).toContain('--target-url');
+  });
+});
+
+describe('probeTargetModuleCors', () => {
+  it('allows self-contained HTML without using its CORS header as a gate', async () => {
+    const seen: Array<{ url: string; origin: string | undefined }> = [];
+    const diagnostic = await probeTargetModuleCors(TARGET, 500, async (url, init) => {
+      seen.push({ url, origin: init.headers.origin });
+      return {
+        headers: { get: () => null },
+        text: async () => '<!doctype html><html><body>self-contained</body></html>',
+      };
+    });
+
+    expect(seen).toEqual([{ url: TARGET, origin: 'null' }]);
+    expect(diagnostic).toMatchObject({ status: 'allowed', targetUrl: TARGET, allowOrigin: null });
+  });
+
+  it('classifies the actual external module response instead of the HTML response', async () => {
+    const diagnostic = await probeTargetModuleCors(TARGET, 500, async (url) => ({
+      headers: { get: () => url.endsWith('/entry.js') ? null : '*' },
+      text: async () => '<script defer src="/classic.js"></script><script src="/entry.js" type="module"></script>',
+    }));
+
+    expect(diagnostic.status).toBe('blocked');
+    expect(diagnostic.targetUrl).toBe(`${TARGET}entry.js`);
   });
 });

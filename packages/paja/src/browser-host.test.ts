@@ -296,6 +296,25 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(pointerLoad).toContain('if (!isOwnedAttempt()) return;');
   });
 
+  it('retires failed external and pointer documents before exposing recovery', () => {
+    const frameSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
+    const externalSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
+    const tabsSource = readFileSync(new URL('./browser-runtime-tabs.ts', import.meta.url), 'utf8');
+    const externalFailure = externalSource.slice(
+      externalSource.indexOf('function settleExternalNavigationFailure('),
+      externalSource.indexOf('function armExternalFrameErrorHandler('),
+    );
+    const tabFailure = tabsSource.slice(
+      tabsSource.indexOf('function handleRuntimeTabError('),
+      tabsSource.indexOf('function startRuntimeTabNavigation('),
+    );
+
+    expect(frameSource).toContain('export function resetPajaFrameDocument(frame: HTMLIFrameElement): void');
+    expect(frameSource).toContain('Paja inactive target');
+    expect(externalFailure).toContain('resetPajaFrameDocument(context.frame);');
+    expect(tabFailure).toContain('resetPajaFrameDocument(tab.frame);');
+  });
+
   it('keeps BFCache runtime ownership and tears down every tab only on final pagehide', () => {
     const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
     const pagehide = hostSource.slice(

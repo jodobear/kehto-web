@@ -406,6 +406,7 @@ test('times out a never-ready verified runtime generation and ignores stale read
     expect(failed?.tabs[0]?.initSent).toBe(false);
     expect(failed?.messageLog.filter((entry) => entry.type === 'paja.target.error')).toHaveLength(1);
     await expect(page.locator('iframe.tab-frame')).toHaveCount(1);
+    await expect(page.locator('iframe.tab-frame')).toHaveAttribute('srcdoc', /Paja inactive target/);
     const surface = page.locator('.paja-target-surface:visible');
     await expect(surface.locator('.paja-target-heading')).toHaveText("Target couldn't load");
     await expect(surface.locator('.paja-target-retry')).toBeEnabled();

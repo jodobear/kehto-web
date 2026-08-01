@@ -132,12 +132,10 @@ describe('@kehto/paja server', () => {
     }
   });
 
-  it('reports a target that blocks the sandboxed frame null origin', async () => {
-    // Mirrors Vite's default server.cors: echo localhost origins, reject `null`.
+  it('allows self-contained target HTML without a CORS response header', async () => {
     const target = await startTargetServer(
       '<!doctype html><html><body>target</body></html>',
-      (origin): Record<string, string> =>
-        origin && origin !== 'null' ? { 'access-control-allow-origin': origin } : {},
+      () => ({}),
     );
     const server = await startPajaServer({ options: { targetUrl: target.url, port: 0 } });
 
@@ -148,8 +146,31 @@ describe('@kehto/paja server', () => {
         hint: string | null;
       };
 
-      expect(diagnostic.status).toBe('blocked');
+      expect(diagnostic.status).toBe('allowed');
       expect(diagnostic.allowOrigin).toBeNull();
+      expect(diagnostic.hint).toBeNull();
+    } finally {
+      await server.close();
+      await target.close();
+    }
+  });
+
+  it('reports an external module that blocks the sandboxed frame null origin', async () => {
+    const target = await startTargetServer(
+      '<!doctype html><html><head><script type="module" src="/entry.js"></script></head></html>',
+      (_origin, pathname) => pathname === '/entry.js' ? {} : { 'access-control-allow-origin': '*' },
+    );
+    const server = await startPajaServer({ options: { targetUrl: target.url, port: 0 } });
+
+    try {
+      const diagnostic = JSON.parse(await fetchText(`${server.url}__kehto/target-cors.json`)) as {
+        status: string;
+        targetUrl: string;
+        hint: string | null;
+      };
+
+      expect(diagnostic.status).toBe('blocked');
+      expect(diagnostic.targetUrl).toBe(`${target.url}entry.js`);
       expect(diagnostic.hint).toContain('allow-same-origin');
     } finally {
       await server.close();
@@ -157,10 +178,11 @@ describe('@kehto/paja server', () => {
     }
   });
 
-  it('reports a target that allows the sandboxed frame null origin', async () => {
-    const target = await startTargetServer('<!doctype html><html><body>target</body></html>', () => ({
-      'access-control-allow-origin': '*',
-    }));
+  it('allows an external module that accepts the sandboxed frame null origin', async () => {
+    const target = await startTargetServer(
+      '<!doctype html><html><head><script src="/classic.js"></script><script src="/entry.js" type="module"></script></head></html>',
+      () => ({ 'access-control-allow-origin': '*' }),
+    );
     const server = await startPajaServer({ options: { targetUrl: target.url, port: 0 } });
 
     try {
@@ -209,16 +231,17 @@ async function fetchText(url: string): Promise<string> {
 
 async function startTargetServer(
   html: string,
-  corsHeaders?: (origin: string | undefined) => Record<string, string>,
+  corsHeaders?: (origin: string | undefined, pathname: string) => Record<string, string>,
 ): Promise<TargetServer> {
   const server = createServer((request, response) => {
     const origin = request.headers.origin;
+    const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
     response.writeHead(200, {
       'cache-control': 'no-store',
-      'content-type': 'text/html; charset=utf-8',
-      ...corsHeaders?.(typeof origin === 'string' ? origin : undefined),
+      'content-type': pathname.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8',
+      ...corsHeaders?.(typeof origin === 'string' ? origin : undefined, pathname),
     });
-    response.end(html);
+    response.end(pathname.endsWith('.js') ? 'export {};' : html);
   });
 
   await new Promise<void>((resolve, reject) => {

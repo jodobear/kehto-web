@@ -11,6 +11,8 @@ interface TargetServer {
   readonly htmlRequestCount: number;
   failNext(message: string, options?: { readonly hold?: boolean }): void;
   setCorsAllowed(allowed: boolean): void;
+  setExternalModule(enabled: boolean): void;
+  setModuleCorsAllowed(allowed: boolean): void;
   releaseHeldFailure(): void;
   close(): Promise<void>;
 }
@@ -189,6 +191,7 @@ test('settles a missing external shell.ready handshake into retryable recovery',
       status: 'error',
       initSent: false,
     });
+    await expect(page.locator('#napplet-frame')).toHaveAttribute('srcdoc', /Paja inactive target/);
 
     await page.evaluate(() => {
       (window as Window & { __pajaWithholdReady?: boolean }).__pajaWithholdReady = false;
@@ -333,10 +336,40 @@ test('reload supersedes an in-flight external attempt and ignores its late settl
   }
 });
 
-test('keeps a CORS-blocked target in recovery until retry can load its modules', async ({ page }) => {
+test('loads a self-contained target whose proxied HTML has no CORS header', async ({ page }) => {
   test.setTimeout(30_000);
   const target = await startTargetServer();
   target.setCorsAllowed(false);
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: target.url,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+    expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
+      .filter((entry) => entry.type === 'paja.target.cors.error').length ?? -1)).toBe(0);
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('keeps a CORS-blocked target module in recovery until retry can load it', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  target.setCorsAllowed(false);
+  target.setExternalModule(true);
+  target.setModuleCorsAllowed(false);
   const runtime = await startPajaServer({
     options: {
       targetUrl: target.url,
@@ -354,7 +387,7 @@ test('keeps a CORS-blocked target in recovery until retry can load its modules',
       'Target sent no access-control-allow-origin for an Origin: null request.',
     );
     await expect(surface.locator('.paja-target-retry')).toBeEnabled();
-    expect(target.htmlRequestCount).toBe(0);
+    expect(await page.locator('#napplet-frame').getAttribute('srcdoc')).toBeNull();
     await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState())).toMatchObject({
       status: 'error',
       initSent: false,
@@ -362,9 +395,8 @@ test('keeps a CORS-blocked target in recovery until retry can load its modules',
     expect(await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
       .filter((entry) => entry.type === 'paja.target.cors.error').length ?? -1)).toBe(1);
 
-    target.setCorsAllowed(true);
+    target.setModuleCorsAllowed(true);
     await surface.locator('.paja-target-retry').click();
-    await expect.poll(() => target.htmlRequestCount).toBe(1);
     await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
     await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
       'shell-init received',
@@ -1224,6 +1256,8 @@ async function startTargetServer(): Promise<TargetServer> {
   const requestOrigins: string[] = [];
   const failures: Array<{ readonly message: string; readonly hold: boolean }> = [];
   let corsAllowed = true;
+  let externalModule = false;
+  let moduleCorsAllowed = true;
   let releaseHeldFailure: (() => void) | null = null;
   const server = createServer((request, response) => {
     requestOrigins.push(typeof request.headers.origin === 'string' ? request.headers.origin : '');
@@ -1234,6 +1268,15 @@ async function startTargetServer(): Promise<TargetServer> {
         'content-type': 'text/javascript; charset=utf-8',
       });
       response.end(shimPrelude);
+      return;
+    }
+    if (requestUrl.pathname === '/entry.js') {
+      response.writeHead(200, {
+        ...(moduleCorsAllowed ? { 'access-control-allow-origin': '*' } : {}),
+        'cache-control': 'no-store',
+        'content-type': 'text/javascript; charset=utf-8',
+      });
+      response.end("document.documentElement.dataset.pajaModule = 'loaded';");
       return;
     }
     if (requestUrl.pathname !== '/') {
@@ -1272,6 +1315,7 @@ async function startTargetServer(): Promise<TargetServer> {
       shellReady: requestUrl.searchParams.get('shellReady') !== '0',
       manualTraffic: requestUrl.searchParams.get('manualTraffic') === '1',
       incProbe: requestUrl.searchParams.get('incProbe') === '1',
+      externalModule,
     }));
   });
 
@@ -1299,6 +1343,12 @@ async function startTargetServer(): Promise<TargetServer> {
     },
     setCorsAllowed(allowed) {
       corsAllowed = allowed;
+    },
+    setExternalModule(enabled) {
+      externalModule = enabled;
+    },
+    setModuleCorsAllowed(allowed) {
+      moduleCorsAllowed = allowed;
     },
     releaseHeldFailure() {
       const release = releaseHeldFailure;
@@ -1328,7 +1378,13 @@ function readRequiredDomains(url: URL): string[] {
 
 function renderTargetHtml(
   loadCount: number,
-  options: { requiredDomains: readonly string[]; shellReady: boolean; manualTraffic: boolean; incProbe: boolean },
+  options: {
+    requiredDomains: readonly string[];
+    shellReady: boolean;
+    manualTraffic: boolean;
+    incProbe: boolean;
+    externalModule: boolean;
+  },
 ): string {
   const requiredDomainsJson = JSON.stringify(options.requiredDomains);
   const shellReadyJson = JSON.stringify(options.shellReady);
@@ -1339,6 +1395,7 @@ function renderTargetHtml(
   <head>
     <meta charset="utf-8">
     <title>Kehto Paja fixture</title>
+    ${options.externalModule ? '<script type="module" src="/entry.js"></script>' : ''}
   </head>
   <body>
     <div id="target-status">booting</div>
