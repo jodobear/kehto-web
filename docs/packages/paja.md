@@ -133,19 +133,18 @@ blocked and the target cannot become ready. Vite's default `server.cors` allowli
 matches only `localhost`, `127.0.0.1`, and `[::1]` origins, so Vite projects need
 `server: { cors: { origin: '*' } }`.
 
-Paja does not leave that failure silent. `GET /__kehto/target-cors.json` fetches
-the configured document without an `Origin` header, matching the target proxy,
-then discovers inline and external module roots. It follows the complete
-statically resolvable graph, including re-exports, literal dynamic imports, and
-import-map mappings, and probes those actual browser-fetched module URLs with
-`Origin: null` — a header a browser cannot forge. Cycles are deduplicated and
-the complete scan shares the existing readiness deadline. The proxied HTML
-response itself is not a CORS gate, so a self-contained target does not need an
-allow-origin header. The browser host checks this bounded diagnostic before
-navigation and, for anything other than `allowed`, keeps recovery visible,
-appends a `paja.target.cors.error` entry, and warns with the remedy. The
-lower-level `classifyTargetCors` and `probeTargetCors` helpers remain exported
-for reuse.
+Paja does not approximate browser loading with a server-side module crawler.
+Instead, an external-target-only host observer runs before authored scripts and
+reports an actual module-script load error or document completion from the
+sandboxed browser. Paja sends the mandatory `shell.init` after the one bare
+`shell.ready`, but marks the target ready only after document completion too.
+An earlier module failure keeps recovery visible, records a `paja.target.error`,
+unregisters the session, and shows the module URL/CORS remedy. Browser-native
+parsing, import maps, redirects, credentials, `data:` modules, and request
+cancellation therefore keep their native semantics. Self-contained targets
+need no allow-origin header. The lower-level `classifyTargetCors` and
+`probeTargetCors` helpers remain exported for callers that already know one
+resource URL to probe; Paja readiness does not use them.
 
 When readiness fails after a target document starts, Paja unregisters its shell
 session and replaces the failed document with inert `srcdoc` before showing

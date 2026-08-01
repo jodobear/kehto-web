@@ -51,10 +51,13 @@ export default {
 };
 ```
 
-Any dev server works as long as it answers `Origin: null` with
-`Access-Control-Allow-Origin: *` or `null`. Paja probes the target on startup
-and logs a `paja.target.cors.error` entry in the message log, plus a console
-warning, when the target would block the sandboxed frame.
+Any dev server works as long as its browser-fetched modules answer `Origin:
+null` with a response allowed by their actual request credentials. Paja waits
+for both the mandatory `shell.ready` handshake and real document completion.
+An injected external-target observer reports module-script load failure from
+the sandboxed browser, then Paja records `paja.target.error` and exposes Retry.
+No server-side source crawler approximates browser parsing, import maps,
+redirects, credentials, `data:` modules, or cancellation.
 
 ## Responsive host and target recovery
 
