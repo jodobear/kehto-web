@@ -4,17 +4,17 @@ milestone: v1.30
 milestone_name: Visual Recovery
 current_phase: 107
 current_phase_name: Readable Responsive Paja System
-status: ready_for_verification
-stopped_at: Completed 107-07-PLAN.md
-last_updated: "2026-07-31T11:59:41.378Z"
-last_activity: 2026-07-31
-last_activity_desc: Plan 107-07 complete; Phase 107 ready for verification
+status: executing
+stopped_at: Planned 107-08 external review gap closure
+last_updated: "2026-08-01T17:55:28+05:30"
+last_activity: 2026-08-01
+last_activity_desc: Exact-head external review reopened Phase 107 with three actionable recovery defects
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 7
+  total_plans: 8
   completed_plans: 7
-  percent: 100
+  percent: 88
 ---
 
 # Project State
@@ -28,18 +28,18 @@ See: `.planning/PROJECT.md` (updated 2026-07-31)
 
 ## Current Position
 
-Phase: 107 (Readable Responsive Paja System) — READY FOR VERIFICATION
-Plan: 7 of 7
-Status: All seven Phase 107 plans executed; ready for verification and human judgment
-Last activity: 2026-07-31 — Plan 107-07 complete; Phase 107 ready for verification
+Phase: 107 (Readable Responsive Paja System) — EXECUTING REVIEW GAP CLOSURE
+Plan: 7 of 8
+Status: Plan 107-08 planned for three exact-head external-review defects
+Last activity: 2026-08-01 — External review reopened Phase 107 with three actionable recovery defects
 
-Progress: [██████████] 100%
+Progress: [█████████░] 88%
 
 ## Performance Metrics
 
 - Historical plans completed: 48
 - v1.30 plans completed: 7
-- v1.30 phase plan counts: Phase 107 has 7 plans (7 executed; ready for verification); Phase 108 is unplanned
+- v1.30 phase plan counts: Phase 107 has 8 plans (7 executed; 1 external-review gap plan pending); Phase 108 is unplanned
 
 **Per-Plan Metrics:**
 
@@ -71,6 +71,7 @@ None in `.planning/todos/pending/`.
 
 ### Blockers/Concerns
 
+- PR #2 exact-head external review identified three Phase 107 recovery defects: in-flight external reload was ignored, pre-tab pointer resolution was unbounded, and CORS-blocked targets could leave recovery after prelude readiness.
 - Open defect 28 retains the inherited upload-domain fixture failure in the aggregate Paja command; all Phase 107-owned browser cases pass, including the two serial guards rerun directly.
 - Phase 108 remains unplanned and owns feed/profile retry, reconnect, recovery copy, and state-transition work.
 
@@ -84,8 +85,8 @@ None in `.planning/todos/pending/`.
 
 ## Session Continuity
 
-Last session: 2026-07-31T11:59:41.370Z
-Stopped at: Completed 107-07-PLAN.md
+Last session: 2026-08-01T17:55:28+05:30
+Stopped at: Planned 107-08 external review gap closure
 Resume file: None
 
 ## Decisions
