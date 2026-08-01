@@ -158,7 +158,8 @@ describe('@kehto/paja server', () => {
   it('reports an external module that blocks the sandboxed frame null origin', async () => {
     const target = await startTargetServer(
       '<!doctype html><html><head><script type="module" src="/entry.js"></script></head></html>',
-      (_origin, pathname) => pathname === '/entry.js' ? {} : { 'access-control-allow-origin': '*' },
+      (_origin, pathname): Record<string, string> =>
+        pathname === '/entry.js' ? {} : { 'access-control-allow-origin': '*' },
     );
     const server = await startPajaServer({ options: { targetUrl: target.url, port: 0 } });
 

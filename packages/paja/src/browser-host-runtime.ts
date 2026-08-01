@@ -10,7 +10,7 @@ import type {
   PajaBrowserStateContext,
   PajaHostRuntimeState,
 } from './browser-host.js';
-import { navigateFrame } from './browser-target-frame.js';
+import { navigateFrame, resetPajaFrameDocument } from './browser-target-frame.js';
 
 /**
  * Remove a single-frame runtime session from every host-owned registry.
@@ -153,6 +153,7 @@ export function settleExternalNavigationFailure(
   cancelExternalFrameNavigation(context, failure);
   context.externalFocusFrameOnReady = false;
   unregisterSingleFrameWindow(context.bridge, context.runtime, context.runtime.currentWindowId);
+  if (context.frame) resetPajaFrameDocument(context.frame);
   state.status = 'error';
   context.targetSurface?.showError(failure, { focusRetry });
   appendPajaMessageLog(state, 'paja', {

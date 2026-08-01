@@ -85,6 +85,22 @@ export type PajaTargetCorsFetch = (
 
 const defaultTargetCorsFetch: PajaTargetCorsFetch = (input, init) => fetch(input, init);
 
+type PajaTargetModuleCorsFetch = (
+  input: string,
+  init: {
+    method: string;
+    headers: Record<string, string>;
+    signal: AbortSignal;
+  },
+) => Promise<{
+  readonly ok?: boolean;
+  readonly status?: number;
+  readonly headers: { get(name: string): string | null };
+  text(): Promise<string>;
+}>;
+
+const defaultTargetModuleCorsFetch: PajaTargetModuleCorsFetch = (input, init) => fetch(input, init);
+
 /**
  * Probe a target dev server for opaque-origin CORS support.
  *
@@ -122,4 +138,126 @@ export async function probeTargetCors(
       hint: 'Confirm the napplet dev server is running and --target-url points at it.',
     };
   }
+}
+
+/**
+ * Probe the configured document's actual external module scripts for opaque-origin CORS support.
+ *
+ * The HTML document itself is fetched by Paja's server and injected through
+ * `srcdoc`, so its response does not need a CORS header. Only external module
+ * resources discovered in that document are classified as browser CORS gates.
+ *
+ * @param targetUrl - Absolute configured target document URL.
+ * @param timeoutMs - Existing host readiness budget for the complete scan.
+ * @param fetchImpl - Fetch implementation used by the Paja server.
+ * @returns Diagnostic for the first blocked module, or an allowed/unreachable result.
+ * @example
+ * ```ts
+ * const diagnostic = await probeTargetModuleCors('http://127.0.0.1:5173/', 10_000);
+ * ```
+ */
+export async function probeTargetModuleCors(
+  targetUrl: string,
+  timeoutMs: number,
+  fetchImpl: PajaTargetModuleCorsFetch = defaultTargetModuleCorsFetch,
+): Promise<PajaTargetCorsDiagnostic> {
+  const controller = new AbortController();
+  const budgetMs = Math.max(1, timeoutMs);
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort(new Error(`Target module CORS probe timed out after ${budgetMs}ms.`));
+  }, budgetMs);
+  try {
+    const documentResponse = await fetchImpl(targetUrl, {
+      method: 'GET',
+      headers: {
+        origin: 'null',
+        accept: 'text/html, application/xhtml+xml;q=0.9, */*;q=0.8',
+      },
+      signal: controller.signal,
+    });
+    if (documentResponse.ok === false) {
+      throw new Error(`Target document request failed with HTTP ${documentResponse.status ?? 'unknown'}.`);
+    }
+    const moduleUrls = readExternalModuleUrls(await documentResponse.text(), targetUrl);
+    if (moduleUrls.length === 0) {
+      return {
+        status: 'allowed',
+        targetUrl,
+        allowOrigin: null,
+        detail: 'Target HTML has no external module scripts that require an Origin: null CORS probe.',
+        hint: null,
+      };
+    }
+
+    const allowOrigins: string[] = [];
+    for (const moduleUrl of moduleUrls) {
+      const moduleResponse = await fetchImpl(moduleUrl, {
+        method: 'GET',
+        headers: {
+          origin: 'null',
+          accept: 'text/javascript, application/javascript, */*;q=0.8',
+        },
+        signal: controller.signal,
+      });
+      if (moduleResponse.ok === false) {
+        throw new Error(
+          `Target module ${moduleUrl} request failed with HTTP ${moduleResponse.status ?? 'unknown'}.`,
+        );
+      }
+      const diagnostic = classifyTargetCors(
+        moduleUrl,
+        moduleResponse.headers.get('access-control-allow-origin'),
+      );
+      if (diagnostic.status !== 'allowed') return diagnostic;
+      if (diagnostic.allowOrigin) allowOrigins.push(diagnostic.allowOrigin);
+    }
+
+    const distinctAllowOrigins = [...new Set(allowOrigins)];
+    return {
+      status: 'allowed',
+      targetUrl,
+      allowOrigin: distinctAllowOrigins.length === 1 ? distinctAllowOrigins[0]! : null,
+      detail: `All ${moduleUrls.length} external module script${moduleUrls.length === 1 ? '' : 's'} allow the sandboxed frame's null origin.`,
+      hint: null,
+    };
+  } catch (error) {
+    const detail = timedOut
+      ? `Target module CORS probe timed out after ${budgetMs}ms.`
+      : `Target module CORS probe failed: ${error instanceof Error ? error.message : String(error)}`;
+    return {
+      status: 'unreachable',
+      targetUrl,
+      allowOrigin: null,
+      detail,
+      hint: 'Confirm the napplet dev server is running and --target-url points at it.',
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function readExternalModuleUrls(html: string, targetUrl: string): string[] {
+  const urls = new Set<string>();
+  for (const tag of html.match(/<script\b[^>]*>/gi) ?? []) {
+    if (readHtmlAttribute(tag, 'type')?.trim().toLowerCase() !== 'module') continue;
+    const source = readHtmlAttribute(tag, 'src');
+    if (!source) continue;
+    try {
+      const url = new URL(source.replaceAll('&amp;', '&'), targetUrl);
+      if (url.protocol === 'http:' || url.protocol === 'https:') urls.add(url.href);
+    } catch {
+      // The browser will reject malformed URLs; they are not valid probe targets.
+    }
+  }
+  return [...urls];
+}
+
+function readHtmlAttribute(tag: string, name: string): string | undefined {
+  const match = new RegExp(
+    `(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+    'i',
+  ).exec(tag);
+  return match?.[1] ?? match?.[2] ?? match?.[3];
 }

@@ -7,6 +7,7 @@ import {
   type PajaDevtoolsState,
 } from './browser-devtools.js';
 import type { PajaHostConfig } from './options.js';
+import { resetPajaFrameDocument } from './browser-target-frame.js';
 import {
   createPajaTargetSurface,
   type PajaTargetSurface,
@@ -587,6 +588,7 @@ function handleRuntimeTabError(
   const failedWindowId = tab.windowId;
   const focusRetry = tab.focusFrameOnReady && state.activeTabId === tab.id;
   destroyRuntimeTabSession(tab, context);
+  resetPajaFrameDocument(tab.frame);
   tab.status = 'error';
   tab.targetSurface.showError(error, { focusRetry });
   if (state.activeTabId === tab.id) context.setStatus(state, 'error');

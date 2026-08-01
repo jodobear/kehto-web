@@ -133,14 +133,20 @@ blocked and the target cannot become ready. Vite's default `server.cors` allowli
 matches only `localhost`, `127.0.0.1`, and `[::1]` origins, so Vite projects need
 `server: { cors: { origin: '*' } }`.
 
-Paja does not leave that failure silent. `GET /__kehto/target-cors.json` probes
-the configured target with an explicit `Origin: null` request — a header a
-browser cannot forge, which is why the probe runs on the Paja server — and
-classifies the response as `allowed`, `blocked`, or `unreachable`. The browser
-host requests it once per target-url boot and, for anything other than
-`allowed`, appends a `paja.target.cors.error` entry to the message log and warns
-on the console with the remedy. `classifyTargetCors` and `probeTargetCors` are
-exported for reuse.
+Paja does not leave that failure silent. `GET /__kehto/target-cors.json` fetches
+the configured document on the Paja server, discovers its external module
+scripts, and probes those actual browser-fetched URLs with `Origin: null` — a
+header a browser cannot forge. The proxied HTML response itself is not a CORS
+gate, so a self-contained target does not need an allow-origin header. The
+browser host checks this bounded diagnostic before navigation and, for anything
+other than `allowed`, keeps recovery visible, appends a
+`paja.target.cors.error` entry, and warns with the remedy. The lower-level
+`classifyTargetCors` and `probeTargetCors` helpers remain exported for reuse.
+
+When readiness fails after a target document starts, Paja unregisters its shell
+session and replaces the failed document with inert `srcdoc` before showing
+Retry. Hidden scripts, timers, sockets, and network work therefore do not remain
+active behind the recovery surface.
 
 ### Responsive composition and recovery
 

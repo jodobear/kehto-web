@@ -10,7 +10,7 @@ import {
 } from './options.js';
 import { renderPajaHtml } from './host-page.js';
 import { resolvePajaRawOptions } from './config-file.js';
-import { probeTargetCors } from './target-cors.js';
+import { probeTargetModuleCors } from './target-cors.js';
 
 /** Options for starting the Paja local HTTP server. */
 export interface PajaServerOptions {
@@ -93,7 +93,10 @@ export async function startPajaServer(input: PajaServerOptions): Promise<PajaSer
     }
 
     if (requestUrl === '/__kehto/target-cors.json') {
-      const diagnostic = await probeTargetCors(hostConfig.target.url);
+      const diagnostic = await probeTargetModuleCors(
+        hostConfig.target.url,
+        hostConfig.runtime.readyTimeoutMs,
+      );
       response.writeHead(200, {
         'cache-control': 'no-store',
         'content-type': 'application/json; charset=utf-8',

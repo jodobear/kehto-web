@@ -11,6 +11,21 @@ import type { PajaHostConfig } from './options.js';
 import type { PajaShellEnvironment } from './parity.js';
 import { injectPajaRuntimeCsp, type PajaResolvedPointer } from './runtime-resolver.js';
 
+const PAJA_INACTIVE_TARGET_HTML =
+  '<!doctype html><html><head><meta charset="utf-8"><title>Paja inactive target</title></head><body></body></html>';
+
+/**
+ * Replace a failed target document while retaining its retryable iframe element.
+ *
+ * @param frame - Paja-owned iframe whose injected target must stop executing.
+ * @returns Nothing.
+ */
+export function resetPajaFrameDocument(frame: HTMLIFrameElement): void {
+  if (!frame.hasAttribute('srcdoc')) return;
+  frame.removeAttribute('src');
+  frame.srcdoc = PAJA_INACTIVE_TARGET_HTML;
+}
+
 /**
  * Resolve Paja's one authoritative environment from a trusted frame identity.
  * The caller persists this exact snapshot with the frame registration so its
