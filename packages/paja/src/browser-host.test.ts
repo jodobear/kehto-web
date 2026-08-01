@@ -122,6 +122,23 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(devtoolsSource).toContain('originRegistry.getIdentity = (win: Window) =>');
   });
 
+  it('uses browser lifecycle events instead of terminal module graph crawling', () => {
+    const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
+    const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
+    const frameSource = readFileSync(new URL('./browser-target-frame.ts', import.meta.url), 'utf8');
+    const serverSource = readFileSync(new URL('./server.ts', import.meta.url), 'utf8');
+    const corsSource = readFileSync(new URL('./target-cors.ts', import.meta.url), 'utf8');
+
+    expect(frameSource).toContain("'paja.external.document.complete'");
+    expect(frameSource).toContain("'paja.external.module.error'");
+    expect(frameSource).toContain('injectExternalTargetLifecycleObserver(');
+    expect(hostSource).toContain("data.type === 'paja.external.document.complete'");
+    expect(hostSource).toContain("data.type === 'paja.external.module.error'");
+    expect(runtimeSource).not.toContain('requireTargetCorsAllowed');
+    expect(serverSource).not.toContain('/__kehto/target-cors.json');
+    expect(corsSource).not.toContain('probeTargetModuleCors');
+  });
+
   it('keeps runtime pointers in closeable tabs with duplicate-load choices', () => {
     const source = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
     const pointerSource = readFileSync(new URL('./browser-runtime-pointer.ts', import.meta.url), 'utf8');
@@ -188,7 +205,6 @@ describe('@kehto/paja browser host runtime source guards', () => {
   it('keeps the private social cache inside the established identity and outbox host boundary', () => {
     const adapterSource = readFileSync(new URL('./browser-adapter.ts', import.meta.url), 'utf8');
     const hostSource = readFileSync(new URL('./browser-host.ts', import.meta.url), 'utf8');
-    const diagnosticsSource = readFileSync(new URL('./browser-target-diagnostics.ts', import.meta.url), 'utf8');
 
     expect(adapterSource).toContain("import { createPajaSocialCache } from './browser-social-cache.js';");
     expect(adapterSource).toContain('const baseOutboxRouter = createOutboxRouter(backend, getSimulation, confirmRequest, signerProvider);');
@@ -208,10 +224,7 @@ describe('@kehto/paja browser host runtime source guards', () => {
     expect(adapterSource).not.toContain('services.social');
     expect(adapterSource).not.toContain('paja.social');
     const runtimeSource = readFileSync(new URL('./browser-host-runtime.ts', import.meta.url), 'utf8');
-    expect(diagnosticsSource).toContain('export async function requireTargetCorsAllowed(');
-    expect(runtimeSource).toContain("import { requireTargetCorsAllowed } from './browser-target-diagnostics.js';");
-    expect(runtimeSource.indexOf('return requireTargetCorsAllowed(state, controller.signal)'))
-      .toBeLessThan(runtimeSource.indexOf('return navigateFrame('));
+    expect(runtimeSource).not.toContain('requireTargetCorsAllowed');
     expect(hostSource).not.toContain('void reportTargetCorsDiagnostic(state);');
   });
 

@@ -438,6 +438,55 @@ test('loads a target whose document rejects synthetic Origin headers', async ({ 
   }
 });
 
+test('ignores inert module markup when deciding external target readiness', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: `${target.url}?inertModule=1`,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect(page.frameLocator('#napplet-frame').locator('#target-status')).toHaveText(
+      'shell-init received',
+      { timeout: 15_000 },
+    );
+    expect(target.requestOrigins).not.toContain('inert-module-requested');
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
+test('loads browser-supported data module imports without terminal rejection', async ({ page }) => {
+  test.setTimeout(30_000);
+  const target = await startTargetServer();
+  const runtime = await startPajaServer({
+    options: {
+      targetUrl: `${target.url}?dataModule=1`,
+      port: 0,
+      readyTimeoutMs: 2_000,
+    },
+    now: new Date('2026-08-01T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(runtime.url);
+    await expect(page.locator('#lifecycle-status')).toHaveText('Target ready', { timeout: 15_000 });
+    await expect.poll(() => page.frameLocator('#napplet-frame').locator('html').getAttribute('data-paja-data'))
+      .toBe('loaded');
+  } finally {
+    await runtime.close();
+    await target.close();
+  }
+});
+
 test('keeps a CORS-blocked module dependency in recovery until retry can load it', async ({ page }) => {
   test.setTimeout(30_000);
   const target = await startTargetServer();
@@ -1363,6 +1412,15 @@ async function startTargetServer(): Promise<TargetServer> {
       response.end("document.documentElement.dataset.pajaChunk = 'loaded';");
       return;
     }
+    if (requestUrl.pathname === '/inert-module.js') {
+      requestOrigins.push('inert-module-requested');
+      response.writeHead(200, {
+        'cache-control': 'no-store',
+        'content-type': 'text/javascript; charset=utf-8',
+      });
+      response.end("document.documentElement.dataset.inertModule = 'executed';");
+      return;
+    }
     if (requestUrl.pathname !== '/') {
       response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       response.end('Not found');
@@ -1410,6 +1468,8 @@ async function startTargetServer(): Promise<TargetServer> {
       manualTraffic: requestUrl.searchParams.get('manualTraffic') === '1',
       incProbe: requestUrl.searchParams.get('incProbe') === '1',
       externalModule,
+      inertModule: requestUrl.searchParams.get('inertModule') === '1',
+      dataModule: requestUrl.searchParams.get('dataModule') === '1',
     }));
   });
 
@@ -1491,6 +1551,8 @@ function renderTargetHtml(
     manualTraffic: boolean;
     incProbe: boolean;
     externalModule: boolean;
+    inertModule: boolean;
+    dataModule: boolean;
   },
 ): string {
   const requiredDomainsJson = JSON.stringify(options.requiredDomains);
@@ -1503,6 +1565,8 @@ function renderTargetHtml(
     <meta charset="utf-8">
     <title>Kehto Paja fixture</title>
     ${options.externalModule ? '<script type="module" src="/entry.js"></script>' : ''}
+    ${options.inertModule ? '<!-- <script type="module" src="/inert-module.js"></script> --><template><script type="module" src="/inert-module.js"></script></template>' : ''}
+    ${options.dataModule ? '<script type="module">import "data:text/javascript,document.documentElement.dataset.pajaData=%27loaded%27";</script>' : ''}
   </head>
   <body>
     <div id="target-status">booting</div>
