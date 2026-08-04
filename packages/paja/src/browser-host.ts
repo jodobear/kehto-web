@@ -13,7 +13,7 @@ import {
   PAJA_DEV_SIGNER_PUBKEY,
 } from './browser-adapter.js';
 import {
-  confirmPajaRequest,
+  createPajaConfirmationController,
   createHostSignerController,
   hasNip07Signer,
 } from './browser-host-signer.js';
@@ -69,6 +69,8 @@ import {
   type PajaResolvedPointer,
 } from './runtime-resolver.js';
 import { reportTargetCorsDiagnostic } from './browser-target-diagnostics.js';
+import { createPajaNotifyController } from './browser-notify.js';
+import { createPajaConfigController } from './browser-config.js';
 import {
   PAJA_SIMULATION_DOMAINS,
   summarizePajaSimulation,
@@ -573,15 +575,36 @@ async function installPajaHost(): Promise<void> {
     () => contextRef,
     { persistTabs: persistRuntimeTabs },
   ));
-  const signerController = createHostSignerController(() => stateRef, setSimulationStatus);
+  const confirmationController = createPajaConfirmationController(() => stateRef);
+  const signerController = createHostSignerController(
+    () => stateRef,
+    setSimulationStatus,
+    confirmationController.confirm,
+  );
+  const getWindowIdentity = (windowId?: string) => {
+    const tabTarget = stateRef?.tabs.find((tab) => tab.windowId === windowId)?.resolvedTarget;
+    return getTargetIdentity(config, tabTarget ?? stateRef?.resolvedTarget);
+  };
+  const notifyController = createPajaNotifyController({
+    confirm: confirmationController.confirm,
+    getIdentity: getWindowIdentity,
+    isEnabled: () => getSimulation().notifications.enabled && getSimulation().notifications.grant,
+  });
+  const configController = createPajaConfigController({
+    getIdentity: getWindowIdentity,
+    getInitialValues: () => ({ ...getSimulation().config.values }),
+  });
   const adapter = createPajaAdapter(config, getSimulation, (theme) => {
     runtime.themeService = theme;
-  }, themeBroadcast.onBroadcast, (request) => confirmPajaRequest(stateRef, request), signerController, () =>
-    getTargetIdentity(config, stateRef?.resolvedTarget), () => stateRef?.reload(), {
+  }, themeBroadcast.onBroadcast, confirmationController.confirm, signerController, getWindowIdentity, () => stateRef?.reload(), {
       catalog: runtime.catalog,
       controller: intentController,
-    });
+    }, confirmationController.activation, notifyController?.serviceOptions, configController?.serviceOptions);
+  await adapter.ready;
   const bridge = createShellBridge(adapter);
+  const stopIdentityChanges = signerController.subscribe(() => {
+    bridge.publishIdentityChanged(adapter.auth.getUserPubkey() ?? '');
+  });
   themeBroadcast.attach(bridge);
   bridgeRef = bridge;
   installPajaOriginRegistryProxy(originRegistry, () => stateRef);
@@ -607,6 +630,10 @@ async function installPajaHost(): Promise<void> {
 
   const stopIntentCatalogChanges = subscribePajaIntentCatalogChanges(state, context);
   window.addEventListener('pagehide', stopIntentCatalogChanges, { once: true });
+  window.addEventListener('pagehide', stopIdentityChanges, { once: true });
+  window.addEventListener('pagehide', () => confirmationController.dispose(), { once: true });
+  window.addEventListener('pagehide', () => notifyController?.dispose(), { once: true });
+  window.addEventListener('pagehide', () => configController?.dispose(), { once: true });
 
   window.__KEHTO_PAJA__ = state;
 

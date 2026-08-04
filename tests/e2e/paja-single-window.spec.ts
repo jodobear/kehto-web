@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
-import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools/pure';
+import { finalizeEvent, generateSecretKey, verifyEvent } from 'nostr-tools/pure';
 import { startPajaServer, type PajaServer } from '../../packages/paja/dist/index.js';
 
 interface TargetServer {
@@ -51,11 +51,6 @@ test.afterAll(async () => {
 
 test('hosts one sandboxed target iframe and reinitializes it on reload', async ({ page }) => {
   test.setTimeout(60_000);
-  const dialogMessages: string[] = [];
-  page.on('dialog', async (dialog) => {
-    dialogMessages.push(dialog.message());
-    await dialog.accept();
-  });
   await page.goto(runtimeServer.url);
 
   await expect(page.locator('header.top')).toBeVisible();
@@ -79,7 +74,8 @@ test('hosts one sandboxed target iframe and reinitializes it on reload', async (
   await expect(targetFrame.locator('#injected-domains')).toHaveText('identity,outbox,resource,keys');
   await expect(targetFrame.locator('#shell-init-type')).toHaveText('shell.init');
   await expect(targetFrame.locator('#shell-init-domains')).toContainText('relay,identity,storage,inc');
-  await expect(targetFrame.locator('#shell-init-domains')).toContainText('upload,intent');
+  await expect(targetFrame.locator('#shell-init-domains')).toContainText('intent');
+  await expect(targetFrame.locator('#shell-init-domains')).not.toContainText('upload');
   await expect.poll(async () => targetFrame.locator('body').evaluate(() => {
     const napplet = (window as Window & {
       napplet?: { media?: unknown; shell?: { supports(domain: string): boolean; services: readonly string[] } };
@@ -91,17 +87,14 @@ test('hosts one sandboxed target iframe and reinitializes it on reload', async (
     };
   })).toEqual({ mediaReceiver: 'object', mediaSupported: true, mediaService: true });
   await expect(targetFrame.locator('#service-results')).toContainText('storage.set.result');
-  await expect(targetFrame.locator('#service-results')).toContainText('config.values');
+  await expect(targetFrame.locator('#service-results')).toContainText('config.schemaError');
   await expect(targetFrame.locator('#service-results')).toContainText('theme.get.result');
-  await expect(targetFrame.locator('#service-results')).toContainText('notify.send.result');
   await expect(targetFrame.locator('#service-results')).toContainText('identity.getPublicKey.result');
-  await expect(targetFrame.locator('#service-results')).toContainText('upload.upload.result');
   await expect(targetFrame.locator('#service-results')).toContainText('intent.available.result');
   await expect(targetFrame.locator('#service-results')).toContainText('cvm.discover.result');
   await expect(targetFrame.locator('#service-results')).toContainText('outbox.publish.result');
   await expect(targetFrame.locator('#identity-pubkey')).toHaveText('');
-  expect(dialogMessages.filter((message) => message.includes('Paja sign request'))).toHaveLength(0);
-  expect(dialogMessages.filter((message) => message.includes('Paja publish request'))).toHaveLength(0);
+  await expect(page.locator('#paja-confirmation-dialog')).not.toBeVisible();
   await expect(page.locator('#message-log .log-row')).not.toHaveCount(0);
   await page.locator('#message-filter').fill('identity.getPublicKey');
   await expect(page.locator('#message-log .log-row')).not.toHaveCount(0);
@@ -137,18 +130,22 @@ test('hosts one sandboxed target iframe and reinitializes it on reload', async (
   expect(state?.services).toEqual(expect.arrayContaining([
     'config',
     'common',
+    'count',
     'cvm',
     'identity',
     'intent',
     'keys',
+    'link',
+    'lists',
     'media',
     'notify',
     'outbox',
     'relay',
     'resource',
     'theme',
-    'upload',
   ]));
+  expect(state?.services).not.toContain('upload');
+  expect(state?.services).not.toContain('webrtc');
 
   await page.locator('#acl-controls [data-acl-capability="state:write"]').click();
   await expect(page.locator('#acl-controls [data-acl-capability="state:write"]')).toHaveAttribute('data-enabled', 'false');
@@ -172,7 +169,46 @@ test('hosts one sandboxed target iframe and reinitializes it on reload', async (
   })).toEqual({ mediaReceiver: 'undefined', mediaSupported: false, mediaService: false });
 });
 
-test('applies simulation config and compact theme adjustment', async ({ page }) => {
+test('keeps memory relay and upload fixtures out of advertised capabilities', async ({ page }) => {
+  const relayEvent = finalizeEvent({
+    kind: 1,
+    created_at: 1_800_000_000,
+    tags: [],
+    content: 'Paja relay fixture',
+  }, generateSecretKey());
+  const fixtureRuntime = await startPajaServer({
+    options: {
+      targetUrl: `${targetServer.url}?manualTraffic=1&required=identity,resource,keys`,
+      port: 0,
+      simulation: {
+        relay: { mode: 'memory', fixtures: [relayEvent] },
+      },
+    },
+    now: new Date('2026-08-02T00:00:00.000Z'),
+  });
+
+  try {
+    await page.goto(fixtureRuntime.url);
+    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().status)).toBe('ready');
+    const frame = page.frameLocator('#napplet-frame');
+    await expect(frame.locator('#target-status')).toHaveText('shell-init received', { timeout: 15_000 });
+
+    const advertised = (await frame.locator('#shell-init-domains').textContent())?.split(',') ?? [];
+    const services = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().services ?? []);
+    const fixtureOnlyDomains = ['relay', 'outbox', 'count', 'common', 'lists', 'webrtc', 'cvm', 'upload'];
+
+    for (const domain of fixtureOnlyDomains) {
+      expect(advertised).not.toContain(domain);
+      expect(services).not.toContain(domain);
+    }
+    await expect(page.locator('#simulation-status')).toContainText('relay:memory:');
+    await expect(page.locator('#simulation-status')).toContainText('upload:memory:simulator');
+  } finally {
+    await fixtureRuntime.close();
+  }
+});
+
+test('applies fixed identity and live theme adjustment', async ({ page }) => {
   test.setTimeout(60_000);
   const pubkey = '4'.repeat(64);
   const customTargetUrl = `${targetServer.url}?required=identity,resource,keys,theme`;
@@ -185,7 +221,6 @@ test('applies simulation config and compact theme adjustment', async ({ page }) 
         relay: { mode: 'disabled' },
         capabilities: { domains: { relay: false, outbox: false } },
         theme: { mode: 'light' },
-        config: { values: { density: 'compact' } },
       },
     },
     now: new Date('2026-06-21T00:00:00.000Z'),
@@ -201,7 +236,6 @@ test('applies simulation config and compact theme adjustment', async ({ page }) 
     await expect(targetFrame.locator('#shell-init-domains')).not.toContainText('relay');
     await expect(targetFrame.locator('#shell-init-domains')).not.toContainText('outbox');
     await expect(targetFrame.locator('#identity-pubkey')).toHaveText(pubkey);
-    await expect(targetFrame.locator('#config-density')).toHaveText('compact');
     await expect(targetFrame.locator('#theme-background')).toHaveText('#f7f5ed');
     await expect(targetFrame.locator('#theme-changed-count')).toHaveText('0');
     await expect(targetFrame.locator('#theme-changed-background')).toHaveText('');
@@ -237,9 +271,6 @@ test('applies simulation config and compact theme adjustment', async ({ page }) 
 test('shows error details and routes signing through NIP-07', async ({ page }) => {
   test.setTimeout(60_000);
   const pubkey = '7'.repeat(64);
-  page.on('dialog', async (dialog) => {
-    await dialog.accept();
-  });
   await page.addInitScript((signerPubkey) => {
     const signedEvents: unknown[] = [];
     const host = window as unknown as {
@@ -269,10 +300,10 @@ test('shows error details and routes signing through NIP-07', async ({ page }) =
   await page.goto(runtimeServer.url);
   await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().status)).toBe('ready');
 
-  await page.locator('#signer-nip07').click();
   await expect(page.locator('#signer-status')).toContainText('NIP-07 connected');
   await expect(page.locator('#signer-status')).toContainText(pubkey);
   await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().signer.method)).toBe('nip07');
+  await approvePajaConfirmation(page, 'Sign this Nostr event?');
   await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().status)).toBe('ready');
 
   const targetFrame = page.frameLocator('#napplet-frame');
@@ -292,93 +323,6 @@ test('shows error details and routes signing through NIP-07', async ({ page }) =
   await page.locator('#message-filter').fill('visible boom');
   await expect(page.locator('#message-log')).toContainText('resource.info.error');
   await expect(page.locator('#message-log .log-row[data-error="true"]')).toContainText('visible boom');
-});
-
-test('routes standard identity follows and OUTBOX profile queries without a target-CORS false positive', async ({ page }) => {
-  test.setTimeout(60_000);
-  const accountSecret = generateSecretKey();
-  const followedSecret = generateSecretKey();
-  const accountPubkey = getPublicKey(accountSecret);
-  const followedPubkey = getPublicKey(followedSecret);
-  const contactList = finalizeEvent({
-    kind: 3,
-    created_at: 1_700_000_000,
-    tags: [['p', followedPubkey]],
-    content: '',
-  }, accountSecret);
-  const profile = finalizeEvent({
-    kind: 0,
-    created_at: 1_700_000_001,
-    tags: [],
-    content: JSON.stringify({ name: 'followed fixture' }),
-  }, followedSecret);
-  const socialRuntime = await startPajaServer({
-    options: {
-      targetUrl: `${targetServer.url}?manualTraffic=1`,
-      port: 0,
-      simulation: {
-        relay: {
-          mode: 'memory',
-          fixtures: [contactList, profile],
-        },
-      },
-    },
-    now: new Date('2026-06-21T00:00:00.000Z'),
-  });
-
-  try {
-    await page.goto(socialRuntime.url);
-    await expect.poll(() => targetServer.requestOrigins.includes('null')).toBe(true);
-    await expect.poll(async () => page.evaluate(() => window.__KEHTO_PAJA__?.getState().status)).toBe('ready');
-    await page.evaluate((pubkey) => {
-      const host = window as Window & { nostr?: unknown };
-      host.nostr = {
-        getPublicKey: async () => pubkey,
-        getRelays: async () => ({ 'wss://relay.test': { read: true, write: true } }),
-        signEvent: async (event: Record<string, unknown>) => ({
-          ...event,
-          id: '8'.repeat(64),
-          pubkey,
-          sig: '9'.repeat(128),
-          kind: typeof event.kind === 'number' ? event.kind : 1,
-          tags: Array.isArray(event.tags) ? event.tags : [],
-          content: typeof event.content === 'string' ? event.content : '',
-          created_at: typeof event.created_at === 'number' ? event.created_at : Math.floor(Date.now() / 1000),
-        }),
-      };
-    }, accountPubkey);
-    await page.locator('#signer-nip07').click();
-    await expect(page.locator('#signer-status')).toContainText('NIP-07 connected');
-    await expect(page.locator('#signer-status')).toContainText(accountPubkey);
-
-    const corsErrorLogged = await page.evaluate(() => window.__KEHTO_PAJA__?.getState().messageLog
-      .some((entry) => entry.type === 'paja.target.cors.error') ?? false);
-    expect(corsErrorLogged).toBe(false);
-
-    const frame = page.frameLocator('#napplet-frame');
-    await expect(frame.locator('#target-status')).toHaveText('shell-init received', { timeout: 15_000 });
-    await sendFixtureMessage(frame, { type: 'identity.getPublicKey', id: 'social-pubkey' });
-    await expect.poll(() => readFixtureMessage(frame, 'identity.getPublicKey.result', 'social-pubkey')).toMatchObject({
-      pubkey: accountPubkey,
-    });
-
-    await sendFixtureMessage(frame, { type: 'identity.getFollows', id: 'social-follows' });
-    await expect.poll(() => readFixtureMessage(frame, 'identity.getFollows.result', 'social-follows')).toMatchObject({
-      pubkeys: [followedPubkey],
-    });
-
-    await sendFixtureMessage(frame, {
-      type: 'outbox.query',
-      id: 'social-profile',
-      filters: [{ kinds: [0], authors: [followedPubkey] }],
-      options: { authors: [followedPubkey] },
-    });
-    await expect.poll(() => readFixtureMessage(frame, 'outbox.query.result', 'social-profile')).toMatchObject({
-      events: [expect.objectContaining({ event: expect.objectContaining({ id: profile.id, kind: 0 }) })],
-    });
-  } finally {
-    await socialRuntime.close();
-  }
 });
 
 test('stores disclosed bytes through a signed Blossom upload and fails closed on denial or incomplete proof', async ({ page }) => {
@@ -402,25 +346,7 @@ test('stores disclosed bytes through a signed Blossom upload and fails closed on
     },
     now: new Date('2026-06-21T00:00:00.000Z'),
   });
-  const dialogs: string[] = [];
-  let denyNextUpload = false;
   let putsBeforeConsent = 0;
-  page.on('dialog', async (dialog) => {
-    dialogs.push(dialog.message());
-    if (dialog.message().includes('Paja upload request')) {
-      expect(blossom.puts).toHaveLength(putsBeforeConsent);
-      expect(dialog.message()).toContain('dev-target');
-      expect(dialog.message()).toContain('application/octet-stream');
-      expect(dialog.message()).toContain(blossom.url);
-      expect(dialog.message()).toContain('public and durable');
-      if (denyNextUpload) {
-        denyNextUpload = false;
-        await dialog.dismiss();
-        return;
-      }
-    }
-    await dialog.accept();
-  });
 
   try {
     await page.goto(uploadRuntime.url);
@@ -444,6 +370,9 @@ test('stores disclosed bytes through a signed Blossom upload and fails closed on
     const bytes = [0, 1, 2, 3, 254, 255];
     const expectedSha = createHash('sha256').update(Buffer.from(bytes)).digest('hex');
     await sendUploadMessage(frame, 'real-upload', bytes);
+    await expectUploadConfirmation(page, blossom, putsBeforeConsent);
+    await page.locator('#paja-confirmation-approve').click();
+    await approvePajaConfirmation(page, 'Sign this Nostr event?');
     await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'real-upload')).toMatchObject({
       result: {
         ok: true,
@@ -472,8 +401,9 @@ test('stores disclosed bytes through a signed Blossom upload and fails closed on
     expect(Number(authEvent.tags.find((tag) => tag[0] === 'expiration')?.[1])).toBeGreaterThan(authEvent.created_at);
 
     putsBeforeConsent = 1;
-    denyNextUpload = true;
     await sendUploadMessage(frame, 'denied-upload', [9, 9]);
+    await expectUploadConfirmation(page, blossom, putsBeforeConsent);
+    await page.keyboard.press('Escape');
     await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'denied-upload')).toMatchObject({
       result: { ok: false, status: 'cancelled', error: 'user cancelled' },
     });
@@ -481,12 +411,14 @@ test('stores disclosed bytes through a signed Blossom upload and fails closed on
 
     blossom.omitSizeOnce();
     await sendUploadMessage(frame, 'missing-size', [7, 8, 9]);
+    await expectUploadConfirmation(page, blossom, putsBeforeConsent);
+    await page.locator('#paja-confirmation-approve').click();
+    await approvePajaConfirmation(page, 'Sign this Nostr event?');
     await expect.poll(() => readFixtureMessage(frame, 'upload.upload.result', 'missing-size')).toMatchObject({
       result: { ok: false, status: 'failed', error: 'server returned invalid size' },
     });
     expect(blossom.puts).toHaveLength(2);
-    expect(dialogs.filter((message) => message.includes('Paja upload request'))).toHaveLength(3);
-    expect(dialogs.filter((message) => message.includes('Paja sign request'))).toHaveLength(2);
+    await expect(page.locator('#paja-confirmation-dialog')).not.toBeVisible();
   } finally {
     await uploadRuntime.close();
     await blossom.close();
@@ -768,7 +700,6 @@ function renderTargetHtml(
           { type: 'storage.set', id: 'storage-1', key: 'phase', value: '92' },
           { type: 'config.get', id: 'config-1' },
           { type: 'theme.get', id: 'theme-1' },
-          { type: 'notify.send', id: 'notify-1', title: 'hello from fixture' },
           { type: 'identity.getPublicKey', id: 'identity-1' },
           { type: 'upload.upload', id: 'upload-1', request: { data: bytes, mimeType: 'text/plain', filename: 'paja.txt' } },
           { type: 'intent.available', id: 'intent-1', archetype: 'paja-target' },
@@ -855,13 +786,62 @@ async function readFixtureMessage(
   frame: FrameLocator,
   type: string,
   id: string,
+  idField = 'id',
 ): Promise<Record<string, unknown> | null> {
   return frame.locator('body').evaluate((_body, expected) => {
     const messages = (window as Window & {
       __pajaTestMessages?: Array<Record<string, unknown>>;
     }).__pajaTestMessages ?? [];
-    return messages.find((message) => message.type === expected.type && message.id === expected.id) ?? null;
-  }, { type, id });
+    const readPath = (value: unknown, path: string): unknown => path.split('.').reduce<unknown>((current, key) => {
+      if (!current || typeof current !== 'object') return undefined;
+      return (current as Record<string, unknown>)[key];
+    }, value);
+    return messages.find((message) => message.type === expected.type && readPath(message, expected.idField) === expected.id) ?? null;
+  }, { type, id, idField });
+}
+
+async function readNestedString(
+  frame: FrameLocator,
+  type: string,
+  id: string,
+  path: string[],
+): Promise<string> {
+  const value = await frame.locator('body').evaluate((_body, expected) => {
+    const messages = (window as Window & {
+      __pajaTestMessages?: Array<Record<string, unknown>>;
+    }).__pajaTestMessages ?? [];
+    const message = messages.find((candidate) => candidate.type === expected.type && candidate.id === expected.id);
+    return expected.path.reduce<unknown>((current, key) => {
+      if (!current || typeof current !== 'object') return undefined;
+      return (current as Record<string, unknown>)[key];
+    }, message);
+  }, { type, id, path });
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`Missing ${path.join('.')} in ${type} (${id}).`);
+  }
+  return value;
+}
+
+async function approvePajaConfirmation(page: Page, title: string): Promise<void> {
+  const dialog = page.locator('#paja-confirmation-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('#paja-confirmation-title')).toHaveText(title);
+  await page.locator('#paja-confirmation-approve').click();
+}
+
+async function expectUploadConfirmation(
+  page: Page,
+  blossom: BlossomTestServer,
+  putsBeforeConsent: number,
+): Promise<void> {
+  await expect(page.locator('#paja-confirmation-dialog')).toBeVisible();
+  await expect(page.locator('#paja-confirmation-title')).toHaveText('Upload this file?');
+  await expect(page.locator('#paja-confirmation-summary')).toContainText('dev-target');
+  const details = page.locator('#paja-confirmation-details');
+  await expect(details).toContainText('application/octet-stream');
+  await expect(details).toContainText(blossom.url);
+  await expect(details).toContainText('public and durable');
+  expect(blossom.puts).toHaveLength(putsBeforeConsent);
 }
 
 function decodeNostrAuthorization(value: string): {

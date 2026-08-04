@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { NappletMessage, SerialOpenRequest, SerialOpenResult } from '@napplet/core';
 
-import { createSerialService, type SerialServiceOptions } from './serial-service.js';
+import {
+  createSerialService,
+  type SerialServiceContext,
+  type SerialServiceOptions,
+} from './serial-service.js';
 
 const WINDOW_ID = 'win-serial';
 const REQUEST: SerialOpenRequest = { options: { baudRate: 9600 }, label: 'demo serial' };
@@ -61,13 +65,92 @@ describe('createSerialService', () => {
     service.handleMessage(WINDOW_ID, { type: 'serial.close', id: 'close-2', sessionId: 'serial-session-1', reason: 'done' } as NappletMessage, send);
     await flush();
 
-    expect(options.open).toHaveBeenCalledWith(REQUEST, { windowId: WINDOW_ID });
-    expect(options.write).toHaveBeenCalledWith('serial-session-1', [1, 2, 3], { windowId: WINDOW_ID });
-    expect(options.close).toHaveBeenCalledWith('serial-session-1', 'done', { windowId: WINDOW_ID });
+    expect(options.open).toHaveBeenCalledWith(REQUEST, expect.objectContaining({ windowId: WINDOW_ID }));
+    expect(options.write).toHaveBeenCalledWith('serial-session-1', [1, 2, 3], expect.objectContaining({ windowId: WINDOW_ID }));
+    expect(options.close).toHaveBeenCalledWith('serial-session-1', 'done', expect.objectContaining({ windowId: WINDOW_ID }));
     expect(sent).toEqual([
       { type: 'serial.open.result', id: 'open-2', session: OPEN_RESULT.session },
       { type: 'serial.write.result', id: 'write-2' },
       { type: 'serial.close.result', id: 'close-2' },
+    ]);
+  });
+
+  it('lets the host deliver serial data and lifecycle events', async () => {
+    const service = createSerialService({
+      open: (_request, context) => {
+        context.emit({ type: 'state', sessionId: 'serial-session-1', state: 'open' });
+        context.emit({ type: 'data', sessionId: 'serial-session-1', data: [4, 5, 6] });
+        return OPEN_RESULT;
+      },
+    });
+    const { sent, send } = collectSent();
+
+    service.handleMessage(WINDOW_ID, { type: 'serial.open', id: 'open-events', request: REQUEST } as NappletMessage, send);
+    await flush();
+
+    expect(sent).toEqual([
+      { type: 'serial.open.result', id: 'open-events', session: OPEN_RESULT.session },
+      { type: 'serial.event', event: { type: 'state', sessionId: 'serial-session-1', state: 'open' } },
+      { type: 'serial.event', event: { type: 'data', sessionId: 'serial-session-1', data: [4, 5, 6] } },
+    ]);
+  });
+
+  it('suppresses serial events after their session closes or window is destroyed', async () => {
+    const contexts: SerialServiceContext[] = [];
+    const service = createSerialService({
+      open: (_request, context) => {
+        contexts.push(context);
+        return OPEN_RESULT;
+      },
+      close: vi.fn(),
+    });
+    const { sent, send } = collectSent();
+
+    service.handleMessage(WINDOW_ID, { type: 'serial.open', id: 'open-before-close', request: REQUEST } as NappletMessage, send);
+    await flush();
+    service.handleMessage(WINDOW_ID, { type: 'serial.close', id: 'close-1', sessionId: 'serial-session-1' } as NappletMessage, send);
+    await flush();
+    contexts[0]!.emit({ type: 'data', sessionId: 'serial-session-1', data: [1] });
+
+    service.handleMessage(WINDOW_ID, { type: 'serial.open', id: 'open-before-destroy', request: REQUEST } as NappletMessage, send);
+    await flush();
+    service.onWindowDestroyed?.(WINDOW_ID);
+    contexts[1]!.emit({ type: 'data', sessionId: 'serial-session-1', data: [2] });
+
+    expect(sent).toEqual([
+      { type: 'serial.open.result', id: 'open-before-close', session: OPEN_RESULT.session },
+      { type: 'serial.close.result', id: 'close-1' },
+      { type: 'serial.open.result', id: 'open-before-destroy', session: OPEN_RESULT.session },
+    ]);
+  });
+
+  it('suppresses a destroyed window context after that window id is reused', async () => {
+    let resolveFirstOpen!: (result: SerialOpenResult) => void;
+    let firstContext!: SerialServiceContext;
+    let opens = 0;
+    const service = createSerialService({
+      open: (_request, context) => {
+        opens += 1;
+        if (opens === 1) {
+          firstContext = context;
+          return new Promise<SerialOpenResult>((resolve) => { resolveFirstOpen = resolve; });
+        }
+        return OPEN_RESULT;
+      },
+    });
+    const { sent, send } = collectSent();
+
+    service.handleMessage(WINDOW_ID, { type: 'serial.open', id: 'first-open', request: REQUEST } as NappletMessage, send);
+    service.onWindowDestroyed?.(WINDOW_ID);
+    service.handleMessage(WINDOW_ID, { type: 'serial.open', id: 'second-open', request: REQUEST } as NappletMessage, send);
+    await flush();
+
+    resolveFirstOpen(OPEN_RESULT);
+    await flush();
+    firstContext.emit({ type: 'data', sessionId: 'serial-session-1', data: [9] });
+
+    expect(sent).toEqual([
+      { type: 'serial.open.result', id: 'second-open', session: OPEN_RESULT.session },
     ]);
   });
 

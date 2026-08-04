@@ -75,20 +75,30 @@ export type {
 export type { MediaAction } from '@napplet/nap/media/types';
 
 export { createNotifyService } from './notify-service.js';
-export type { NotifyServiceOptions } from './notify-service.js';
+export type {
+  NotifyInteractionMessage,
+  NotifyPresentation,
+  NotifyServiceOptions,
+} from './notify-service.js';
 
 export { createThemeService } from './theme-service.js';
 export type { ThemeServiceOptions, ThemeService } from './theme-service.js';
 
-export { createConfigService } from './config-service.js';
+export {
+  createConfigService,
+  resolveConfigValues,
+  validateConfigSchema,
+} from './config-service.js';
 export type {
+  ConfigSettingsContext,
   ConfigServiceOptions,
   ConfigService,
   ConfigSchemaValidation,
 } from './config-service.js';
 
-export { createResourceService } from './resource-service.js';
+export { createResourceService, ResourceServiceError } from './resource-service.js';
 export type {
+  ResourceErrorCode,
   ResourceInfo,
   ResourceInfoContext,
   ResourceInfoProvider,
@@ -286,3 +296,12 @@ export type {
   DmSubscription,
   DmTimestamp,
 } from './dm-types.js';
+
+export { createFsService, FsServiceError } from './fs-service.js';
+export type {
+  FsBackend,
+  FsBackendChange,
+  FsBackendWatch,
+  FsService,
+  FsServiceOptions,
+} from './fs-service.js';

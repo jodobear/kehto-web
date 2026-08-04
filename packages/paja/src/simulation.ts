@@ -26,6 +26,8 @@ export type PajaCapabilityDomain =
   | 'serial'
   | 'ble'
   | 'webrtc'
+  | 'dm'
+  | 'fs'
   | 'cvm'
   | 'inc';
 
@@ -174,6 +176,8 @@ export const PAJA_SIMULATION_DOMAINS: readonly PajaCapabilityDomain[] = [
   'serial',
   'ble',
   'webrtc',
+  'dm',
+  'fs',
   'cvm',
   'inc',
 ];
@@ -218,6 +222,7 @@ export function normalizePajaSimulation(
   if (relayMode === 'disabled') {
     domains.relay = false;
     domains.outbox = false;
+    domains.dm = false;
   }
 
   const uploadMode = raw?.upload?.mode ?? (domains.upload ? 'memory' : 'disabled');
@@ -232,7 +237,10 @@ export function normalizePajaSimulation(
   }
   if (!intentEnabled) domains.intent = false;
 
-  if (!domains.relay) domains.count = false;
+  if (!domains.relay) {
+    domains.count = false;
+    domains.dm = false;
+  }
 
   const mediaEnabled = raw?.media?.enabled ?? domains.media;
   if (!domains.media && mediaEnabled) {
@@ -256,7 +264,7 @@ export function normalizePajaSimulation(
   if (!domains.storage && storageMode !== 'disabled') {
     throw new PajaSimulationError('Invalid simulation: storage.mode must be "disabled" when capabilities.domains.storage is false.');
   }
-  if (storageMode === 'disabled') domains.storage = false;
+  if (storageMode !== 'local') domains.storage = false;
 
   const identityMode = raw?.identity?.mode ?? 'anonymous';
   const pubkey = raw?.identity?.pubkey?.trim() ?? '';
@@ -271,6 +279,17 @@ export function normalizePajaSimulation(
   for (const url of relayUrls) {
     if (typeof url !== 'string' || url.trim().length === 0) {
       throw new PajaSimulationError('Invalid simulation: relay.urls entries must be non-empty strings.');
+    }
+    if (relayMode === 'live') {
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        throw new PajaSimulationError('Invalid simulation: live relay URLs must be absolute ws: or wss: URLs.');
+      }
+      if ((parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') || parsed.username || parsed.password) {
+        throw new PajaSimulationError('Invalid simulation: live relay URLs must be credential-free ws: or wss: URLs.');
+      }
     }
   }
 

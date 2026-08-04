@@ -28,12 +28,13 @@ page, and host config surface. Local target-url mode keeps one target iframe
 with a reload loop and a development console wired through a real
 `ShellBridge`, `@kehto/runtime`, and service adapters for the current web NAP
 surface: relay/outbox, storage, identity, keys, config, resource, theme, notify,
-media, upload, intent, cvm, and inc. Relay/outbox defaults to live public relays
+media, upload, intent, count, link, common, lists, serial, BLE, WebRTC, DM, FS,
+CVM, and inc. Relay/outbox defaults to live public relays
 and uses NIP-65 relay-list bootstrap plus kind `3` contact-list reads for
 identity flows; `--relay-mode memory` is the explicit deterministic fixture
-mode. `shell` is the mandatory, non-toggleable handshake domain; the deprecated legacy package
-path remains an upstream compatibility alias to `inc`. The upstream `dm` domain
-is not advertised until Paja wires a deterministic development DM backend.
+mode and does not advertise relay, outbox, count, or DM. `shell` is the
+mandatory, non-toggleable handshake domain; the deprecated legacy package path
+remains an upstream compatibility alias to `inc`.
 
 ## Dev-server CORS requirement
 
@@ -60,12 +61,59 @@ The console shows supported interfaces with per-domain injection toggles,
 runtime ACL controls, signer controls, and a filterable message log with visible
 error details. Paja auto-connects a browser NIP-07 signer when `window.nostr` is
 available, can connect to a bunker/NIP-46 URI, and only uses the generated local
-development signer when the Dev signer button is selected. Every signing or
-publish operation still uses a browser confirmation prompt. There is no bypass
-list. A denied prompt or a live publish with no accepting relay returns a
-canonical failure and is not added to Paja's in-memory relay view. Paja's
-scoped-relay hook likewise waits for the backend result and returns `false`
-after denial or transport failure.
+development signer when the Dev signer button is selected. Sign, publish, DM
+send, filesystem picker, Blossom upload, and external-link requests use one serialized in-page
+confirmation dialog. Deny has initial focus, Escape denies, and there is no
+bypass list. Upload consent identifies the requesting napplet, file, MIME type,
+size, selected server, and durable public effect before bytes leave the browser.
+A denial or a live publish with no accepting relay returns a canonical failure
+and is not added to Paja's in-memory relay view. Paja's scoped-relay hook
+likewise waits for the backend result and returns `false` after denial or
+transport failure.
+
+WebRTC is advertised only when the host has the browser WebRTC API, a live
+relay boundary, and a connected signer with NIP-44 support. Paja owns the
+`RTCPeerConnection` and data channels, uses signed kind-25050 Nostr events for
+encrypted offer/answer signaling, and asks for explicit session consent with a
+network-metadata warning. Napplets receive only NAP session/events and JSON data
+channel payloads—never SDP, ICE state, relay sockets, or peer-connection objects.
+This implementation tracks pinned
+[NAP-WEBRTC `5fae95dd2c8e59bd06c654e0845656add077dcda`](https://github.com/napplet/naps/blob/5fae95dd2c8e59bd06c654e0845656add077dcda/naps/NAP-WEBRTC.md)
+and the kind/tag conventions in
+[NIP-100 PR #363 at `ead1cd6`](https://github.com/nostr-protocol/nips/pull/363).
+
+DM is advertised only with live relays and Paja's selected Dev signer, whose
+runtime-owned secret key can create and unwrap real NIP-17 gift wraps. Sends
+receive one explicit plaintext/recipient confirmation, publish only verified
+kind-1059 envelopes through the authorized relay path, and reload encrypted
+history from relays rather than treating a memory fixture as persistence.
+Napplets receive normalized NAP-DM messages, never secret keys, seals, rumors,
+or relay sockets. This implementation follows draft
+[NAP-DM `a0a48588`](https://github.com/napplet/naps/blob/a0a48588b3c9caca9540cccec19635b85231a00f/naps/NAP-DM.md).
+
+FS is advertised only after Paja successfully opens the browser's real
+origin-private filesystem. Each verified napplet identity gets a durable OPFS
+`/workspace`; browser file/directory pickers add session-only opaque virtual
+mounts after host approval. The backend implements metadata, directory lists,
+bounded range reads, canonical padded-base64 writes, replace/append/patch,
+revisions and preconditions, recursive mkdir/remove, atomic handle moves when
+the browser supports them, and advisory watches over actual storage. Host
+paths and handles never cross the NIP-5D boundary. This implementation follows
+draft [NAP-FS `b640cf33`](https://github.com/napplet/naps/blob/b640cf337c0481f0f9a0216c00843f797a5c6df6/naps/NAP-FS.md).
+
+Other domains are equally capability-bound. Relay, outbox, and count require
+live relays; count uses NIP-45 `COUNT` without downloading events. Storage
+requires writable `localStorage`; the memory setting is an unadvertised fixture.
+Keys requires a document listener, media requires the browser Media Session
+API, notifications require Paja's host renderer, links require browser
+navigation, and intent requires the installed-catalog/runtime-tab host
+controller. DM also requires the Dev signer and live relays; FS requires a
+successful OPFS probe, while picker calls additionally require the corresponding
+browser API and a host-owned approval click. Missing host boundaries remove
+those domains from `shell.init`.
+Live relay URLs are validated before advertisement, fixture events and local
+publish echoes never enter live reads, and relay event sidecars disclose only
+sources that the relay pool actually observed.
 
 ## Standard identity and social-cache boundary
 
@@ -91,9 +139,10 @@ outside this behavior.
 [NAP-IDENTITY at `6461e4b37c29dc09a20dff35d9515889c4433874`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-IDENTITY.md)
 is byte-identical to the recorded `napplet/naps` master document for this phase.
 Pinned [NAP-OUTBOX at `4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e`](https://github.com/napplet/naps/blob/4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e/naps/NAP-OUTBOX.md)
-together with installed `@napplet/nap@0.29.0` types is the PoC contract because
+together with installed `@napplet/nap@0.31.2` types is the PoC contract because
 current master has no NAP-OUTBOX path. Paja therefore makes no current-master
-OUTBOX conformance claim. Blossom behavior remains Phase 103 scope.
+OUTBOX conformance claim. Blossom upload behavior targets pinned
+[NAP-UPLOAD at `a7cc17463cbf5d9cb87884b31071bc4fc826034c`](https://github.com/napplet/naps/blob/a7cc17463cbf5d9cb87884b31071bc4fc826034c/naps/NAP-UPLOAD.md).
 
 The static Paja Runtime build is served at `/web/paja/` in the GitHub Pages
 artifact. It uses the same browser host and service adapters, but loads verified
@@ -177,11 +226,19 @@ kehto paja \
 }
 ```
 
+Configured `config.values` are only a seed for identities with no saved
+settings. A napplet must register a valid NAP-CONFIG schema before any values
+are delivered. Paja then validates/defaults the seed, persists commits under
+the host-resolved `(dTag, aggregateHash)`, and exposes a shell-owned settings
+dialog; napplets remain read-only. If durable browser storage or that host UI
+is unavailable, Paja does not advertise `config`.
+
 ## NAP-UPLOAD modes
 
-Paja keeps `memory` as the default upload simulator. It returns deterministic
-`kehto-dev://` results and does not store bytes. Opt into real Blossom storage
-with a shell-owned server and an active Dev, NIP-07, or NIP-46 signer:
+Paja keeps `memory` as the default unadvertised upload fixture. It does not
+register `window.napplet.upload`, return success, or store bytes. Opt into real
+Blossom storage with a shell-owned server and an active Dev, NIP-07, or NIP-46
+signer:
 
 ```bash
 kehto paja \

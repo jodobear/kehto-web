@@ -50,7 +50,7 @@ export function renderPajaHtml(config: PajaHostConfig): string {
       button { border: 1px solid var(--line); color: var(--text); background: #20241f; height: 26px; padding: 0 10px; border-radius: 4px; font: inherit; cursor: pointer; }
       button:hover { border-color: var(--accent); }
       label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; }
-      select, input { border: 1px solid var(--line); color: var(--text); background: #20241f; height: 26px; border-radius: 4px; font: inherit; }
+      select, input, textarea { border: 1px solid var(--line); color: var(--text); background: #20241f; min-height: 26px; border-radius: 4px; font: inherit; }
       main { min-height: 0; display: grid; grid-template-columns: var(--paja-console-column) minmax(0, 1fr); }
       .console { min-height: 0; overflow: auto; border-right: 1px solid var(--line); background: #121512; padding: 10px; display: flex; flex-direction: column; gap: 12px; }
       .section { display: grid; gap: 8px; }
@@ -85,7 +85,36 @@ export function renderPajaHtml(config: PajaHostConfig): string {
       .dialog-backdrop[hidden] { display: none; }
       .dialog { width: min(420px, 100%); border: 1px solid var(--line); border-radius: 6px; background: #181b19; box-shadow: 0 18px 60px rgb(0 0 0 / 0.45); padding: 16px; display: grid; gap: 14px; }
       .dialog-title { font-weight: 700; color: var(--text); }
+      .dialog-copy { color: var(--muted); }
+      .dialog-details { margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: 4px; background: #0b0d0b; color: var(--text); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
       .dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+      .confirmation-dialog { width: min(520px, calc(100% - 48px)); max-width: none; border: 0; padding: 0; background: transparent; color: var(--text); }
+      .confirmation-dialog::backdrop { background: rgb(0 0 0 / 0.68); }
+      .config-dialog { width: min(620px, calc(100% - 48px)); max-width: none; max-height: min(760px, calc(100% - 48px)); border: 0; padding: 0; background: transparent; color: var(--text); }
+      .config-dialog::backdrop { background: rgb(0 0 0 / 0.68); }
+      .config-dialog .dialog { width: 100%; max-height: inherit; grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
+      .config-fields { min-height: 0; overflow: auto; display: grid; gap: 12px; }
+      .config-field { display: grid; align-items: stretch; gap: 5px; white-space: normal; }
+      .config-field-label { color: var(--text); font-weight: 600; }
+      .config-field input:not([type="checkbox"]), .config-field select, .config-field textarea { width: 100%; padding: 4px 7px; }
+      .config-field textarea { resize: vertical; }
+      .config-field small, .config-empty { color: var(--muted); }
+      .config-group { margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: 4px; display: grid; gap: 10px; }
+      .config-group legend { color: var(--accent); padding: 0 5px; }
+      .config-error { min-height: 1.4em; color: #e6a5a5; }
+      .paja-notification-center { position: fixed; right: 16px; bottom: 46px; z-index: 10; width: min(360px, calc(100vw - 32px)); display: grid; gap: 8px; pointer-events: none; }
+      .paja-notification { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; background: #181b19; box-shadow: 0 10px 30px rgb(0 0 0 / 0.45); pointer-events: auto; }
+      .paja-notification[data-priority="high"], .paja-notification[data-priority="urgent"] { border-left-color: #e89b5b; }
+      .paja-notification-header { display: flex; align-items: center; gap: 8px; }
+      .paja-notification-origin { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
+      .paja-notification-close { height: 22px; padding: 0 6px; color: var(--muted); font-size: 11px; }
+      .paja-notification-body { height: auto; min-height: 28px; padding: 0; border: 0; background: transparent; display: grid; gap: 3px; text-align: left; }
+      .paja-notification-body:hover { border-color: transparent; }
+      .paja-notification-body span { color: var(--muted); }
+      .paja-notification-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+      .paja-notification-action { height: 24px; }
+      .paja-notification-badges { position: fixed; right: 12px; top: 7px; z-index: 11; display: flex; gap: 6px; pointer-events: none; }
+      .paja-notification-badge { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border: 1px solid #5f724f; border-radius: 999px; background: #24301f; color: var(--text); font-size: 11px; }
       @media (max-width: 900px) {
         .top { grid-template-columns: minmax(0, 1fr); }
         .top-console { display: none; }
@@ -140,6 +169,10 @@ export function renderPajaHtml(config: PajaHostConfig): string {
       </aside>
       ${renderStage(config, targetLabel)}
     </main>
+    <div class="paja-notification-badges" id="paja-notification-badges" aria-label="Napplet notification badges"></div>
+    <section class="paja-notification-center" id="paja-notification-center" aria-label="Napplet notifications" aria-live="polite"></section>
+    ${renderConfirmationDialog()}
+    ${renderConfigDialog()}
     ${renderDuplicateDialog()}
     <footer class="bar bottom">
       <span>mode: <code>${escapeHtml(getModeLabel(config))}</code></span>
@@ -152,6 +185,35 @@ export function renderPajaHtml(config: PajaHostConfig): string {
     <script type="module" src="./__kehto/browser-host.js"></script>
   </body>
 </html>`;
+}
+
+function renderConfirmationDialog(): string {
+  return `<dialog class="confirmation-dialog" id="paja-confirmation-dialog" aria-labelledby="paja-confirmation-title" aria-describedby="paja-confirmation-summary paja-confirmation-details">
+      <div class="dialog">
+        <div class="dialog-title" id="paja-confirmation-title">Confirm Paja request</div>
+        <div class="dialog-copy" id="paja-confirmation-summary"></div>
+        <pre class="dialog-details" id="paja-confirmation-details"></pre>
+        <div class="dialog-actions">
+          <button type="button" id="paja-confirmation-deny">Deny</button>
+          <button type="button" id="paja-confirmation-approve">Approve</button>
+        </div>
+      </div>
+    </dialog>`;
+}
+
+function renderConfigDialog(): string {
+  return `<dialog class="config-dialog" id="paja-config-dialog" aria-labelledby="paja-config-title" aria-describedby="paja-config-description">
+      <div class="dialog">
+        <div class="dialog-title" id="paja-config-title">Napplet settings</div>
+        <div class="dialog-copy" id="paja-config-description"></div>
+        <div class="config-fields" id="paja-config-fields"></div>
+        <div class="config-error" id="paja-config-error" role="alert"></div>
+        <div class="dialog-actions">
+          <button type="button" id="paja-config-cancel">Cancel</button>
+          <button type="button" id="paja-config-save">Save</button>
+        </div>
+      </div>
+    </dialog>`;
 }
 
 function renderStage(config: PajaHostConfig, targetLabel: string): string {

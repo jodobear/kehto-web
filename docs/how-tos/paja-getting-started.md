@@ -38,9 +38,14 @@ localhost origins. When the target would block the frame, Paja logs a
 
 ## 3. Check Identity
 
-The **Signer** panel shows the generated development pubkey. Calls to
-`identity.getPublicKey` return that pubkey by default, so identity-dependent
-napplets can render useful logged-in states while local authoring.
+Paja does not generate or select a development signer by default. It
+auto-connects NIP-07 when a browser provider is available; otherwise the
+**Signer** panel starts disconnected and `identity.getPublicKey` returns the
+empty string until you select **Dev**, connect **NIP-07** or **Bunker**, or
+configure the fixed read-only identity below. NIP-5D keeps signer APIs outside
+the napplet iframe, so every signing path remains shell-mediated; see the
+immutable [NIP-5D authority at
+`eb45dfd7335b7f88cb53781984c553581d2b4c34`](https://github.com/nostr-protocol/nips/blob/eb45dfd7335b7f88cb53781984c553581d2b4c34/5D.md).
 
 For a fixed pubkey, use:
 
@@ -112,10 +117,11 @@ for a local Blossom fixture, which must permit browser CORS preflight, `PUT`,
 
 Paja begins without a writable signer. Select **Dev**, use **NIP-07** to connect
 a browser extension signer, or paste a `bunker://` or `nostrconnect://` URI and
-choose **Bunker** for a NIP-46 signer. Every sign or publish request opens a
-browser confirmation prompt. There is no bypass list and no remembered allow
-rule. A configured fixed pubkey remains read-only unless the connected signer
-proves the same pubkey.
+choose **Bunker** for a NIP-46 signer. Every sign, publish, Blossom upload, or
+external-link request opens Paja's serialized in-page confirmation dialog.
+Deny has initial focus, Escape denies, and there is no bypass list or remembered
+allow rule. A configured fixed pubkey remains read-only unless the connected
+signer proves the same pubkey.
 
 ## More
 

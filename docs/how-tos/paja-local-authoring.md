@@ -71,7 +71,16 @@ The published `@napplet/shim@0.29.2` remains non-shell. Paja therefore retains
 Kehto's host-owned mandatory `window.napplet.shell` prelude, installed before
 one bare `shell.ready`; its first `shell.init` is cached for local `ready()`,
 `supports()`, read-only `services`, and one-shot `onReady()`. `shell` is not a
-manifest-optional toggle, and Paja does not advertise NAP-DM behavior.
+manifest-optional toggle. Optional `dm` follows NIP-5D's truthful-presence rule:
+Paja advertises it only while the **Dev** signer is selected, relay mode is
+`live`, the relay backend is available, and the DM interface toggle is enabled.
+In that state Paja routes NAP-DM through its runtime-owned NIP-17 adapter for
+history, consent-gated send, and live subscriptions; memory relay mode and
+NIP-07/NIP-46/fixed-identity modes do not advertise `dm`. See the immutable
+[NIP-5D authority at
+`eb45dfd7335b7f88cb53781984c553581d2b4c34`](https://github.com/nostr-protocol/nips/blob/eb45dfd7335b7f88cb53781984c553581d2b4c34/5D.md)
+and [NAP-DM at
+`a0a48588b3c9caca9540cccec19635b85231a00f`](https://github.com/napplet/naps/blob/a0a48588b3c9caca9540cccec19635b85231a00f/naps/NAP-DM.md).
 
 ## Allow the Sandboxed Frame's Origin
 
@@ -147,8 +156,10 @@ kehto paja --config kehto.dev.json --theme dark
 
 ## Use Real Blossom Uploads
 
-Paja's default `memory` upload mode is a simulator and stores nothing. Add an
-explicit shell-owned Blossom server for real `window.napplet.upload` traffic:
+Paja's default `memory` upload mode is an unadvertised fixture and stores
+nothing. It does not create `window.napplet.upload` or make
+`shell.supports("upload")` true. Add an explicit shell-owned Blossom server for
+real upload traffic:
 
 ```json
 {
@@ -208,8 +219,8 @@ Paja auto-connects a browser NIP-07 signer when `window.nostr` is available,
 can switch to a bunker/NIP-46 URI, and exposes a Dev signer button for explicit
 synthetic local signing. Without a browser signer, bunker URI, fixed identity, or
 Dev signer selection, `identity.getPublicKey` reports no connected account
-instead of inventing one. Every sign or publish operation prompts in the browser
-before it runs.
+instead of inventing one. Every sign, publish, Blossom upload, or external-link
+request uses Paja's in-page confirmation dialog before it runs.
 
 ## Read Social Data Through Standard NAP Messages
 
@@ -232,9 +243,10 @@ completeness are outside this behavior.
 [NAP-IDENTITY `6461e4b37c29dc09a20dff35d9515889c4433874`](https://github.com/napplet/naps/blob/6461e4b37c29dc09a20dff35d9515889c4433874/naps/NAP-IDENTITY.md)
 is byte-identical to the recorded `napplet/naps` master document. Pinned
 [NAP-OUTBOX `4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e`](https://github.com/napplet/naps/blob/4589a8f9a16d8aa29b3740e2b3b0cdca11e0976e/naps/NAP-OUTBOX.md)
-with installed `@napplet/nap@0.29.0` types is the PoC contract because current
+with installed `@napplet/nap@0.31.2` types is the PoC contract because current
 master has no NAP-OUTBOX path; this is not a current-master OUTBOX conformance
-claim. Blossom behavior remains Phase 103 scope.
+claim. Blossom behavior targets pinned
+[NAP-UPLOAD `a7cc17463cbf5d9cb87884b31071bc4fc826034c`](https://github.com/napplet/naps/blob/a7cc17463cbf5d9cb87884b31071bc4fc826034c/naps/NAP-UPLOAD.md).
 
 The package API reference is generated at
 [docs/api/modules/_kehto_paja.html](../api/modules/_kehto_paja.html).

@@ -8,6 +8,7 @@
 
 import type {
   NappletMessage,
+  SerialEvent,
   SerialOpenRequest,
   SerialOpenResult,
 } from '@napplet/core';
@@ -24,6 +25,8 @@ const SERIAL_SERVICE_VERSION = '1.0.0';
 export interface SerialServiceContext {
   /** Window id of the requesting napplet. */
   windowId: string;
+  /** Emit a runtime-owned serial event back to the requesting napplet. */
+  emit(event: SerialEvent): void;
 }
 
 /** Options for {@link createSerialService}. */
@@ -50,6 +53,16 @@ export interface SerialServiceOptions {
 }
 
 type Send = (msg: NappletMessage) => void;
+
+interface SerialConnection {
+  state: 'opening' | 'open' | 'closed';
+  readonly bufferedEvents: SerialEvent[];
+}
+
+interface SerialWindow {
+  readonly connections: Map<string, SerialConnection>;
+  readonly pendingConnections: Set<SerialConnection>;
+}
 
 const SERIAL_DESCRIPTOR: ServiceDescriptor = {
   name: 'serial',
@@ -89,6 +102,13 @@ function unsupported(resultType: string, id: string): NappletMessage {
   } as NappletMessage;
 }
 
+function createContext(windowId: string, emit: (event: SerialEvent) => void): SerialServiceContext {
+  return {
+    windowId,
+    emit,
+  };
+}
+
 /**
  * Create the NAP-SERIAL reference service.
  *
@@ -96,36 +116,107 @@ function unsupported(resultType: string, id: string): NappletMessage {
  * @returns A runtime service handler for the `serial` domain.
  */
 export function createSerialService(options: SerialServiceOptions = {}): ServiceHandler {
+  const windows = new Map<string, SerialWindow>();
+
+  const currentWindow = (windowId: string): SerialWindow => {
+    const existing = windows.get(windowId);
+    if (existing) return existing;
+    const record: SerialWindow = {
+      connections: new Map<string, SerialConnection>(),
+      pendingConnections: new Set<SerialConnection>(),
+    };
+    windows.set(windowId, record);
+    return record;
+  };
+
+  const emit = (
+    windowId: string,
+    record: SerialWindow,
+    connection: SerialConnection | undefined,
+    send: Send,
+    event: SerialEvent,
+  ): void => {
+    if (!connection || windows.get(windowId) !== record || connection.state === 'closed') return;
+    if (connection.state === 'opening') {
+      connection.bufferedEvents.push(event);
+      return;
+    }
+    send({ type: 'serial.event', event } as NappletMessage);
+  };
+
   return {
     descriptor: SERIAL_DESCRIPTOR,
     handleMessage(windowId: string, message: NappletMessage, send: Send): void {
       const id = (message as NappletMessage & { id?: string }).id ?? '';
-      const context = { windowId };
-
+      const record = currentWindow(windowId);
+      const isCurrent = (): boolean => windows.get(windowId) === record;
+      const currentSend: Send = (outbound) => {
+        if (isCurrent()) send(outbound);
+      };
       if (message.type === 'serial.open') {
         if (!options.open) {
-          send(unsupported('serial.open.result', id));
+          currentSend(unsupported('serial.open.result', id));
           return;
         }
         const serialMessage = message as SerialOpenMessage;
-        settle(
-          () => options.open!(serialMessage.request, context),
-          send,
-          (error) => ({ type: 'serial.open.result', id, error } as NappletMessage),
-          (result) => ({ type: 'serial.open.result', id, session: result.session } as NappletMessage),
-        );
+        const connection: SerialConnection = { state: 'opening', bufferedEvents: [] };
+        record.pendingConnections.add(connection);
+        const context = createContext(windowId, (event) => emit(windowId, record, connection, currentSend, event));
+        let pending: Promise<SerialOpenResult>;
+        try {
+          pending = Promise.resolve(options.open(serialMessage.request, context));
+        } catch (error) {
+          record.pendingConnections.delete(connection);
+          connection.state = 'closed';
+          currentSend({
+            type: 'serial.open.result',
+            id,
+            error: errorMessage(error, 'serial request failed'),
+          } as NappletMessage);
+          return;
+        }
+        void pending
+          .then((result) => {
+            record.pendingConnections.delete(connection);
+            if (!isCurrent() || connection.state === 'closed') return;
+            connection.state = 'open';
+            record.connections.set(result.session.id, connection);
+            currentSend({ type: 'serial.open.result', id, session: result.session } as NappletMessage);
+            if (!isCurrent() || connection.state !== 'open') return;
+            for (const event of connection.bufferedEvents) {
+              if (!isCurrent() || connection.state !== 'open') break;
+              currentSend({ type: 'serial.event', event } as NappletMessage);
+            }
+            connection.bufferedEvents.length = 0;
+          })
+          .catch((error) => {
+            record.pendingConnections.delete(connection);
+            connection.state = 'closed';
+            currentSend({
+              type: 'serial.open.result',
+              id,
+              error: errorMessage(error, 'serial request failed'),
+            } as NappletMessage);
+          });
         return;
       }
 
       if (message.type === 'serial.write') {
         if (!options.write) {
-          send(unsupported('serial.write.result', id));
+          currentSend(unsupported('serial.write.result', id));
           return;
         }
         const serialMessage = message as SerialWriteMessage;
+        const context = createContext(windowId, (event) => emit(
+          windowId,
+          record,
+          record.connections.get(serialMessage.sessionId),
+          currentSend,
+          event,
+        ));
         settle(
           () => options.write!(serialMessage.sessionId, serialMessage.data, context),
-          send,
+          currentSend,
           (error) => ({ type: 'serial.write.result', id, error } as NappletMessage),
           () => ({ type: 'serial.write.result', id } as NappletMessage),
         );
@@ -134,26 +225,46 @@ export function createSerialService(options: SerialServiceOptions = {}): Service
 
       if (message.type === 'serial.close') {
         if (!options.close) {
-          send(unsupported('serial.close.result', id));
+          currentSend(unsupported('serial.close.result', id));
           return;
         }
         const serialMessage = message as SerialCloseMessage;
+        const connection = record.connections.get(serialMessage.sessionId);
+        if (connection) {
+          connection.state = 'closed';
+          record.connections.delete(serialMessage.sessionId);
+        }
+        const context = createContext(windowId, (event) => emit(
+          windowId,
+          record,
+          connection,
+          currentSend,
+          event,
+        ));
         settle(
           () => options.close!(serialMessage.sessionId, serialMessage.reason, context),
-          send,
+          currentSend,
           (error) => ({ type: 'serial.close.result', id, error } as NappletMessage),
           () => ({ type: 'serial.close.result', id } as NappletMessage),
         );
         return;
       }
 
-      send({
+      currentSend({
         type: `${message.type}.error`,
         id,
         error: `Unknown serial method: ${message.type}`,
       } as NappletMessage);
     },
     onWindowDestroyed(windowId: string): void {
+      const record = windows.get(windowId);
+      if (record) {
+        for (const connection of record.connections.values()) connection.state = 'closed';
+        for (const connection of record.pendingConnections) connection.state = 'closed';
+        record.connections.clear();
+        record.pendingConnections.clear();
+        windows.delete(windowId);
+      }
       options.destroyWindow?.(windowId);
     },
   };
